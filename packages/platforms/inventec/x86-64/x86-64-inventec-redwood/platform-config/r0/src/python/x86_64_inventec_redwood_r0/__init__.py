@@ -9,4 +9,15 @@ class OnlPlatform_x86_64_inventec_redwood_r0(OnlPlatformInventec,
 
     def baseconfig(self):
         self.insmod('inv_platform')
+        self.insmod('inv_psoc')
+        self.insmod('inv_cpld')
+        self.insmod('inv_swps')
+        self.insmod('inventec_class')
+        self.insmod('led_device')
+        self.insmod('ports_device')
+        self.insmod('psu_device')
+        self.insmod('fan_device')
+        self.insmod('sensor_device')
+        self.insmod('system_device')
+        self.insmod('inventec_thread')
         return True

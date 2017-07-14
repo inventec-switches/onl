@@ -1,3 +1,4 @@
+#include <linux/module.h>
 #include <asm/io.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
@@ -216,6 +217,7 @@ clean_mux_gpio(void){
     mux_head_p = NULL;
     SWPS_DEBUG("%s: done.\n", __func__);
 }
+EXPORT_SYMBOL(clean_mux_gpio);
 
 
 int
@@ -231,6 +233,7 @@ reset_mux_gpio(void){
     }
     return 0;
 }
+EXPORT_SYMBOL(reset_mux_gpio);
 
 
 int
@@ -270,7 +273,9 @@ err_init_mux_gpio:
     clean_mux_gpio();
     return -1;
 }
+EXPORT_SYMBOL(init_mux_gpio);
 
 
 
+MODULE_LICENSE("GPL");
 

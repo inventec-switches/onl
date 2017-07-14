@@ -1,3 +1,4 @@
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/inventec/redwood/io_expander.h>
@@ -1414,6 +1415,7 @@ create_ioexp_obj(int ioexp_id,
     ioexp_tail_p = ioexp_p;
     return 0;
 }
+EXPORT_SYMBOL(create_ioexp_obj);
 
 
 static int
@@ -1471,6 +1473,7 @@ init_ioexp_objs(void){
     SWPS_DEBUG("%s: done.\n", __func__);
     return 0;
 }
+EXPORT_SYMBOL(init_ioexp_objs);
 
 
 void
@@ -1500,6 +1503,7 @@ clean_ioexp_objs(void){
     ioexp_tail_p = NULL;
     SWPS_DEBUG("%s: done.\n", __func__);
 }
+EXPORT_SYMBOL(clean_ioexp_objs);
 
 
 int
@@ -1517,6 +1521,7 @@ check_ioexp_objs(void){
     }
     return 0;
 }
+EXPORT_SYMBOL(check_ioexp_objs);
 
 
 struct ioexp_obj_s *
@@ -1534,6 +1539,7 @@ get_ioexp_obj(int ioexp_id){
     }
     return result_p;
 }
+EXPORT_SYMBOL(get_ioexp_obj);
 
 
 void
@@ -1546,6 +1552,7 @@ unlock_ioexp_all(void) {
         ioexp_curr_p = ioexp_curr_p->next;
     }
 }
+EXPORT_SYMBOL(unlock_ioexp_all);
 
 
 int
@@ -1559,6 +1566,7 @@ lock_ioexp_all(void) {
     }
     return 0;
 }
+EXPORT_SYMBOL(lock_ioexp_all);
 
 
 int
@@ -1570,6 +1578,7 @@ check_channel_tier_1(void) {
     }
     return 0;
 }
+EXPORT_SYMBOL(check_channel_tier_1);
 
 
 static int
@@ -1666,8 +1675,10 @@ err_resync_ioexp_status_1:
     SWPS_ERR("%s: %s\n", __func__, emsg);
     return -1;
 }
+EXPORT_SYMBOL(resync_channel_tier_1);
 
 
 
 
+MODULE_LICENSE("GPL");
 

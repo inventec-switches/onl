@@ -1,3 +1,4 @@
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/kobject.h>
@@ -145,6 +146,7 @@ alarm_msg_2_user(struct transvr_obj_s *self,
 
     SWPS_ERR("%s on %s.\n", emsg, self->swp_name);
 }
+EXPORT_SYMBOL(alarm_msg_2_user);
 
 
 /* ========== Private functions ==========
@@ -174,6 +176,7 @@ lock_transvr_obj(struct transvr_obj_s *self) {
     mutex_lock(&self->lock);
     self->curr_page = VAL_TRANSVR_PAGE_FREE;
 }
+EXPORT_SYMBOL(lock_transvr_obj);
 
 
 void
@@ -182,6 +185,7 @@ unlock_transvr_obj(struct transvr_obj_s *self) {
     self->curr_page = VAL_TRANSVR_PAGE_FREE;
     mutex_unlock(&self->lock);
 }
+EXPORT_SYMBOL(unlock_transvr_obj);
 
 
 static int
@@ -8084,6 +8088,7 @@ err_create_transvr_fail:
             __func__, err_msg, chan_id, ioexp_virt_offset, transvr_type);
     return NULL;
 }
+EXPORT_SYMBOL(create_transvr_obj);
 
 
 static int
@@ -8166,6 +8171,7 @@ isolate_transvr_obj(struct transvr_obj_s *self) {
     SWPS_INFO("%s: %s be isolated\n", __func__, self->swp_name);
     return 0;
 }
+EXPORT_SYMBOL(isolate_transvr_obj);
 
 
 int
@@ -8184,6 +8190,7 @@ resync_channel_tier_2(struct transvr_obj_s *self) {
     }
     return 0;
 }
+EXPORT_SYMBOL(resync_channel_tier_2);
 
 
 /* -----------------------------------------
@@ -8209,4 +8216,5 @@ resync_channel_tier_2(struct transvr_obj_s *self) {
 
 
 
+MODULE_LICENSE("GPL");
 

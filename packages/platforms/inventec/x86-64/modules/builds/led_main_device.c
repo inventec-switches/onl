@@ -18,6 +18,70 @@
 #include <linux/delay.h>
 #include <linux/inventec/common/inventec_sysfs.h>
 
+
+/* led_onfan_device.c */
+
+ssize_t
+show_attr_common(struct device *dev_p, struct device_attribute *attr_p, char *buf_p);
+
+static ssize_t
+show_attr_location1(struct device *dev_p,
+                   struct device_attribute *attr_p, char *buf_p)
+{
+    return show_attr_common(dev_p, attr_p, buf_p);
+}
+
+static ssize_t
+show_attr_sys_color1(struct device *dev_p,
+                   struct device_attribute *attr_p, char *buf_p)
+{
+    return show_attr_common(dev_p, attr_p, buf_p);
+}
+
+static ssize_t
+show_attr_sys_freq1(struct device *dev_p,
+                   struct device_attribute *attr_p, char *buf_p)
+{
+    return show_attr_common(dev_p, attr_p, buf_p);
+}
+
+static DEVICE_ATTR(location1,    S_IRUGO,        show_attr_location1,     NULL);
+static DEVICE_ATTR(sys_color1,   S_IRUGO,        show_attr_sys_color1,    NULL);
+static DEVICE_ATTR(sys_freq1,    S_IRUGO,        show_attr_sys_freq1,     NULL);
+
+int
+led_onfan_register_attrs(struct device *device_p)
+{
+        char *err_msg = "ERR";
+
+        if (device_create_file(device_p, &dev_attr_location1) < 0) {
+                err_msg = "reg_attr bias_current fail";
+                goto err_led_register_attrs;
+        }
+        if (device_create_file(device_p, &dev_attr_sys_color1) < 0) {
+                err_msg = "reg_attr connector_type fail";
+                goto err_led_register_attrs;
+        }
+        if (device_create_file(device_p, &dev_attr_sys_freq1) < 0) {
+                err_msg = "reg_attr connector_type fail";
+                goto err_led_register_attrs;
+        }
+        return 0;
+
+err_led_register_attrs:
+        printk(KERN_ERR "[%s/%d] %s\n",__func__,__LINE__, err_msg);
+        return -1;
+}
+
+void
+led_onfan_unregister_attrs(struct device *device_p)
+{
+        device_remove_file(device_p, &dev_attr_location1);
+        device_remove_file(device_p, &dev_attr_sys_color1);
+        device_remove_file(device_p, &dev_attr_sys_freq1);
+}
+
+
 /* inventec_sysfs.c */
 static struct class *inventec_class_p = NULL;
 
@@ -655,9 +719,6 @@ led_unregister_attrs(struct device *device_p)
 	device_remove_file(device_p, &dev_attr_sys_color);
 	device_remove_file(device_p, &dev_attr_sys_freq);
 }
-
-extern int  led_onfan_register_attrs(struct device *device_p);
-extern void led_onfan_unregister_attrs(struct device *device_p);
 
 static int
 led_register_device(int led_id)

@@ -18,7 +18,6 @@ class OnlPlatform_x86_64_inventec_redwood_r0(OnlPlatformInventec,
         self.insmod('onie_tlvinfo')
         self.insmod('inv_swps')
         self.insmod('inventec_class')
-        self.insmod('led_onfan_device')
         self.insmod('led_main_device')
         self.insmod('ports_device')
         self.insmod('psu_device')

@@ -10,4 +10,10 @@ class OnlPlatform_x86_64_inventec_lavender_r0(OnlPlatformInventec,
     def baseconfig(self):
         os.system("insmod /lib/modules/`uname -r`/onl/inventec/x86-64-inventec-lavender/gpio-ich.ko gpiobase=0")
         self.insmod('inv_platform')
+        self.insmod('inv_psoc')
+        self.insmod('inv_cpld')
+        self.insmod('inv_mux')
+        self.insmod('io_expander')
+        self.insmod('transceiver')
+        self.insmod('inv_swps')
         return True

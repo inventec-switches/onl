@@ -490,6 +490,7 @@ int read_eeprom( struct i2c_client *pi2c_client, u_int8_t *eeprom)
 
     return ret;
 }
+EXPORT_SYMBOL(read_eeprom);
 
 /*
  *  prog_eeprom
@@ -510,6 +511,7 @@ int prog_eeprom(struct i2c_client *pi2c_client, u_int8_t * eeprom)
     has_been_read = 0;
     return 0;
 }
+EXPORT_SYMBOL(prog_eeprom);
 
 /*
  *  tlvinfo_find_tlv
@@ -568,6 +570,7 @@ bool tlvinfo_decode_tlv(u_int8_t *eeprom, u_int8_t tcode, char* value)
 
     return FALSE;
 }
+EXPORT_SYMBOL(tlvinfo_decode_tlv);
 
 /*
  *  tlvinfo_delete_tlv
@@ -596,6 +599,7 @@ bool tlvinfo_delete_tlv(u_int8_t * eeprom, u_int8_t code)
     }
     return(FALSE);
 }
+EXPORT_SYMBOL(tlvinfo_delete_tlv);
 
 /*
  *  tlvinfo_add_tlv
@@ -707,6 +711,7 @@ bool tlvinfo_add_tlv(u_int8_t * eeprom, int tcode, char * strval)
 
     return(TRUE);
 }
+EXPORT_SYMBOL(tlvinfo_add_tlv);
 
 /*
  * read_sys_eeprom - read the hwinfo from i2c EEPROM

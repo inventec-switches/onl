@@ -133,11 +133,8 @@ static struct pca954x_platform_data mux_data_0_7_3 = {
 
 
 static struct i2c_board_info i2c_device_info0[] __initdata = {
-        {"switch-asic",      0, 0x58, 0, 0, 0},
-        {"cpu-vpd",          0, 0x57, 0, 0, 0},
-        {"usw-vpd",          0, 0x53, 0, 0, 0},
         {"inv_cpld",         0, 0x55, 0, 0, 0},
-        {"pca9548",          0, 0x71, &mux_data_0, 0, 0},	
+        {"pca9548",          0, 0x70, &mux_data_0, 0, 0},	
 };
 
 static struct i2c_board_info i2c_device_info1[] __initdata = {
@@ -161,9 +158,8 @@ static struct i2c_board_info i2c_device_info5[] __initdata = {
 };
 
 static struct i2c_board_info i2c_device_info8[] __initdata = {
-        {"lsw-vpd",         0, 0x54, 0, 0, 0},
         {"inv_cpld",        0, 0x77, 0, 0, 0},
-        {"pca9548",         0, 0x70, &mux_data_0_7, 0, 0},
+        {"pca9548",         0, 0x71, &mux_data_0_7, 0, 0},
 };
 
 static struct i2c_board_info i2c_device_info9[] __initdata = {

@@ -735,7 +735,7 @@ struct inv_port_layout_s redwood_fsl_port_layout[] = {
  * ==========================================
  */
 #ifdef SWPS_LAVENDER
-unsigned lavender_gpio_rest_mux = MUX_RST_GPIO_48_PAC9548;
+unsigned lavender_gpio_rest_mux = MUX_RST_GPIO_69_PAC9548;
 
 struct inv_ioexp_layout_s lavender_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */

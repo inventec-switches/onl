@@ -9,11 +9,32 @@ class OnlPlatform_x86_64_inventec_lavender_r0(OnlPlatformInventec,
 
     def baseconfig(self):
         os.system("insmod /lib/modules/`uname -r`/onl/inventec/x86-64-inventec-lavender/gpio-ich.ko gpiobase=0")
-        self.insmod('inv_platform')
+
+        #self.insmod('inv_platform')
+        os.system("echo pca9548 0x70 > /sys/bus/i2c/devices/i2c-0/new_device")
+        os.system("sleep 1")
+        os.system("echo pca9548 0x71 > /sys/bus/i2c/devices/i2c-8/new_device")
+        os.system("sleep 1")
+        #Upper
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-1/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-2/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-3/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-4/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-5/new_device")
+        os.system("sleep 1")
+        #Lower
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-9/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-10/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-11/new_device")
+        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-12/new_device")
+
         self.insmod('inv_psoc')
+        os.system("echo inv_cpld 0x55 > /sys/bus/i2c/devices/i2c-0/new_device")
+        os.system("echo inv_cpld 0x77 > /sys/bus/i2c/devices/i2c-0/new_device")
         self.insmod('inv_cpld')
         self.insmod('inv_mux')
         self.insmod('io_expander')
         self.insmod('transceiver')
         self.insmod('inv_swps')
+
         return True

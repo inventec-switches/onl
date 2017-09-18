@@ -364,7 +364,7 @@ struct ioexp_map_s ioexp_map_cypress_7abc = {
 
 struct ioexp_map_s ioexp_map_lavender_p01p08_p17p24 = {
 
-    .chip_amount    = 4,
+    .chip_amount    = 3,
     .data_width     = 2,
 
     .map_tx_disable = { {3, 0, 0}, /* map_tx_disable[0] = DIS_QSFP28_P(X)   */
@@ -426,7 +426,7 @@ struct ioexp_map_s ioexp_map_lavender_p01p08_p17p24 = {
 
 struct ioexp_map_s ioexp_map_lavender_p09p16_p25p32 = {
 
-    .chip_amount    = 4,
+    .chip_amount    = 3,
     .data_width     = 2,
 
     .map_tx_disable = { {3, 1, 0}, /* map_tx_disable[0] = DIS_QSFP28_P(X)   */

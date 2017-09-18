@@ -742,22 +742,50 @@ struct inv_ioexp_layout_s lavender_ioexp_layout[] = {
     {0,  IOEXP_TYPE_LAVENDER_P01P08, { {1, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
                                        {1, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
                                        {1, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       {0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, }, }, /* addr[3] = I/O Expander       */
+                                       //{0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
     },
     {1,  IOEXP_TYPE_LAVENDER_P09P16, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
                                        {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
                                        {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       {0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, }, }, /* addr[3] = I/O Expander       */
+                                       //{0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
     },
     {2,  IOEXP_TYPE_LAVENDER_P01P08, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
                                        {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
                                        {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       {0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, }, }, /* addr[3] = I/O Expander       */
+                                       //{0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
     },
     {3,  IOEXP_TYPE_LAVENDER_P09P16, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
                                        {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
                                        {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       {0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, }, }, /* addr[3] = I/O Expander       */
+                                       //{0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
+    },
+    {4,  IOEXP_TYPE_LAVENDER_P01P08, { {9, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {9, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {9, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
+                                       //{0, 0x25, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
+    },
+    {5,  IOEXP_TYPE_LAVENDER_P09P16, { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
+                                       //{0, 0x25, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
+    },
+    {6,  IOEXP_TYPE_LAVENDER_P01P08, { {11, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {11, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {11, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
+                                       //{0, 0x26, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
+    },
+    {7,  IOEXP_TYPE_LAVENDER_P09P16, { {12, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {12, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {12, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
+                                       //{0, 0x26, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+                                     },
     },
 };
 
@@ -795,6 +823,42 @@ struct inv_port_layout_s lavender_port_layout[] = {
     {29,  46,  3,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {117,118,119,120} },
     {30,  47,  3,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {121,122,123,124} },
     {31,  48,  3,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {125,126,127,128} },
+
+    {32,  49,  4,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {129,130,131,132} },
+    {33,  50,  4,  1, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {133,134,135,136} },
+    {34,  51,  4,  2, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {137,138,139,140} },
+    {35,  52,  4,  3, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {141,142,143,144} },
+    {36,  53,  4,  4, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {145,146,147,148} },
+    {37,  54,  4,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {149,150,151,152} },
+    {38,  55,  4,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {153,154,155,156} },
+    {39,  56,  4,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {157,158,159,160} },
+
+    {40,  57,  5,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {161,162,163,164} },
+    {41,  58,  5,  1, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {165,166,167,168} },
+    {42,  59,  5,  2, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {169,170,171,172} },
+    {43,  60,  5,  3, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {173,174,175,176} },
+    {44,  61,  5,  4, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {177,178,179,180} },
+    {45,  62,  5,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {181,182,183,184} },
+    {46,  63,  5,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {185,186,187,188} },
+    {47,  64,  5,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {189,190,191,192} },
+
+    {48,  65,  6,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {193,194,195,196} },
+    {49,  66,  6,  1, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {197,198,199,200} },
+    {50,  67,  6,  2, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {201,202,203,204} },
+    {51,  68,  6,  3, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {205,206,207,208} },
+    {52,  69,  6,  4, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {209,210,211,212} },
+    {53,  70,  6,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {213,214,215,216} },
+    {54,  71,  6,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {217,218,219,220} },
+    {55,  72,  6,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {221,222,223,224} },
+
+    {56,  73,  7,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {225,226,227,228} },
+    {57,  74,  7,  1, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {229,230,231,232} },
+    {58,  75,  7,  2, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {233,234,235,236} },
+    {59,  76,  7,  3, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {237,238,239,240} },
+    {60,  77,  7,  4, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {241,242,243,244} },
+    {61,  78,  7,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {245,246,247,248} },
+    {62,  79,  7,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {249,250,251,252} },
+    {63,  80,  7,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {253,254,255,256} },
 };
 #endif
 

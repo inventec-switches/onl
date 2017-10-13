@@ -76,7 +76,7 @@ if ! /bin/ifup; then
     msg_error "The network settings indicated in the boot-config could not be applied."
     echo $(cat /etc/onl/NET)
     echo
-    tryagain
+    #tryagain
 fi
 
 

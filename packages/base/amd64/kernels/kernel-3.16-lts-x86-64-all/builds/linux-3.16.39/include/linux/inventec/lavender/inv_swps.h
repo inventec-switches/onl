@@ -739,55 +739,47 @@ unsigned lavender_gpio_rest_mux = MUX_RST_GPIO_69_PAC9548;
 
 struct inv_ioexp_layout_s lavender_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
-    {0,  IOEXP_TYPE_LAVENDER_P01P08, { {1, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {1, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {1, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {0,  IOEXP_TYPE_LAVENDER_P01P08, { {1, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {1, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {1, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {1,  IOEXP_TYPE_LAVENDER_P09P16, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x23, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {1,  IOEXP_TYPE_LAVENDER_P09P16, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {2,  IOEXP_TYPE_LAVENDER_P01P08, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {2,  IOEXP_TYPE_LAVENDER_P01P08, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {3,  IOEXP_TYPE_LAVENDER_P09P16, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x24, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {3,  IOEXP_TYPE_LAVENDER_P09P16, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {4,  IOEXP_TYPE_LAVENDER_P01P08, { {9, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {9, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {9, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x25, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {4,  IOEXP_TYPE_LAVENDER_P01P08, { {9, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {9, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {9, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {5,  IOEXP_TYPE_LAVENDER_P09P16, { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x25, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {5,  IOEXP_TYPE_LAVENDER_P09P16, { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {6,  IOEXP_TYPE_LAVENDER_P01P08, { {11, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {11, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {11, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x26, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {6,  IOEXP_TYPE_LAVENDER_P01P08, { {11, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {11, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {11, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {7,  IOEXP_TYPE_LAVENDER_P09P16, { {12, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[0] = I/O Expander 1-4 A */
-                                       {12, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0x0f}, },    /* addr[1] = I/O Expander 1-4 B */
-                                       {12, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
-                                       //{0, 0x26, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
+    {7,  IOEXP_TYPE_LAVENDER_P09P16, { {12, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 1-4 A */
+                                       {12, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0x00}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 1-4 B */
+                                       {12, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, },    /* addr[2] = I/O Expander 1-4 C */
                                      },
     },
-    {8,  IOEXP_TYPE_LAVENDER_P65,    { {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[0] = I/O Expander */
+    {8,  IOEXP_TYPE_LAVENDER_P65,    { {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xf6, 0xff}, {0xf8, 0xff}, },    /* addr[0] = I/O Expander */
                                      },
     },
 };

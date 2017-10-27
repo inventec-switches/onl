@@ -9,7 +9,7 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/dmi.h>
-#include <linux/inventec/d5264q28b/inv_swps.h>
+#include <linux/inventec/lavender/inv_swps.h>
 
 static int ctl_major;
 static int port_major;
@@ -2511,6 +2511,7 @@ register_ioexp_attr(struct device *device_p,
         case IOEXP_TYPE_HUDSON32IGA_P09P16:
         case IOEXP_TYPE_LAVENDER_P01P08:
         case IOEXP_TYPE_LAVENDER_P09P16:
+        case IOEXP_TYPE_LAVENDER_P65:
             if (register_ioexp_attr_qsfp_1(device_p) < 0){
                 err_msg = "register_ioexp_attr_qsfp_1 fail";
                 goto err_reg_ioexp_attr;

@@ -18,6 +18,7 @@
 #define IOEXP_TYPE_CYPRESS_7ABC       (10207)
 #define IOEXP_TYPE_LAVENDER_P01P08    (10208)
 #define IOEXP_TYPE_LAVENDER_P09P16    (10209)
+#define IOEXP_TYPE_LAVENDER_P65       (10210)
 
 /* IOEXP mode define */
 #define IOEXP_MODE_POLLING            (19000)

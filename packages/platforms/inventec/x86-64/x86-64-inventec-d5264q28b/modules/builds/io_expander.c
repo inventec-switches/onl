@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
-#include <linux/inventec/d5264q28b/io_expander.h>
+#include <linux/inventec/lavender/io_expander.h>
 
 static struct ioexp_obj_s *ioexp_head_p = NULL;
 static struct ioexp_obj_s *ioexp_tail_p = NULL;
@@ -483,6 +483,17 @@ struct ioexp_map_s ioexp_map_lavender_p09p16_p25p32 = {
                         {2, 1, 6}, /* map_present[6] = MOD_ABS_PORT(X+6) */
                         {2, 1, 7}, /* map_present[7] = MOD_ABS_PORT(X+7) */
     },
+};
+
+struct ioexp_map_s ioexp_map_lavender_p65 = {
+    .chip_amount    = 1,
+    .data_width     = 2,
+    .map_modsel     = { {0, 0, 0} }, /* map_modsel[0] = MODSEL_QSFP28_N_P(X)   */
+    .map_reset      = { {0, 0, 1} }, /* map_reset[0] = QRESET_QSFP28_N_P(X)   */
+    .map_lpmod      = { {0, 0, 2} }, /* map_lpmod[0] = LPMODE_QSFP28_P(X)   */
+    .map_rxlos      = { {0, 0, 3} }, /* map_rxlos[0] = OPRXLOS_PORT(X)   */
+    .map_present    = { {0, 0, 4} }, /* map_present[0] = MOD_ABS_PORT(X)   */
+    .map_tx_disable = { {0, 0, 5} }, /* map_tx_disable[0] = DIS_QSFP28_P(X)   */
 };
 
 
@@ -1200,6 +1211,8 @@ get_ioexp_map(int ioexp_type){
             return &ioexp_map_lavender_p01p08_p17p24;
 	case IOEXP_TYPE_LAVENDER_P09P16:
 	    return &ioexp_map_lavender_p09p16_p25p32;
+        case IOEXP_TYPE_LAVENDER_P65:
+            return &ioexp_map_lavender_p65;
 
         default:
             return NULL;
@@ -1309,6 +1322,7 @@ setup_ioexp_public_cb(struct ioexp_obj_s *self,
         case IOEXP_TYPE_HUDSON32IGA_P09P16:
         case IOEXP_TYPE_LAVENDER_P01P08:
         case IOEXP_TYPE_LAVENDER_P09P16:
+        case IOEXP_TYPE_LAVENDER_P65:
             self->get_present    = common_get_present;
             self->get_tx_fault   = ioexp_get_not_support;
             self->get_rxlos      = ioexp_get_not_support;
@@ -1350,6 +1364,7 @@ setup_ioexp_private_cb(struct ioexp_obj_s *self,
         case IOEXP_TYPE_CYPRESS_7ABC:
         case IOEXP_TYPE_LAVENDER_P01P08:
         case IOEXP_TYPE_LAVENDER_P09P16:
+        case IOEXP_TYPE_LAVENDER_P65:
             self->init           = common_ioexp_init;
             self->check          = common_ioexp_check;
             self->update_all     = common_ioexp_update_all;

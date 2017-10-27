@@ -787,6 +787,9 @@ struct inv_ioexp_layout_s lavender_ioexp_layout[] = {
                                        //{0, 0x26, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[3] = I/O Expander       */
                                      },
     },
+    {8,  IOEXP_TYPE_LAVENDER_P65,    { {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xff, 0xff}, },    /* addr[0] = I/O Expander */
+                                     },
+    },
 };
 
 struct inv_port_layout_s lavender_port_layout[] = {
@@ -859,6 +862,7 @@ struct inv_port_layout_s lavender_port_layout[] = {
     {61,  78,  7,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {245,246,247,248} },
     {62,  79,  7,  6, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {249,250,251,252} },
     {63,  80,  7,  7, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {253,254,255,256} },
+    {64,   5,  8,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {257,258,259,260} },
 };
 #endif
 

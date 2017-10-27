@@ -109,6 +109,9 @@ ap.add_argument("--command", "-c",
                 nargs=argparse.REMAINDER,
                 default=['bash'])
 
+ap.add_argument("--proxy",
+                help="HTTP proxy")
+
 ops = ap.parse_args()
 
 if ops.debian7:
@@ -193,9 +196,12 @@ else:
       if 'home' in g_arg_d:
          g_docker_arguments += " -e HOME=%(home)s -v %(home)s:%(home)s" % g_arg_d
 
-g_arg_d['cacher'] = "--start-cacher" if ops.isolate else ""
 
-g_docker_arguments += " %(image)s /bin/docker_shell --user %(user)s %(cacher)s -c %(commands)s" % g_arg_d
+if ops.proxy is not None:
+   g_docker_arguments += " %(image)s docker/tools/docker_shell --user %(user)s --start-cacher --proxy \"%(proxy)s\" -c %(commands)s" % g_arg_d
+else:
+   g_arg_d['cacher'] = "--start-cacher" if ops.isolate else ""
+   g_docker_arguments += " %(image)s /bin/docker_shell --user %(user)s %(cacher)s -c %(commands)s" % g_arg_d
 
 g_docker_arguments = " ".join(g_docker_arguments.split())
 logger.debug("running: %s" % g_docker_arguments)

@@ -137,6 +137,9 @@ ap.add_argument('--command', '-c',
                 help="The command to run. All arguments after this option are considered part of the command.",
                 nargs=argparse.REMAINDER,
                 default=["/bin/bash"])
+ap.add_argument("--proxy",
+                help="HTTP proxy",
+                default=[])
 
 ops = ap.parse_args()
 opsdict = vars(ops)
@@ -150,6 +153,15 @@ g_user.add()
 
 for u in ops.addusers:
     User(u).add()
+
+if ops.proxy is not None:
+   execute("sudo echo 'Acquire::http::Proxy \"" + ops.proxy + "\";' > /etc/apt/apt.conf.d/30proxy")
+   execute("sudo echo 'Acquire::http::Proxy::127.0.0.1 DIRECT;' >> /etc/apt/apt.conf.d/30proxy");
+   execute("sudo echo 'Proxy: " + ops.proxy + "' >> /etc/apt-cacher-ng/acng.conf");
+   execute("sudo sed -i \"s/^CacheDir/#CacheDir/\" /etc/apt-cacher-ng/zz_debconf.conf");
+   execute("sudo echo 'CacheDir: '" + os.getcwd() + "/MIRROR >> /etc/apt-cacher-ng/zz_debconf.conf");
+   execute("sudo mkdir -m u=rwx,go=rx,g+s " + os.getcwd() + "/MIRROR"); 
+   execute("sudo chown apt-cacher-ng.apt-cacher-ng " + os.getcwd() + "/MIRROR");
 
 if ops.start_cacher:
     execute("/etc/init.d/apt-cacher-ng start", "The apt-cacher-ng service could not be started.")

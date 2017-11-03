@@ -20,7 +20,6 @@ class OnlPlatform_x86_64_inventec_lavender_r0(OnlPlatformInventec,
         os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-2/new_device")
         os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-3/new_device")
         os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-4/new_device")
-        os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-5/new_device")
         os.system("sleep 1")
         #Lower
         os.system("echo pca9548 0x72 > /sys/bus/i2c/devices/i2c-9/new_device")

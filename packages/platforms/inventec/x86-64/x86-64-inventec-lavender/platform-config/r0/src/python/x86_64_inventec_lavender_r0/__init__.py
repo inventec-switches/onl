@@ -36,4 +36,7 @@ class OnlPlatform_x86_64_inventec_lavender_r0(OnlPlatformInventec,
         self.insmod('transceiver')
         self.insmod('inv_swps')
 
+        os.system("echo 1 > /sys/bus/i2c/devices/i2c-0/0-0055/ctl")
+        os.system("echo 7 > /sys/bus/i2c/devices/i2c-0/0-0055/grn_led")
+
         return True

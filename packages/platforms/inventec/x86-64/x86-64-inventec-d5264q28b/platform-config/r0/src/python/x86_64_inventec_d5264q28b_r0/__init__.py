@@ -35,6 +35,8 @@ class OnlPlatform_x86_64_inventec_d5264q28b_r0(OnlPlatformInventec,
         self.insmod('io_expander')
         self.insmod('transceiver')
         self.insmod('inv_swps')
+	self.insmod('onie_tlvinfo')
+	self.insmod('inv_vpd')
 
         os.system("echo 1 > /sys/bus/i2c/devices/i2c-0/0-0055/ctl")
         os.system("echo 7 > /sys/bus/i2c/devices/i2c-0/0-0055/grn_led")

@@ -38,7 +38,6 @@ class OnlPlatform_x86_64_inventec_d5264q28b_r0(OnlPlatformInventec,
 	self.insmod('onie_tlvinfo')
 	self.insmod('inv_vpd')
 
-        os.system("echo 1 > /sys/bus/i2c/devices/i2c-0/0-0055/ctl")
-        os.system("echo 7 > /sys/bus/i2c/devices/i2c-0/0-0055/grn_led")
+	os.system("/lib/platform-config/x86-64-inventec-d5264q28b-r0/onl/healthstatus.sh &")
 
         return True

@@ -11,12 +11,13 @@
 
 import pprint
 import json
-import os
+import os, sys
 import re
 import yaml
 import onl.YamlUtils
 import subprocess
 import platform
+import ast
 
 class OnlInfoObject(object):
     DEFAULT_INDENT="    "
@@ -164,6 +165,7 @@ class OnlPlatformBase(object):
             except ValueError, e:
                 if required:
                     raise e
+                self.add_info_dict(name, {}, klass)
         elif required:
             raise RuntimeError("A required system file (%s) is missing." % f)
 
@@ -255,9 +257,11 @@ class OnlPlatformBase(object):
         mc = self.basedir_onl("etc/onie/machine.json")
         if not os.path.exists(mc):
             data = {}
-            mcconf = subprocess.check_output("""onie-shell -c "cat /etc/machine.conf" """, shell=True)
+            mcconf = subprocess.check_output("""onie-shell -c "IFS=; . /etc/machine.conf; set | egrep ^onie_.*=" """, shell=True)
             for entry in mcconf.split():
                 (k,e,v) = entry.partition('=')
+                if v and (v.startswith("'") or v.startswith('"')):
+                    v = ast.literal_eval(v)
                 if e:
                     data[k] = v
 
@@ -354,36 +358,37 @@ class OnlPlatformBase(object):
         return self.platform_info.CPLD_VERSIONS
 
     def dmi_versions(self):
-        # Note - the dmidecode module returns empty lists for powerpc systems.
-        if platform.machine() != "x86_64":
-            return {}
-
-        try:
-            import dmidecode
-        except ImportError:
-            return {}
-
-        fields = [
-            {
-                'name': 'DMI BIOS Version',
-                'subsystem': dmidecode.bios,
-                'dmi_type' : 0,
-                'key' : 'Version',
-                },
-
-            {
-                'name': 'DMI System Version',
-                'subsystem': dmidecode.system,
-                'dmi_type' : 1,
-                'key' : 'Version',
-                },
-            ]
         rv = {}
-        for field in fields:
-                for v in field['subsystem']().values():
-                        if type(v) is dict and v['dmi_type'] == field['dmi_type']:
-                                rv[field['name']] = v['data'][field['key']]
+        arches = [ 'x86_64' ]
+        if platform.machine() in arches:
+            try:
+                import dmidecode
+                fields = [
+                    {
+                        'name': 'DMI BIOS Version',
+                        'subsystem': dmidecode.bios,
+                        'dmi_type' : 0,
+                        'key' : 'Version',
+                    },
 
+                    {
+                        'name': 'DMI System Version',
+                        'subsystem': dmidecode.system,
+                        'dmi_type' : 1,
+                        'key' : 'Version',
+                    },
+                ]
+                # Todo -- disable dmidecode library warnings to stderr
+                # or figure out how to clear the warning log in the decode module.
+                for field in fields:
+                    for v in field['subsystem']().values():
+                        if type(v) is dict and v['dmi_type'] == field['dmi_type']:
+                            rv[field['name']] = v['data'][field['key']]
+            except:
+                pass
+            finally:
+                if 'dmidecodemod' in sys.modules:
+                    sys.modules['dmidecodemod'].clear_warnings()
         return rv
 
     def upgrade_manifest(self, type_, override_dir=None):
@@ -475,6 +480,10 @@ class OnlPlatformPortConfig_48x1_4x10(object):
     PORT_COUNT=52
     PORT_CONFIG="48x1 + 4x10"
 
+class OnlPlatformPortConfig_48x1_2x10(object):
+    PORT_COUNT=50
+    PORT_CONFIG="48x1 + 2x10"
+
 class OnlPlatformPortConfig_48x10_4x40(object):
     PORT_COUNT=52
     PORT_CONFIG="48x10 + 4x40"
@@ -482,6 +491,10 @@ class OnlPlatformPortConfig_48x10_4x40(object):
 class OnlPlatformPortConfig_48x10_6x40(object):
     PORT_COUNT=54
     PORT_CONFIG="48x10 + 6x40"
+
+class OnlPlatformPortConfig_48x10_4x100(object):
+    PORT_COUNT=52
+    PORT_CONFIG="48x10 + 4x100"
 
 class OnlPlatformPortConfig_48x25_6x100(object):
     PORT_COUNT=54
@@ -503,6 +516,10 @@ class OnlPlatformPortConfig_32x100(object):
     PORT_COUNT=32
     PORT_CONFIG="32x100"
 
+class OnlPlatformPortConfig_64x100(object):
+    PORT_COUNT=64
+    PORT_CONFIG="64x100"
+
 class OnlPlatformPortConfig_24x1_4x10(object):
     PORT_COUNT=28
     PORT_CONFIG="24x1 + 4x10"
@@ -514,3 +531,7 @@ class OnlPlatformPortConfig_8x1_8x10(object):
 class OnlPlatformPortConfig_48x10_6x100(object):
     PORT_COUNT=54
     PORT_CONFIG="48x10 + 6x100"
+
+class OnlPlatformPortConfig_12x10_3x100(object):
+    PORT_COUNT=15
+    PORT_CONFIG="12x10 + 3x100"

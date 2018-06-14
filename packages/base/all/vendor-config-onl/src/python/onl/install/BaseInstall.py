@@ -17,9 +17,13 @@ import imp
 import fnmatch, glob
 
 from InstallUtils import SubprocessMixin
-from InstallUtils import MountContext, BlkidParser, PartedParser
+from InstallUtils import MountContext, BlkidParser, PartedParser, UbinfoParser
 from InstallUtils import ProcMountsParser
+from InstallUtils import GdiskParser
+from InstallUtils import OnieSubprocess
 from Plugin import Plugin
+
+import onl.install.ConfUtils
 
 import onl.YamlUtils
 from onl.sysconfig import sysconfig
@@ -79,6 +83,7 @@ class Base:
         # keep track of next partition/next block
 
         self.blkidParts = []
+        self.ubiParts = []
         # current scan of partitions and labels
 
         self.partedDevice = None
@@ -509,14 +514,33 @@ menuentry %(boot_menu_entry)s {
   initrd /%(platform)s.cpio.gz
 }
 
+set onie_boot_label="ONIE-BOOT"
+set onie_boot_uuid="%(onie_boot_uuid)s"
+# filesystem UUID, *not* GPT partition GUID, *not* GPT partition unique GUID
+# (tee hee, GPT GRUB cannot grok partition attributes)
+
+function onie_boot_uefi {
+  set root='(hd0,gpt1)'
+  search --no-floppy --fs-uuid --set=root "${onie_boot_uuid}"
+  echo 'Loading ONIE ...'
+  chainloader /EFI/onie/grubx64.efi
+}
+
+function onie_boot_dos {
+  search --no-floppy --label --set=root "${onie_boot_label}"
+  set saved_entry="0"
+  save_env saved_entry
+  echo 'Loading ONIE ...'
+  chainloader +1
+}
+
 # Menu entry to chainload ONIE
 menuentry ONIE {
-  %(set_root_para)s
-  search --no-floppy %(set_search_para2)s --set=root %(onie_boot)s
-  %(set_save_entry_para)s
-  %(set_save_env_para)s
-  echo 'Loading ONIE ...'
-  chainloader %(set_chainloader_para)s
+  if [ -n "${onie_boot_uuid}" ]; then
+    onie_boot_uefi
+  else
+    onie_boot_dos
+  fi
 }
 """
 
@@ -528,7 +552,14 @@ class GrubInstaller(SubprocessMixin, Base):
 
     def __init__(self, *args, **kwargs):
         Base.__init__(self, *args, **kwargs)
-        self.isUEFI = False
+
+        self.espDevice = None
+        self.espFsUuid = None
+        # optionally fill in ESP partition information
+
+    @property
+    def isUEFI(self):
+        return os.path.isdir('/sys/firmware/efi/efivars')
 
     def findGpt(self):
         self.blkidParts = BlkidParser(log=self.log.getChild("blkid"))
@@ -612,6 +643,42 @@ class GrubInstaller(SubprocessMixin, Base):
 
         return 0
 
+    def findEsp(self):
+        """Find the block device holding the EFI System Partition.
+
+        XXX assume boot (ESP) partition is on the same device as GRUB
+        """
+
+        self.log.info("extracting partition UUIDs for %s", self.device)
+
+        if isinstance(self.im.grubEnv, onl.install.ConfUtils.GrubEnv):
+            # direct (or chroot) access
+            gp = GdiskParser(self.device,
+                             subprocessContext=self.im.grubEnv,
+                             log=self.log)
+        else:
+            # indirect access using onie-shell
+            ctx = OnieSubprocess(log=self.log.getChild("onie"))
+            gp = GdiskParser(self.device,
+                             subprocessContext=ctx,
+                             log=self.log)
+
+        espParts = [x for x in gp.parts if x.isEsp]
+        if not espParts:
+            self.log.error("cannot find ESP partition on %s", self.device)
+            return 1
+        self.espDevice = espParts[0].device
+        self.log.info("found ESP partition %s", self.espDevice)
+
+        espParts = [x for x in self.blkidParts if x.device==self.espDevice]
+        if not espParts:
+            self.log.error("cannot find blkid entry for ESP partition on %s", self.espDevice)
+            return 1
+        self.espFsUuid = espParts[0].uuid
+        self.log.info("found ESP filesystem UUID %s", self.espFsUuid)
+
+        return 0
+
     def installLoader(self):
 
         kernels = []
@@ -659,20 +726,12 @@ class GrubInstaller(SubprocessMixin, Base):
         ctx['boot_loading_name'] = sysconfig.installer.os_name
 
         if self.isUEFI:
-            ctx['set_root_para'] = "set root='(hd0,gpt1)'"
-            ctx['set_search_para2'] = "--fs-uuid"
-            ctx['set_save_entry_para'] = ""
-            ctx['set_save_env_para'] = ""
-            dev_UEFI = self.blkidParts['EFI System']
-            ctx['onie_boot'] = dev_UEFI.uuid
-            ctx['set_chainloader_para'] = "/EFI/onie/grubx64.efi"
+            if not self.espFsUuid:
+                self.log.error("cannnot find ESP UUID")
+                return 1
+            ctx['onie_boot_uuid'] = self.espFsUuid
         else:
-            ctx['set_root_para'] = ""
-            ctx['set_search_para2'] = "--label"
-            ctx['set_save_entry_para'] = "set saved_entry=\"0\""
-            ctx['set_save_env_para'] = "save_env saved_entry"
-            ctx['onie_boot'] = "ONIE-BOOT"
-            ctx['set_chainloader_para'] = "+1"
+            ctx['onie_boot_uuid'] = ""
 
         cf = GRUB_TPL % ctx
 
@@ -688,7 +747,7 @@ class GrubInstaller(SubprocessMixin, Base):
 
     def installGrub(self):
         self.log.info("Installing GRUB to %s", self.partedDevice.path)
-        self.im.grubEnv.install(self.partedDevice.path, self.isUEFI)
+        self.im.grubEnv.install(self.partedDevice.path)
         return 0
 
     def installGpt(self):
@@ -706,6 +765,13 @@ class GrubInstaller(SubprocessMixin, Base):
 
         code = self.findGpt()
         if code: return code
+
+        if self.isUEFI:
+            code = self.findEsp()
+            if code: return code
+            self.im.grubEnv.__dict__['espPart'] = self.espDevice
+        else:
+            self.im.grubEnv.__dict__['espPart'] = None
 
         self.log.info("Installing to %s starting at partition %d",
                       self.device, self.minpart)
@@ -775,8 +841,6 @@ class GrubInstaller(SubprocessMixin, Base):
         if label != 'gpt':
             self.log.error("invalid GRUB label in platform config: %s", label)
             return 1
-        if os.path.isdir('/sys/firmware/efi/efivars'):
-            self.isUEFI = True
 
         return self.installGpt()
 
@@ -784,6 +848,16 @@ class GrubInstaller(SubprocessMixin, Base):
         """Upgrade the boot loader settings."""
 
         self.blkidParts = BlkidParser(log=self.log.getChild("blkid"))
+
+        code = self.findGpt()
+        if code: return code
+
+        if self.isUEFI:
+            code = self.findEsp()
+            if code: return code
+            self.im.grubEnv.__dict__['espPart'] = self.espDevice
+        else:
+            self.im.grubEnv.__dict__['espPart'] = None
 
         code = self.installGrubCfg()
         if code: return code
@@ -793,7 +867,203 @@ class GrubInstaller(SubprocessMixin, Base):
     def shutdown(self):
         Base.shutdown(self)
 
-class UbootInstaller(SubprocessMixin, Base):
+class UBIfsCreater(SubprocessMixin, Base):
+    
+    def __init__(self, *args, **kwargs):
+        Base.__init__(self, *args, **kwargs)
+        self.log = logging.getLogger("ubinfo -a")
+        self.device = self.im.getDevice()
+        self.ubiParts = None
+    """Set up an UBI file system."""
+
+    def ubifsinit(self):
+        UNITS = {
+            'GiB' : 1024 * 1024 * 1024,
+            'G' : 1000 * 1000 * 1000,
+            'MiB' : 1024 * 1024,
+            'M' : 1000 * 1000,
+            'KiB' : 1024,
+            'K' : 1000,
+        }
+        try:
+            code = 0
+            if not code:
+                mtd_num = self.device[-1]
+                cmd = ('ubiformat', '/dev/mtd' + mtd_num)
+                self.check_call(cmd, vmode=self.V2)
+                cmd = ('ubiattach', '-m', mtd_num, '-d', '0', '/dev/ubi_ctrl',)
+                self.check_call(cmd, vmode=self.V2)
+                for part in self.im.platformConf['installer']:
+                    label, partData = list(part.items())[0]
+                    if type(partData) == dict:
+                        sz, fmt = partData['='], partData.get('format', 'ubifs')
+                    else:
+                        sz, fmt = partData, 'ubifs'
+                    cnt = None
+                    for ul, ub in UNITS.items():
+                        if sz.endswith(ul):
+                            cnt = int(sz[:-len(ul)], 10) * ub
+                            break
+                    if cnt is None:
+                        self.log.error("invalid size (no units) for %s: %s",part, sz)
+                        return 1
+                    label = label.strip()
+                    cmd = ('ubimkvol', '/dev/ubi0', '-N', label, '-s', bytes(cnt),)
+                    self.check_call(cmd, vmode=self.V2)
+        except Exception:
+            self.log.exception("cannot create UBI file systemfrom %s",self.device)
+
+        return 0
+
+    def ubi_mount(self, dir, devpart):
+        
+        if devpart is None:
+            self.log.error("Mount failed.no given mount device part")
+            return 1
+        if dir is None:
+            self.log.error("Mount failed.no given mount directory")
+            return 1
+        if self.ubiParts is None:
+            try:
+                self.ubiParts = UbinfoParser(log=self.log.getChild("ubinfo -a"))
+            except Exception:
+                self.log.exception("Mount failed.No UBIfs")
+                return 1
+        try:
+            dev = self.ubiParts[devpart]
+        except IndexError as ex:
+            self.log.error("Mount failed.cannot find %s partition", str(devpart))
+            return 1
+        self.makedirs(dir)
+        device = "/dev/" + dev['device'] + "_" + dev['Volume ID']
+        if dev['fsType']:
+            cmd = ('mount', '-t', dev['fsType'], device, dir,)
+        else:
+            cmd = ('mount', device, dir,)
+        code = self.check_call(cmd, vmode=self.V2)
+        if code:
+            self.log.error("Mount failed.mount command exect failed")
+            return 1
+        return 0
+
+    def ubi_unmount(self,dir=None):
+
+        if dir is None:
+            self.log.error("Unmount failed.no given unmount directory")
+            return 1
+        cmd = ('umount', dir)
+        code = self.check_call(cmd, vmode=self.V2)
+        if code:
+            self.log.error("Unmount failed.umount command exect failed")
+            return 1
+        return 0
+        
+    def ubi_getinfo(self):
+        try:
+            self.ubiParts = UbinfoParser(log=self.log.getChild("ubinfo -a"))
+        except Exception:
+            self.log.exception("UBI info get failed.No UBIfs")
+            return 1
+        return 0
+
+    def ubi_installSwi(self):
+        
+        files = os.listdir(self.im.installerConf.installer_dir) + self.zf.namelist()
+
+        swis = [x for x in files if x.endswith('.swi')]
+
+        if not swis:
+            self.log.warn("No ONL Software Image available for ubi installation.")
+            self.log.warn("Post-install ZTN installation will be required.")
+
+        if len(swis) > 1:
+            self.log.error("Multiple SWIs found in ubi installer: %s", " ".join(swis))
+            return 1
+
+        base = swis[0]
+        
+        self.log.info("Installing ONL Software Image (%s)...", base)
+        dev = "ONL-IMAGES"
+        dstDir = "/tmp/ubifs"
+        code = self.ubi_mount(dstDir,dev)
+        if code :
+            return 1
+        dst = os.path.join(dstDir, base)
+        self.installerCopy(base, dst)
+        self.log.info("syncing block devices(%s)...",dev)
+        self.check_call(('sync',))
+        self.ubi_unmount(dstDir)
+        return 0
+    
+    def ubi_installLoader(self):
+        
+        loaderBasename = None
+        for c in sysconfig.installer.fit:
+            if self.installerExists(c):
+                loaderBasename = c
+                break
+        if not loaderBasename:
+            self.log.error("The platform loader file is missing.")
+            return 1
+
+        self.log.info("Installing the ONL loader from %s...", loaderBasename)
+        dev = "ONL-BOOT"
+        dstDir = "/tmp/ubiloader"
+        code = self.ubi_mount(dstDir,dev)
+        if code :
+            return 1
+        dst = os.path.join(dstDir, "%s.itb" % self.im.installerConf.installer_platform)
+        self.installerCopy(loaderBasename, dst)
+        self.log.info("syncing block devices(%s)...",dev)
+        self.check_call(('sync',))
+        self.ubi_unmount(dstDir)
+        return 0
+
+    def ubi_installBootConfig(self):
+        
+        basename = 'boot-config'
+
+        self.log.info("Installing boot-config to ONL-BOOT partion")
+        dev = "ONL-BOOT"
+        dstDir = "/tmp/ubibootcon"
+        code = self.ubi_mount(dstDir,dev)
+        if code :
+            return 1
+        dst = os.path.join(dstDir, basename)
+        self.installerCopy(basename, dst, True)
+        with open(dst) as fd:
+            buf = fd.read()
+        ecf = buf.encode('base64', 'strict').strip()
+        if self.im.grub and self.im.grubEnv is not None:
+            setattr(self.im.grubEnv, 'boot_config_default', ecf)
+        if self.im.uboot and self.im.ubootEnv is not None:
+            setattr(self.im.ubootEnv, 'boot-config-default', ecf)
+        self.log.info("syncing block devices(%s)...",dev)
+        self.check_call(('sync',))
+        self.ubi_unmount(dstDir)
+        return 0
+
+    def ubi_installOnlConfig(self):
+        
+        self.log.info("Installing onl-config to ONL-CONFIG partion")
+        dev = "ONL-CONFIG"
+        dstDir = "/tmp/ubionlconfig"
+        code = self.ubi_mount(dstDir,dev)
+        if code :
+            return 1
+        for f in self.zf.namelist():
+            d = 'config/'
+            if f.startswith(d) and f != d:
+                dst = os.path.join(dstDir, os.path.basename(f))
+                if not os.path.exists(dst):
+                    self.installerCopy(f, dst)
+        self.log.info("syncing block devices(%s)...",dev)
+        self.check_call(('sync',))
+        self.ubi_unmount(dstDir)
+        return 0     
+
+
+class UbootInstaller(SubprocessMixin, UBIfsCreater):
 
     class installmeta(Base.installmeta):
 
@@ -814,13 +1084,16 @@ class UbootInstaller(SubprocessMixin, Base):
             cmds.append("setenv onl_itb %s" % itb)
             for item in self.platformConf['loader']['setenv']:
                 k, v = list(item.items())[0]
-                cmds.append("setenv %s %s" % (k, v,))
+                device = self.getDevice()
+                if "mtdblock" in device:
+                    cmds.append("setenv %s %s ${platformargs} ubi.mtd=%s root=/dev/ram ethaddr=$ethaddr" % (k, v, device[-1],))
+                else:
+                    cmds.append("setenv %s %s" % (k, v,))
             cmds.extend(self.platformConf['loader']['nos_bootcmds'])
             return "; ".join(cmds)
 
     def __init__(self, *args, **kwargs):
-        Base.__init__(self, *args, **kwargs)
-
+        UBIfsCreater.__init__(self, *args, **kwargs)
         self.device = self.im.getDevice()
 
         self.rawLoaderDevice = None
@@ -954,6 +1227,24 @@ class UbootInstaller(SubprocessMixin, Base):
 
         code = self.assertUnmounted()
         if code: return code
+        
+        if "mtdblock" in self.device:
+            code = self.ubifsinit()
+            if code: return code
+            code = self.ubi_getinfo()
+            if code: return code
+            code = self.ubi_installSwi()
+            if code: return code
+            code = self.ubi_installLoader()
+            if code: return code
+            code = self.ubi_installBootConfig()
+            if code: return code
+            code = self.ubi_installOnlConfig()
+            if code: return code
+            code = self.runPlugins(Plugin.PLUGIN_POSTINSTALL)
+            if code: return code
+            code = self.installUbootEnv()
+            return code
 
         code = self.maybeCreateLabel()
         if code: return code
@@ -975,6 +1266,7 @@ class UbootInstaller(SubprocessMixin, Base):
         self.log.info("found a disk with %d blocks",
                       self.partedDevice.getLength())
 
+        self.blkidParts = BlkidParser(log=self.log.getChild("blkid"))
         code = self.findMsdos()
         if code: return code
 

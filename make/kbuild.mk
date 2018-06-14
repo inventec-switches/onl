@@ -107,6 +107,7 @@ K_ARCHIVE_URL := https://www.kernel.org/pub/linux/kernel/v$(K_MAJOR_VERSION).x/$
 endif
 K_SOURCE_DIR := $(K_TARGET_DIR)/$(K_NAME)
 K_MBUILD_DIR := $(K_SOURCE_DIR)-mbuild
+K_INSTALL_MOD_PATH := $(K_TARGET_DIR)
 K_DTBS_DIR := $(K_SOURCE_DIR)-dtbs
 
 #
@@ -122,7 +123,7 @@ $(K_ARCHIVE_PATH):
 # The extracted kernel sources
 #
 $(K_SOURCE_DIR)/Makefile: $(K_ARCHIVE_PATH)
-	cd $(K_TARGET_DIR) && tar kxf $(K_ARCHIVE_PATH)
+	mkdir -p $(K_TARGET_DIR) && cd $(K_TARGET_DIR) && tar kxf $(K_ARCHIVE_PATH)
 	touch -c $(K_SOURCE_DIR)/Makefile
 	$(K_MAKE) mrproper
 
@@ -153,6 +154,12 @@ K_MAKE    := $(MAKE) -C $(K_SOURCE_DIR)
 #
 build: setup
 	+$(K_MAKE) $(K_BUILD_TARGET)
+	+$(K_MAKE) modules
+	+$(K_MAKE) modules_install INSTALL_MOD_PATH=$(K_INSTALL_MOD_PATH)
+	find $(K_INSTALL_MOD_PATH) -type l -name source -delete
+	find $(K_INSTALL_MOD_PATH) -type l -name build -delete
+
+
 ifdef K_COPY_SRC
 ifdef K_COPY_DST
 ifdef K_COPY_GZIP
@@ -169,7 +176,7 @@ MODSYNCLIST_DEFAULT := .config Module.symvers Makefile include scripts drivers \
 			arch/powerpc/include arch/powerpc/Makefile arch/powerpc/lib arch/powerpc/boot/dts \
 			arch/arm/include arch/arm/Makefile arch/arm/lib arch/arm/boot/dts
 
-MODSYNCLIST := $(MODSYNCLIST_DEFAULT) $(MODSYNCLIST_EXTRA)
+MODSYNCLIST := $(MODSYNCLIST_DEFAULT) $(MODSYNCLIST_EXTRA) $(K_MODSYNCLIST)
 
 # This file must be preserved for PPC module builds.
 MODSYNCKEEP := arch/powerpc/lib/crtsavres.o
@@ -180,14 +187,17 @@ mbuild: build
 	$(foreach f,$(MODSYNCLIST),$(ONL)/tools/scripts/tree-copy.sh $(K_SOURCE_DIR) $(f) $(K_MBUILD_DIR);)
 	find $(K_MBUILD_DIR) -name "*.o*" -delete
 	find $(K_MBUILD_DIR) -name "*.c" -delete
+	find $(K_MBUILD_DIR) -name "*.ko" -delete
+ifeq ($(ARCH), powerpc)
 	$(foreach f,$(MODSYNCKEEP), cp $(K_SOURCE_DIR)/$(f) $(K_MBUILD_DIR)/$(f) || true;)
+endif
 
 dtbs: mbuild
 ifdef DTS_LIST
 	rm -rf $(K_DTBS_DIR)
 	mkdir -p $(K_DTBS_DIR)
 ifeq ($(ARCH),arm64)
-	cp $(K_SOURCE_DIR)/arch/$(ARCH)/boot/dts/*.dtb $(K_DTBS_DIR)
+	cp $(K_SOURCE_DIR)/arch/$(ARCH)/boot/dts/freescale/*.dtb $(K_DTBS_DIR)
 else
 	$(foreach name,$(DTS_LIST),$(K_SOURCE_DIR)/scripts/dtc/dtc -I dts -O dtb -o $(K_DTBS_DIR)/$(name).dtb $(K_SOURCE_DIR)/arch/$(ARCH)/boot/dts/$(name).dts; )
 endif

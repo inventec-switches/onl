@@ -30,13 +30,8 @@
 #include <linux/slab.h>
 #include <linux/dmi.h>
 
-extern int as7312_54x_i2c_cpld_read (unsigned short cpld_addr, u8 reg);
-extern int as7312_54x_i2c_cpld_write(unsigned short cpld_addr, u8 reg, u8 value);
-
-extern void led_classdev_unregister(struct led_classdev *led_cdev);
-extern int led_classdev_register(struct device *parent, struct led_classdev *led_cdev);
-extern void led_classdev_resume(struct led_classdev *led_cdev);
-extern void led_classdev_suspend(struct led_classdev *led_cdev);
+extern int as7312_54x_cpld_read (unsigned short cpld_addr, u8 reg);
+extern int as7312_54x_cpld_write(unsigned short cpld_addr, u8 reg, u8 value);
 
 #define DRVNAME "accton_as7312_54x_led"
 
@@ -175,12 +170,12 @@ static u8 led_light_mode_to_reg_val(enum led_type type,
 
 static int accton_as7312_54x_led_read_value(u8 reg)
 {
-    return as7312_54x_i2c_cpld_read(LED_CNTRLER_I2C_ADDRESS, reg);
+    return as7312_54x_cpld_read(LED_CNTRLER_I2C_ADDRESS, reg);
 }
 
 static int accton_as7312_54x_led_write_value(u8 reg, u8 value)
 {
-    return as7312_54x_i2c_cpld_write(LED_CNTRLER_I2C_ADDRESS, reg, value);
+    return as7312_54x_cpld_write(LED_CNTRLER_I2C_ADDRESS, reg, value);
 }
 
 static void accton_as7312_54x_led_update(void)
@@ -396,11 +391,6 @@ static struct platform_driver accton_as7312_54x_led_driver = {
 static int __init accton_as7312_54x_led_init(void)
 {
     int ret;
-
-    extern int platform_accton_as7312_54x(void);
-    if (!platform_accton_as7312_54x()) {
-        return -ENODEV;
-    }
 
     ret = platform_driver_register(&accton_as7312_54x_led_driver);
     if (ret < 0) {

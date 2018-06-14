@@ -9,7 +9,7 @@ ONL="$(realpath $(dirname $AUTOBUILD_SCRIPT)/../../)"
 # Default build branch
 BUILD_BRANCH=master
 
-while getopts ":b:s:d:u:p:vc78r:" opt; do
+while getopts ":b:s:d:u:p:vVc789r:" opt; do
     case $opt in
         7)
             ONLB_OPTIONS=--7
@@ -23,6 +23,12 @@ while getopts ":b:s:d:u:p:vc78r:" opt; do
                 echo "Selecting Debian 8 build..."
             fi
             ;;
+        9)
+            ONLB_OPTIONS=--9
+            if [ -z "$DOCKER_IMAGE" ]; then
+                echo "Selecting Debian 9 build..."
+            fi
+            ;;
         c)
             cd $ONL && git submodule update --init --recursive packages/platforms-closed
             ;;
@@ -31,6 +37,9 @@ while getopts ":b:s:d:u:p:vc78r:" opt; do
             ;;
         v)
             set -x
+            ;;
+        V)
+            export VERBOSE=1
             ;;
         r)
             export BUILDROOTMIRROR=$OPTARG
@@ -41,9 +50,9 @@ while getopts ":b:s:d:u:p:vc78r:" opt; do
 done
 
 if [ -z "$ONLB_OPTIONS" ]; then
-    # Build both suites
-    $AUTOBUILD_SCRIPT --7 $@
+    # Build both 8 and 9
     $AUTOBUILD_SCRIPT --8 $@
+    $AUTOBUILD_SCRIPT --9 $@
     exit $?
 fi
 
@@ -86,5 +95,13 @@ if ! make all; then
     echo Build Failed.
     exit 1
 fi
+
+make -C $ONL/REPO build-clean
+
+# Remove all installer/rootfs/swi packages from the repo. These do not need to be kept and take significant
+# amounts of time to transfer.
+find $ONL/REPO -name "*-installer_0.*" -delete
+find $ONL/REPO -name "*-rootfs_0.*" -delete
+find $ONL/REPO -name "*-swi_0*" -delete
 
 echo Build Succeeded.

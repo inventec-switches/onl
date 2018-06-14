@@ -63,7 +63,12 @@ class MountManager(object):
             self.logger.debug("%s not mounted @ %s. It will be mounted %s" % (device, directory, mode))
 
         try:
-            cmd = "mount -o %s %s %s" % (','.join(mountargs), device, directory)
+            p = device.find('ubi')
+            if p < 0:
+                cmd = "mount -o %s %s %s" % (','.join(mountargs), device, directory)
+            else:
+                cmd = "mount -o %s -t %s  %s %s" % (','.join(mountargs), 'ubifs', device, directory)
+
             self.logger.debug("+ %s" % cmd)
             subprocess.check_call(cmd, shell=True)
         except subprocess.CalledProcessError, e:
@@ -138,35 +143,84 @@ class OnlMountManager(object):
 
     def init(self, timeout=5):
 
-        for(k, v) in self.mdata['mounts'].iteritems():
-            #
-            # Get the partition device for the given label.
-            # The timeout logic is here to handle waiting for the
-            # block devices to arrive at boot.
-            #
-            t = timeout
-            while t >= 0:
+        now = time.time()
+        future = now + timeout
+
+        md = self.mdata['mounts']
+        optional = set(x for x in md if md[x].get('optional', False))
+        pending = set(x for x in md if not md[x].get('optional', False))
+
+        def _discover(k):
+            v = md[k]
+            lbl = v.get('label', k)
+            useUbiDev = False
+            try:
+                v['device'] = subprocess.check_output(('blkid', '-L', lbl,)).strip()
+            except subprocess.CalledProcessError:
+                useUbiDev = True
+            if useUbiDev == True:
+                if k == 'EFI-BOOT':
+                    return False
                 try:
-                    v['device'] = subprocess.check_output("blkid -L %s" % k, shell=True).strip()
-                    break
+                    output  = subprocess.check_output("ubinfo -d 0 -N %s" % k, shell=True).splitlines()
                 except subprocess.CalledProcessError:
-                        self.logger.debug("Block label %s does not yet exist..." % k)
-                        time.sleep(1)
-                        t -= 1
+                    return False
 
-            if 'device' not in v:
-                self.logger.error("Timeout waiting for block label %s after %d seconds." % (k, timeout))
-                self.missing = k
-                return False
+                volumeId = None
+                device = None
+                for line in output:
+                    line = line.strip()
+                    p = line.find(':')
+                    if p < 0:
+                        self.logger.debug("Invalid ubinfo output %s" % line)
 
-            #
-            # Make the mount point for future use.
-            #
+                    name, value = line[:p], line[p+1:].strip()
+                    if 'Volume ID' in name:
+                        p = value.find('(')
+                        if p < 0:
+                            self.logger.debug("Invalid Volume ID %s" % value)
+
+                        volumeId = value[:p].strip()
+                        p = value.find('on')
+                        if p < 0:
+                            self.logger.debug("Invalid ubi devicde %s" % value)
+
+                        device = value[p+2:-1].strip()
+                    if 'Name' in name:
+                        v['device'] = "/dev/" + device + "_" + volumeId
+
+
             if not os.path.isdir(v['dir']):
-                self.logger.debug("Make directory '%s'..." % v['dir'])
+                self.logger.debug("Make directory '%s'...", v['dir'])
                 os.makedirs(v['dir'])
 
-            self.logger.debug("%s @ %s" % (k, v['device']))
+            self.logger.debug("%s @ %s", k, v['dir'])
+            return True
+
+        while True:
+
+            now = time.time()
+            if now > future:
+                break
+
+            pending_ = pending
+            pending = [k for k in pending_ if not _discover(k)]
+            optional_ = optional
+            optional = [k for k in optional_ if not _discover(k)]
+
+            if not pending: break
+            if pending != pending_: continue
+            if optional != optional_: continue
+
+            self.logger.debug("Still waiting for block devices: %s",
+                              " ".join(pending+optional))
+            time.sleep(0.25)
+
+        if pending:
+            for k in pending+optional:
+                self.logger.error("Timeout waiting for block label %s after %d seconds.", k, timeout)
+
+        # ignore the any optional labels that were not found
 
     def __fsck(self, label, device):
         self.logger.info("Running fsck on %s [ %s ]..." % (label, device))
@@ -202,20 +256,37 @@ class OnlMountManager(object):
             raise ValueError("invalid labels argument.")
 
         if 'all' in labels:
-            labels = filter(lambda l: l != 'all', labels) + self.mdata['mounts'].keys()
+            labels = list(labels)
+            labels.remove('all')
+            labels = labels + self.mdata['mounts'].keys()
+
+        def _f(label):
+            """skip labels that do not resolve to a block device (ideally, optional ones)"""
+            mpt = self.mdata['mounts'][label]
+            dev = mpt.get('device', None)
+            opt = mpt.get('optional', False)
+            if dev: return True
+            if not opt: return True
+            return False
 
         rv = []
         for l in list(set(labels)):
-            if self.__label_entry("ONL-%s" % l.upper(), False):
-                rv.append("ONL-%s" % l.upper())
-            elif self.__label_entry(l.upper(), False):
-                rv.append(l.upper())
-            elif self.__label_entry(l):
-                rv.append(l)
-            else:
-                pass
 
-        return rv;
+            lbl = "ONL-%s" % l.upper()
+            if self.__label_entry(lbl, False) and _f(lbl):
+                rv.append("ONL-%s" % l.upper())
+                continue
+
+            lbl = l.upper()
+            if self.__label_entry(lbl, False) and _f(lbl):
+                rv.append(l.upper())
+                continue
+
+            lbl = l
+            if self.__label_entry(lbl) and _f(lbl):
+                rv.append(l)
+
+        return rv
 
     def fsck(self, labels, force=False):
         labels = self.validate_labels(labels)

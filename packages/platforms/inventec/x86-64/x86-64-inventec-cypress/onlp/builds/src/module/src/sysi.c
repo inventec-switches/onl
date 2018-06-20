@@ -25,8 +25,11 @@
  ***********************************************************/
 #include <unistd.h>
 #include <fcntl.h>
+#include <linux/i2c-dev.h>
 
 #include <onlplib/file.h>
+#include <onlplib/i2c.h>
+#include <onlplib/onie.h>
 #include <onlp/platformi/sysi.h>
 #include <onlp/platformi/ledi.h>
 #include <onlp/platformi/thermali.h>
@@ -38,19 +41,906 @@
 
 #include "platform_lib.h"
 
-#define NUM_OF_THERMAL_ON_MAIN_BROAD  CHASSIS_THERMAL_COUNT
-#define NUM_OF_FAN_ON_MAIN_BROAD      CHASSIS_FAN_COUNT
-#define NUM_OF_PSU_ON_MAIN_BROAD      2
-#define NUM_OF_LED_ON_MAIN_BROAD      5
+#define SYSI_ONIE_TYPE_SUPPORT_NUM        17
+#define SYSI_PLATFORM_INFO_TYPE_STR_MAX   10
+#define SYSI_PLATFORM_INFO_NUM             2
 
-#define PREFIX_PATH_ON_CPLD_DEV          "/sys/bus/i2c/devices/"
-#define NUM_OF_CPLD                      3
-static char arr_cplddev_name[NUM_OF_CPLD][10] =
-{
- "4-0060",
- "5-0062",
- "6-0064"
+/**
+ *  The TLV Types.
+ */
+#define TLV_CODE_PRODUCT_NAME   0x21
+#define TLV_CODE_PART_NUMBER    0x22
+#define TLV_CODE_SERIAL_NUMBER  0x23
+#define TLV_CODE_MAC_BASE       0x24
+#define TLV_CODE_MANUF_DATE     0x25
+#define TLV_CODE_DEVICE_VERSION 0x26
+#define TLV_CODE_LABEL_REVISION 0x27
+#define TLV_CODE_PLATFORM_NAME  0x28
+#define TLV_CODE_ONIE_VERSION   0x29
+#define TLV_CODE_MAC_SIZE       0x2A
+#define TLV_CODE_MANUF_NAME     0x2B
+#define TLV_CODE_MANUF_COUNTRY  0x2C
+#define TLV_CODE_VENDOR_NAME    0x2D
+#define TLV_CODE_DIAG_VERSION   0x2E
+#define TLV_CODE_SERVICE_TAG    0x2F
+#define TLV_CODE_VENDOR_EXT     0xFD
+#define TLV_CODE_CRC_32         0xFE
+
+
+typedef struct sysi_onie_vpd_s {
+    uint8_t type;
+    char file[ONLP_CONFIG_INFO_STR_MAX];
+} sysi_onie_vpd_t;
+
+
+
+
+
+typedef struct sysi_platform_info_s {
+    char type[SYSI_PLATFORM_INFO_TYPE_STR_MAX];
+    char file[ONLP_CONFIG_INFO_STR_MAX];
+    int (*parsing_func_ptr)(char* file_str, char* version);
+} sysi_platform_info_t;
+
+static int _sysi_cpld_version_parsing(char* file_str, char* version);
+static int _sysi_psoc_version_parsing(char* file_str, char* version);
+static int _sysi_onie_product_name_get(char** product_name);
+static int _sysi_onie_part_number_get(char** part_number);
+static int _sysi_onie_serial_number_get(char** serial_number);
+static int _sysi_onie_mac_base_get(uint8_t mac_base[6]);
+static int _sysi_onie_manuf_date_get(char** manuf_date);
+static int _sysi_onie_device_version_get(uint8_t* device_version);
+static int _sysi_onie_label_revision_get(char** label_revision);
+static int _sysi_onie_platform_name_get(char** platform_name);
+static int _sysi_onie_onie_version_get(char** onie_version);
+static int _sysi_onie_mac_size_get(uint16_t* mac_size);
+static int _sysi_onie_manuf_name_get(char** manuf_name);
+static int _sysi_onie_manuf_country_get(char** manuf_country);
+static int _sysi_onie_vendor_name_get(char** vendor_name);
+static int _sysi_onie_diag_version_get(char** diag_version);
+static int _sysi_onie_service_tag_get(char** service_tag);
+static int _sysi_onie_vendor_ext_get(list_head_t *vendor_ext);
+static int _sysi_onie_crc_32_get(uint32_t* crc_32);
+
+static int _sysi_onie_info_total_len_get(onlp_onie_info_t *onie, uint16_t *total_len);
+
+
+
+static sysi_onie_vpd_t __tlv_vpd_info[SYSI_ONIE_TYPE_SUPPORT_NUM] = {
+    {
+        TLV_CODE_PRODUCT_NAME,
+        "/sys/class/eeprom/vpd/product_name"
+    },
+    {
+        TLV_CODE_PART_NUMBER,
+        "/sys/class/eeprom/vpd/pn"
+    },
+    {
+        TLV_CODE_SERIAL_NUMBER,
+        "/sys/class/eeprom/vpd/sn"
+    },
+    {
+        TLV_CODE_MAC_BASE,
+        "/sys/class/eeprom/vpd/base_mac_addr"
+    },
+    {
+        TLV_CODE_MANUF_DATE,
+        "/sys/class/eeprom/vpd/man_date"
+    },
+    {
+        TLV_CODE_DEVICE_VERSION,
+        "/sys/class/eeprom/vpd/dev_ver"
+    },
+    {
+        TLV_CODE_LABEL_REVISION,
+        "/sys/class/eeprom/vpd/label_rev"
+    },
+    {
+        TLV_CODE_PLATFORM_NAME,
+        "/sys/class/eeprom/vpd/plat_name"
+    },
+    {
+        TLV_CODE_ONIE_VERSION,
+        "/sys/class/eeprom/vpd/ldr_ver"
+    },
+    {
+        TLV_CODE_MAC_SIZE,
+        "/sys/class/eeprom/vpd/mac_addr"
+    },
+    {
+        TLV_CODE_MANUF_NAME,
+        "/sys/class/eeprom/vpd/manufacturer"
+    },
+    {
+        TLV_CODE_MANUF_COUNTRY,
+        "/sys/class/eeprom/vpd/country_code"
+    },
+    {
+        TLV_CODE_VENDOR_NAME,
+        "/sys/class/eeprom/vpd/vendor_name"
+    },
+    {
+        TLV_CODE_DIAG_VERSION,
+        "/sys/class/eeprom/vpd/diag_ver"
+    },
+    {
+        TLV_CODE_SERVICE_TAG,
+        "/sys/class/eeprom/vpd/service_tag"
+    },
+    {
+        TLV_CODE_VENDOR_EXT,
+        "/sys/class/eeprom/vpd/vendor_ext"
+    },
+    {
+        TLV_CODE_CRC_32,
+        "/sys/class/eeprom/vpd/crc32"
+    }
 };
+
+
+static sysi_platform_info_t __platform_info[SYSI_PLATFORM_INFO_NUM] = {
+    {"cpld", "/sys/class/hwmon/hwmon2/device/info",_sysi_cpld_version_parsing},
+    {"psoc", "/sys/class/hwmon/hwmon1/device/version",_sysi_psoc_version_parsing}
+};
+
+
+static onlp_oid_t __oid_info[] = {
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_PHY),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE0),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE1),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE2),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE3),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_MAIN_BROAD),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_MAIN_BROAD),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_3_ON_MAIN_BROAD),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_4_ON_MAIN_BROAD),
+    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_5_ON_MAIN_BROAD),
+    ONLP_FAN_ID_CREATE(ONLP_FAN_1),
+    ONLP_FAN_ID_CREATE(ONLP_FAN_2),
+    ONLP_FAN_ID_CREATE(ONLP_FAN_3),
+    ONLP_FAN_ID_CREATE(ONLP_FAN_4),
+    ONLP_PSU_ID_CREATE(ONLP_PSU_1),
+    ONLP_PSU_ID_CREATE(ONLP_PSU_2),
+    ONLP_LED_ID_CREATE(ONLP_LED_MGMT_GREEN),
+    ONLP_LED_ID_CREATE(ONLP_LED_MGMT_RED),
+    0 /*end*/
+};
+
+
+
+
+static int _sysi_cpld_version_parsing(char* file_str, char* version)
+{
+    int rv = ONLP_STATUS_OK;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX*4];
+    char *temp;
+
+    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX*4, &len, file_str);
+
+    temp = strstr(buf, "The CPLD version is ");
+    if(temp) {
+        temp += strlen("The CPLD version is ");
+        snprintf(version,ONLP_CONFIG_INFO_STR_MAX, temp);
+        /*remove '\n'*/
+        version[strlen(version)-1] = 0;
+    } else {
+        rv = ONLP_STATUS_E_MISSING;
+    }
+    return rv;
+}
+
+static int _sysi_psoc_version_parsing(char* file_str, char* version)
+{
+    int rv = ONLP_STATUS_OK;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+    char *temp;
+
+    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, file_str);
+    temp = strstr(buf, "ver: ");
+    if(temp) {
+        temp += strlen("ver: ");
+        snprintf(version,ONLP_CONFIG_INFO_STR_MAX, temp);
+        /*remove '\n'*/
+        version[strlen(version)-1] = 0;
+    } else {
+        rv = ONLP_STATUS_E_MISSING;
+    }
+    return rv;
+}
+
+static int _sysi_onie_product_name_get(char** product_name)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_PRODUCT_NAME == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *product_name = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *product_name = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_part_number_get(char** part_number)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_PART_NUMBER == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *part_number = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *part_number = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_serial_number_get(char** serial_number)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_SERIAL_NUMBER == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *serial_number = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *serial_number = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_mac_base_get(uint8_t mac_base[6])
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_MAC_BASE == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        if(6 != sscanf( buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\n",
+                        &mac_base[0], &mac_base[1], &mac_base[2],
+                        &mac_base[3], &mac_base[4], &mac_base[5])) {
+            /*parsing fail*/
+            memset(mac_base, 0, 6);
+        }
+    } else {
+        memset(mac_base, 0, 6);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_manuf_date_get(char** manuf_date)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_MANUF_DATE == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *manuf_date = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *manuf_date = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_device_version_get(uint8_t* device_version)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_DEVICE_VERSION == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        *device_version = (uint8_t)strtoul(buf, NULL, 0);
+    } else {
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_label_revision_get(char** label_revision)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_LABEL_REVISION == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *label_revision = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *label_revision = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_platform_name_get(char** platform_name)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_PLATFORM_NAME == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *platform_name = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *platform_name = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_onie_version_get(char** onie_version)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_ONIE_VERSION == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *onie_version = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *onie_version = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_mac_size_get(uint16_t* mac_size)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_MAC_SIZE == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        *mac_size = (uint16_t)strtoul(buf, NULL, 0);
+    }
+    /*return OK no matter what*/
+    return ONLP_STATUS_OK;
+}
+
+
+static int _sysi_onie_manuf_name_get(char** manuf_name)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_MANUF_NAME == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *manuf_name = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *manuf_name = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_manuf_country_get(char** manuf_country)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_MANUF_COUNTRY == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *manuf_country = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *manuf_country = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_vendor_name_get(char** vendor_name)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_VENDOR_NAME == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *vendor_name = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *vendor_name = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_diag_version_get(char** diag_version)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_DIAG_VERSION == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *diag_version = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *diag_version = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_service_tag_get(char** service_tag)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_SERVICE_TAG == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*remove \n in file output*/
+        buf[strlen(buf)-1] = 0;
+        *service_tag = aim_fstrdup("%s",buf);
+    } else {
+        /*alloc a empty array for it*/
+        *service_tag = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+
+    return rv;
+}
+
+
+static int _sysi_onie_vendor_ext_get(list_head_t* vendor_ext)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    list_init(vendor_ext);
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_VENDOR_EXT == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*TODO*/
+    }
+    /*return OK no matter what*/
+    return ONLP_STATUS_OK;
+}
+
+
+static int _sysi_onie_crc_32_get(uint32_t* crc_32)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    int len;
+    char* path;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
+        if( TLV_CODE_CRC_32 == __tlv_vpd_info[i].type) {
+            path = __tlv_vpd_info[i].file;
+            break;
+        }
+    }
+    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
+        /* Cannot find support type */
+        rv = ONLP_STATUS_E_UNSUPPORTED;
+    }
+    if( ONLP_STATUS_OK == rv) {
+        /*get info*/
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    }
+    if( ONLP_STATUS_OK == rv) {
+        *crc_32 = (uint32_t)strtoul (buf, NULL, 0);
+    }
+    /*return OK no matter what*/
+    return ONLP_STATUS_OK;
+}
+
+static int _sysi_onie_info_total_len_get(onlp_onie_info_t *onie, uint16_t *total_len)
+{
+    uint16_t len = 0;
+
+    /*product_name*/
+    if(strlen(onie->product_name)!= 0) {
+        len += 2;
+        len += strlen(onie->product_name);
+    }
+    /*part_number*/
+    if(strlen(onie->part_number)!= 0) {
+        len += 2;
+        len += strlen(onie->part_number);
+    }
+    /*serial_number*/
+    if(strlen(onie->serial_number)!= 0) {
+        len += 2;
+        len += strlen(onie->serial_number);
+    }
+
+    /*mac*/
+    len += 2;
+    len += 6;
+
+    /*manufacture_date*/
+    if(strlen(onie->manufacture_date)!= 0) {
+        len += 2;
+        len += 19;
+    }
+
+    /*device_version*/
+    len += 2;
+    len += 1;
+
+    /*label_revision*/
+    if(strlen(onie->label_revision)!= 0) {
+        len += 2;
+        len += strlen(onie->label_revision);
+    }
+
+    /*platform_name*/
+    if(strlen(onie->platform_name)!= 0) {
+        len += 2;
+        len += strlen(onie->platform_name);
+    }
+
+    /*onie_version*/
+    if(strlen(onie->onie_version)!= 0) {
+        len += 2;
+        len += strlen(onie->onie_version);
+    }
+
+    /*mac_range*/
+    len += 2;
+    len += 2;
+
+    /*manufacturer*/
+    if(strlen(onie->manufacturer)!= 0) {
+        len += 2;
+        len += strlen(onie->manufacturer);
+    }
+
+    /*country_code*/
+    if(strlen(onie->country_code)!= 0) {
+        len += 2;
+        len += 2;
+    }
+
+    /*vendor*/
+    if(strlen(onie->vendor)!= 0) {
+        len += 2;
+        len += strlen(onie->vendor);
+    }
+
+    /*diag_version*/
+    if(strlen(onie->diag_version)!= 0) {
+        len += 2;
+        len += strlen(onie->diag_version);
+    }
+
+    /*service_tag*/
+    if(strlen(onie->service_tag)!= 0) {
+        len += 2;
+        len += strlen(onie->service_tag);
+    }
+
+    /*crc*/
+    len += 2;
+    len += 4;
+
+    /*vx_list*/
+    /*TODO*/
+
+    *total_len = len;
+    return ONLP_STATUS_OK;
+}
+
+
 
 const char*
 onlp_sysi_platform_get(void)
@@ -58,40 +948,193 @@ onlp_sysi_platform_get(void)
     return "x86-64-inventec-cypress-r0";
 }
 
+
+/*
+ * This function is called to return the physical base address
+ * of the ONIE boot rom.
+ *
+ * The ONLP framework will mmap() and parse the ONIE TLV structure
+ * from the given data.
+ *
+ * If you platform does not support a mappable address for the ONIE
+ * eeprom then you should not provide this function at all.
+ *
+ * For the purposes of this example we will provide it but
+ * return UNSUPPORTED (which is all the default implementation does).
+ *
+ */
+int
+onlp_sysi_onie_data_phys_addr_get(void** pa)
+{
+    return ONLP_STATUS_E_UNSUPPORTED;
+}
+
+
+/*
+ * If you cannot provide a base address you must provide the ONLP
+ * framework the raw ONIE data through whatever means necessary.
+ *
+ * This function will be called as a backup in the event that
+ * onlp_sysi_onie_data_phys_addr_get() fails.
+ */
 int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
-    uint8_t* rdata = aim_zmalloc(256);
-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
-        if(*size == 256) {
-            *data = rdata;
-            return ONLP_STATUS_OK;
-        }
+#if 0
+    int rv;
+    int i;
+
+    /*
+     * This represents the example ONIE data.
+     */
+    static uint8_t onie_data[] = {
+        'T', 'l', 'v','I','n','f','o', 0,
+        0x1, 0x0, 0x0,
+        0x21, 0x8, 'O', 'N', 'L', 'P', 'I', 'E', 0, 0,
+        0x22, 0x3, 'O', 'N', 'L',
+        0xFE, 0x4, 0x4b, 0x1b, 0x1d, 0xde,
+    };
+
+
+    memcpy(*data, onie_data, ONLPLIB_CONFIG_I2C_BLOCK_SIZE);
+    return 0;
+#endif
+    return ONLP_STATUS_E_UNSUPPORTED;
+}
+
+/*
+ * IF the ONLP frame calles onlp_sysi_onie_data_get(),
+ * if will call this function to free the data when it
+ * is finished with it.
+ *
+ * This function is optional, and depends on the data
+ * you return in onlp_sysi_onie_data_get().
+ */
+void
+onlp_sysi_onie_data_free(uint8_t* data)
+{
+    /*
+     * We returned a static array in onlp_sysi_onie_data_get()
+     * so no free operation is required.
+     */
+    if(data) {
+        aim_free(data);
+    }
+}
+
+int
+onlp_sysi_onie_info_get (onlp_onie_info_t *onie)
+{
+    int rv = ONLP_STATUS_OK;
+    uint16_t total_len;
+
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_product_name_get(&onie->product_name);
     }
 
-    aim_free(rdata);
-    *size = 0;
-    return ONLP_STATUS_E_INTERNAL;
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_part_number_get(&onie->part_number);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_serial_number_get(&onie->serial_number);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_mac_base_get(onie->mac);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_manuf_date_get(&onie->manufacture_date);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_device_version_get(&onie->device_version);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_label_revision_get(&onie->label_revision);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_platform_name_get(&onie->platform_name);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_onie_version_get(&onie->onie_version);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_mac_size_get(&onie->mac_range);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_manuf_name_get(&onie->manufacturer);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_manuf_country_get(&onie->country_code);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_vendor_name_get(&onie->vendor);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_diag_version_get(&onie->diag_version);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_service_tag_get(&onie->service_tag);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_vendor_ext_get(&onie->vx_list);
+    }
+    if(ONLP_STATUS_OK == rv) {
+        rv = _sysi_onie_crc_32_get(&onie->crc);
+    }
+
+    _sysi_onie_info_total_len_get(onie, &total_len);
+
+    onie->_hdr_id_string = aim_fstrdup("TlvInfo");
+    onie->_hdr_version = 0x1;
+    onie->_hdr_length = total_len;
+    return rv;
 }
+
 
 int
 onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
 {
-    int   i, v[NUM_OF_CPLD]={0};
-    for (i=0; i < NUM_OF_CPLD; i++) {
-        v[i] = 0;
-        if(onlp_file_read_int(v+i, "%s%s/version", PREFIX_PATH_ON_CPLD_DEV, arr_cplddev_name[i]) < 0) {
-            return ONLP_STATUS_E_INTERNAL;
+    int i;
+    int rv = ONLP_STATUS_OK;
+    char cpld_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
+    char other_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
+    char version[ONLP_CONFIG_INFO_STR_MAX];
+
+    for(i=0 ; i<SYSI_PLATFORM_INFO_NUM; i++) {
+        memset(version, 0, ONLP_CONFIG_INFO_STR_MAX);
+        /*get version info*/
+        rv = __platform_info[i].parsing_func_ptr(
+                 __platform_info[i].file, version);
+        if( 0 == strncmp(__platform_info[i].type,
+                         "cpld", strlen(__platform_info[i].type))) {
+            snprintf(cpld_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s ",cpld_str,version);
+        } else {
+            snprintf(other_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s.%s "
+                     ,other_str,__platform_info[i].type,version);
         }
     }
-    pi->cpld_versions = aim_fstrdup("%d.%d.%d", v[0], v[1], v[2]);
-    return 0;
+
+    /*cpld version*/
+    if(strlen(cpld_str) > 0) {
+        pi->cpld_versions = aim_fstrdup("%s",cpld_str);
+    }
+
+    /*other version*/
+    if(strlen(other_str) > 0) {
+        pi->other_versions = aim_fstrdup("%s",other_str);
+    }
+    return rv;
 }
 
 void
 onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
 {
-    aim_free(pi->cpld_versions);
+    if(pi->cpld_versions) {
+        aim_free(pi->cpld_versions);
+    }
+    if(pi->other_versions) {
+        aim_free(pi->other_versions);
+    }
+    return;
 }
 
 
@@ -102,194 +1145,27 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     onlp_oid_t* e = table;
     memset(table, 0, max*sizeof(onlp_oid_t));
 
-    /* 4 Thermal sensors on the chassis */
-    for (i = 1; i <= NUM_OF_THERMAL_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_THERMAL_ID_CREATE(i);
+    for(i=0; i<max; i++) {
+        if(__oid_info[i]==0) {
+            break;
+        }
+        *e++ = __oid_info[i];
     }
-
-    /* 5 LEDs on the chassis */
-    for (i = 1; i <= NUM_OF_LED_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_LED_ID_CREATE(i);
-    }
-
-    /* 2 PSUs on the chassis */
-    for (i = 1; i <= NUM_OF_PSU_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_PSU_ID_CREATE(i);
-    }
-
-    /* 4 Fans on the chassis */
-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_FAN_ID_CREATE(i);
-    }
-
-    return 0;
+    return ONLP_STATUS_OK;
 }
 
-typedef struct fan_ctrl_policy {
-   int duty_cycle;
-   int temp_down_adjust; /* The boundary temperature to down adjust fan speed */
-   int temp_up_adjust;   /* The boundary temperature to up adjust fan speed */
-} fan_ctrl_policy_t;
-
-fan_ctrl_policy_t  fan_ctrl_policy_f2b[] = {
-{32,      0, 174000},
-{38, 170000, 182000},
-{50, 178000, 190000},
-{63, 186000,      0}
-};
-
-fan_ctrl_policy_t  fan_ctrl_policy_b2f[] = {
-{32,     0,  140000},
-{38, 135000, 150000},
-{50, 145000, 160000},
-{69, 155000,      0}
-};
-
-#define FAN_DUTY_CYCLE_MAX  100
-#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/2-0066/fan_duty_cycle_percentage"
-
-/*
- * For AC power Front to Back :
- *	* If any fan fail, please fan speed register to 15
- *	* The max value of Fan speed register is 9
- *		[LM75(48) + LM75(49) + LM75(4A)] > 174  => set Fan speed value from 4 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] > 182  => set Fan speed value from 5 to 7
- *		[LM75(48) + LM75(49) + LM75(4A)] > 190  => set Fan speed value from 7 to 9
- *
- *		[LM75(48) + LM75(49) + LM75(4A)] < 170  => set Fan speed value from 5 to 4
- *		[LM75(48) + LM75(49) + LM75(4A)] < 178  => set Fan speed value from 7 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] < 186  => set Fan speed value from 9 to 7
- *
- *
- * For  AC power Back to Front :
- *	* If any fan fail, please fan speed register to 15
- *	* The max value of Fan speed register is 10
- *		[LM75(48) + LM75(49) + LM75(4A)] > 140  => set Fan speed value from 4 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] > 150  => set Fan speed value from 5 to 7
- *		[LM75(48) + LM75(49) + LM75(4A)] > 160  => set Fan speed value from 7 to 10
- *
- *		[LM75(48) + LM75(49) + LM75(4A)] < 135  => set Fan speed value from 5 to 4
- *		[LM75(48) + LM75(49) + LM75(4A)] < 145  => set Fan speed value from 7 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] < 155  => set Fan speed value from 10 to 7
- */
 int
 onlp_sysi_platform_manage_fans(void)
 {
-    int i = 0, arr_size, temp;
-    fan_ctrl_policy_t *policy;
-    int cur_duty_cycle, new_duty_cycle;
-    onlp_thermal_info_t thermal_1, thermal_2, thermal_3;
-
-    int  fd, len;
-    char  buf[10] = {0};
-
-    /* Get each fan status
-     */
-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
-    {
-        onlp_fan_info_t fan_info;
-
-        if (onlp_fani_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
-            AIM_LOG_ERROR("Unable to get fan(%d) status\r\n", i);
-            return ONLP_STATUS_E_INTERNAL;
-        }
-
-        /* Decision 1: Set fan as full speed if any fan is failed.
-         */
-        if (fan_info.status & ONLP_FAN_STATUS_FAILED) {
-            AIM_LOG_ERROR("Fan(%d) is not working, set the other fans as full speed\r\n", i);
-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-        }
-
-        /* Decision 1.1: Set fan as full speed if any fan is not present.
-         */
-        if (!(fan_info.status & ONLP_FAN_STATUS_PRESENT)) {
-            AIM_LOG_ERROR("Fan(%d) is not present, set the other fans as full speed\r\n", i);
-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-        }
-
-        /* Get fan direction (Only get the first one since all fan direction are the same)
-         */
-        if (i == 1) {
-            if (fan_info.status & ONLP_FAN_STATUS_F2B) {
-                policy   = fan_ctrl_policy_f2b;
-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_f2b);
-            }
-            else {
-                policy   = fan_ctrl_policy_b2f;
-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_b2f);
-            }
-        }
-    }
-
-    /* Get current fan speed
-     */
-    fd = open(FAN_SPEED_CTRL_PATH, O_RDONLY);
-    if (fd == -1){
-        AIM_LOG_ERROR("Unable to open fan speed control node (%s)", FAN_SPEED_CTRL_PATH);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    len = read(fd, buf, sizeof(buf));
-    close(fd);
-    if (len <= 0) {
-        AIM_LOG_ERROR("Unable to read fan speed from (%s)", FAN_SPEED_CTRL_PATH);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    cur_duty_cycle = atoi(buf);
-
-
-    /* Decision 2: If no matched fan speed is found from the policy,
-     *             use FAN_DUTY_CYCLE_MIN as default speed
-     */
-	for (i = 0; i < arr_size; i++) {
-	    if (policy[i].duty_cycle != cur_duty_cycle)
-		    continue;
-
-		break;
-	}
-
-	if (i == arr_size) {
-        return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), policy[0].duty_cycle);
-	}
-
-    /* Get current temperature
-     */
-    if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(2), &thermal_1) != ONLP_STATUS_OK ||
-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_2) != ONLP_STATUS_OK ||
-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(4), &thermal_3) != ONLP_STATUS_OK) {
-        AIM_LOG_ERROR("Unable to read thermal status");
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    temp = thermal_1.mcelsius + thermal_2.mcelsius + thermal_3.mcelsius;
-
-
-    /* Decision 3: Decide new fan speed depend on fan direction/current fan speed/temperature
-     */
-    new_duty_cycle = cur_duty_cycle;
-
-    if ((temp >= policy[i].temp_up_adjust) && (i != (arr_size-1))) {
-	    new_duty_cycle = policy[i+1].duty_cycle;
-	}
-	else if ((temp <= policy[i].temp_down_adjust) && (i != 0)) {
-	    new_duty_cycle = policy[i-1].duty_cycle;
-	}
-
-	if (new_duty_cycle == cur_duty_cycle) {
-        /* Duty cycle does not change, just return */
-	    return ONLP_STATUS_OK;
-	}
-
-    return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
+    /*Ensure switch manager is working*/
+    PLATFORM_PSOC_DIAG_LOCK;
+    return ONLP_STATUS_OK;
 }
 
 int
 onlp_sysi_platform_manage_leds(void)
 {
-    return ONLP_STATUS_E_UNSUPPORTED;
+    /*Ensure switch manager is working*/
+    PLATFORM_PSOC_DIAG_LOCK;
+    return ONLP_STATUS_OK;
 }
-

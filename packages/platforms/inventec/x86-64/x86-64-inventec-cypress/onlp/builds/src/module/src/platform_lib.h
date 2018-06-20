@@ -28,50 +28,125 @@
 
 #include "x86_64_inventec_cypress_log.h"
 
-#define CHASSIS_FAN_COUNT     6
-#define CHASSIS_THERMAL_COUNT 5
+/* This is definitions for x86-64-inventec-cypress*/
+/* OID map*/
+/*
+ *  SYS---------ONLP_THERMAL_CPU_PHY
+ *         |----ONLP_THERMAL_CPU_CORE0
+ *         |----ONLP_THERMAL_CPU_CORE1
+ *         |----ONLP_THERMAL_CPU_CORE2
+ *         |----ONLP_THERMAL_CPU_CORE3
+ *         |----ONLP_THERMAL_1_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_2_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_3_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_4_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_5_ON_MAIN_BROAD
+ *         |----ONLP_FAN_1--------ONLP_FAN_1_WEAK
+ *         |                   |--ONLP_LED_FAN1_GREEN
+ *         |                   |--ONLP_LED_FAN1_RED
+ *         |
+ *         |----ONLP_FAN_2--------ONLP_FAN_2_WEAK
+ *         |                   |--ONLP_LED_FAN2_GREEN
+ *         |                   |--ONLP_LED_FAN2_RED
+ *         |
+ *         |----ONLP_FAN_3--------ONLP_FAN_3_WEAK
+ *         |                   |--ONLP_LED_FAN3_GREEN
+ *         |                   |--ONLP_LED_FAN3_RED
+ *         |
+ *         |----ONLP_FAN_4--------ONLP_FAN_4_WEAK
+ *         |                   |--ONLP_LED_FAN4_GREEN
+ *         |                   |--ONLP_LED_FAN4_RED
+ *         |
+ *         |----ONLP_PSU_1--------ONLP_THERMAL_1_ON_PSU1
+ *         |                   |--ONLP_THERMAL_2_ON_PSU1
+ *         |                   |--ONLP_FAN_PSU_1
+ *         |
+ *         |----ONLP_PSU_2--------ONLP_THERMAL_1_ON_PSU2
+ *         |                   |--ONLP_THERMAL_2_ON_PSU2
+ *         |                   |--ONLP_FAN_PSU_2
+ *         |
+ *         |----ONLP_LED_MGMT_GREEN
+ *         |----ONLP_LED_MGMT_RED
+ */
 
-#define PSU1_ID 1
-#define PSU2_ID 2
+/* Thermal definitions*/
+enum onlp_thermal_id {
+    ONLP_THERMAL_RESERVED = 0,
+    ONLP_THERMAL_CPU_PHY,
+    ONLP_THERMAL_CPU_CORE0,
+    ONLP_THERMAL_CPU_CORE1,
+    ONLP_THERMAL_CPU_CORE2,
+    ONLP_THERMAL_CPU_CORE3,
+    ONLP_THERMAL_1_ON_MAIN_BROAD,
+    ONLP_THERMAL_2_ON_MAIN_BROAD,
+    ONLP_THERMAL_3_ON_MAIN_BROAD,
+    ONLP_THERMAL_4_ON_MAIN_BROAD,
+    ONLP_THERMAL_5_ON_MAIN_BROAD,
+    ONLP_THERMAL_1_ON_PSU1,
+    ONLP_THERMAL_2_ON_PSU1,
+    ONLP_THERMAL_1_ON_PSU2,
+    ONLP_THERMAL_2_ON_PSU2,
+    ONLP_THERMAL_MAX
+};
 
-#define PSU1_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/11-005b/"
-#define PSU2_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/10-0058/"
+#define ONLP_THERMAL_COUNT 15 /*include "reserved"*/
 
-#define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
-#define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
+/* Fan definitions*/
+enum onlp_fan_id {
+    ONLP_FAN_RESERVED = 0,
+    ONLP_FAN_1,
+    ONLP_FAN_1_WEAK,
+    ONLP_FAN_2,
+    ONLP_FAN_2_WEAK,
+    ONLP_FAN_3,
+    ONLP_FAN_3_WEAK,
+    ONLP_FAN_4,
+    ONLP_FAN_4_WEAK,
+    ONLP_FAN_PSU_1,
+    ONLP_FAN_PSU_2,
+    ONLP_FAN_MAX
+};
 
-#define PSU1_AC_HWMON_PREFIX "/sys/bus/i2c/devices/11-0053/"
-#define PSU2_AC_HWMON_PREFIX "/sys/bus/i2c/devices/10-0050/"
+#define ONLP_FAN_COUNT 11 /*include "reserved"*/
 
-#define PSU1_AC_HWMON_NODE(node) PSU1_AC_HWMON_PREFIX#node
-#define PSU2_AC_HWMON_NODE(node) PSU2_AC_HWMON_PREFIX#node
+/* PSU definitions*/
+enum onlp_psu_id {
+    ONLP_PSU_RESERVED,
+    ONLP_PSU_1,
+    ONLP_PSU_2,
+    ONLP_PSU_MAX
+};
 
-#define IDPROM_PATH "/sys/class/i2c-adapter/i2c-1/1-0057/eeprom"
+#define ONLP_PSU_COUNT 3 /*include "reserved"*/
 
-int deviceNodeWriteInt(char *filename, int value, int data_len);
-int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len);
-int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len);
+/* LED definitions*/
+enum onlp_led_id {
+    ONLP_LED_RESERVED = 0,
+    ONLP_LED_MGMT_GREEN,
+    ONLP_LED_MGMT_RED,
+    ONLP_LED_FAN1_GREEN,
+    ONLP_LED_FAN1_RED,
+    ONLP_LED_FAN2_GREEN,
+    ONLP_LED_FAN2_RED,
+    ONLP_LED_FAN3_GREEN,
+    ONLP_LED_FAN3_RED,
+    ONLP_LED_FAN4_GREEN,
+    ONLP_LED_FAN4_RED,
+    ONLP_LED_MAX
+};
 
-typedef enum psu_type {
-    PSU_TYPE_UNKNOWN,
-    PSU_TYPE_AC_F2B,
-    PSU_TYPE_AC_B2F,
-    PSU_TYPE_DC_48V_F2B,
-    PSU_TYPE_DC_48V_B2F,
-    PSU_TYPE_DC_12V_FANLESS,
-    PSU_TYPE_DC_12V_F2B,
-    PSU_TYPE_DC_12V_B2F
-} psu_type_t;
+#define ONLP_LED_COUNT 11 /*include "reserved"*/
 
-psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 
-#define DEBUG_MODE 0
+/* platform functions*/
+#define PLATFORM_PSOC_DIAG_PATH "/sys/class/hwmon/hwmon1/device/diag"
+#define PLATFORM_PSOC_DIAG_LOCK platform_psoc_diag_enable_write(0)
+#define PLATFORM_PSOC_DIAG_UNLOCK platform_psoc_diag_enable_write(1)
+int platform_psoc_diag_enable_read(int *enable);
+int platform_psoc_diag_enable_write(int enable);
 
-#if (DEBUG_MODE == 1)
-    #define DEBUG_PRINT(format, ...)   printf(format, __VA_ARGS__)
-#else
-    #define DEBUG_PRINT(format, ...)
-#endif
+
+
 
 #endif  /* __PLATFORM_LIB_H__ */
 

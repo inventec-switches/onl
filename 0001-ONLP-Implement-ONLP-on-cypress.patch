@@ -1,0 +1,3893 @@
+From cd022a5b986d089abd49ca37b5f13825bac5ee95 Mon Sep 17 00:00:00 2001
+From: PJ Chen <chen.pj@inventec.com>
+Date: Wed, 20 Jun 2018 14:47:55 +0800
+Subject: [PATCH] [ONLP] Implement ONLP on cypress
+
+---
+ .../onlp/builds/src/module/src/fani.c         |  480 +++----
+ .../onlp/builds/src/module/src/ledi.c         |  522 +++++--
+ .../onlp/builds/src/module/src/platform_lib.c |  170 +--
+ .../onlp/builds/src/module/src/platform_lib.h |  141 +-
+ .../onlp/builds/src/module/src/psui.c         |  301 ++--
+ .../onlp/builds/src/module/src/sfpi.c         |  348 +++--
+ .../onlp/builds/src/module/src/sysi.c         | 1240 ++++++++++++++---
+ .../onlp/builds/src/module/src/thermali.c     |  190 ++-
+ 8 files changed, 2282 insertions(+), 1110 deletions(-)
+
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/fani.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/fani.c
+index 5fd76b00..f294e24e 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/fani.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/fani.c
+@@ -24,270 +24,257 @@
+  *
+  ***********************************************************/
+ #include <onlp/platformi/fani.h>
+-#include <onlplib/mmap.h>
++#include <onlplib/file.h>
+ #include <fcntl.h>
++#include <unistd.h>
+ #include "platform_lib.h"
+ 
+-#define PREFIX_PATH_ON_MAIN_BOARD   "/sys/bus/i2c/devices/2-0066/"
+-#define PREFIX_PATH_ON_PSU          "/sys/bus/i2c/devices/"
+-
+-#define MAX_FAN_SPEED     18000
+-#define MAX_PSU_FAN_SPEED 25500
+-
+-#define PROJECT_NAME
+-#define LEN_FILE_NAME 80
+-
+-#define FAN_RESERVED        0
+-#define FAN_1_ON_MAIN_BOARD 1
+-#define FAN_2_ON_MAIN_BOARD	2
+-#define FAN_3_ON_MAIN_BOARD	3
+-#define FAN_4_ON_MAIN_BOARD	4
+-#define FAN_5_ON_MAIN_BOARD	5
+-#define FAN_6_ON_MAIN_BOARD	6
+-#define FAN_1_ON_PSU1       7
+-#define FAN_1_ON_PSU2       8
+-
+-typedef struct fan_path_S
+-{
+-    char present[LEN_FILE_NAME];
+-    char status[LEN_FILE_NAME];
+-    char speed[LEN_FILE_NAME];
+-	char direction[LEN_FILE_NAME];
+-    char ctrl_speed[LEN_FILE_NAME];
+-    char r_speed[LEN_FILE_NAME];
+-}fan_path_T;
+-
+-#define _MAKE_FAN_PATH_ON_MAIN_BOARD(prj,id) \
+-    { #prj"fan"#id"_present", #prj"fan"#id"_fault", #prj"fan"#id"_front_speed_rpm", \
+-      #prj"fan"#id"_direction", #prj"fan_duty_cycle_percentage", #prj"fan"#id"_rear_speed_rpm" }
+-
+-#define MAKE_FAN_PATH_ON_MAIN_BOARD(prj,id) _MAKE_FAN_PATH_ON_MAIN_BOARD(prj,id)
+-
+-#define MAKE_FAN_PATH_ON_PSU(folder) \
+-    {"", #folder"/psu_fan1_fault",  #folder"/psu_fan1_speed_rpm", \
+-     "", #folder"/psu_fan1_duty_cycle_percentage", ""  }
+-
+-static fan_path_T fan_path[] =  /* must map with onlp_fan_id */
+-{
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_RESERVED),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_1_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_2_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_3_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_4_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_5_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_MAIN_BOARD(PROJECT_NAME, FAN_6_ON_MAIN_BOARD),
+-    MAKE_FAN_PATH_ON_PSU(11-005b),
+-    MAKE_FAN_PATH_ON_PSU(10-0058)
+-};
+-
+-#define MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(id) \
+-    { \
+-        { ONLP_FAN_ID_CREATE(FAN_##id##_ON_MAIN_BOARD), "Chassis Fan "#id, 0 }, \
+-        0x0, \
+-        (ONLP_FAN_CAPS_SET_PERCENTAGE | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE), \
+-        0, \
+-        0, \
+-        ONLP_FAN_MODE_INVALID, \
+-    }
+-
+-#define MAKE_FAN_INFO_NODE_ON_PSU(psu_id, fan_id) \
+-    { \
+-        { ONLP_FAN_ID_CREATE(FAN_##fan_id##_ON_PSU##psu_id), "Chassis PSU-"#psu_id " Fan "#fan_id, 0 }, \
+-        0x0, \
+-        (ONLP_FAN_CAPS_SET_PERCENTAGE | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE), \
+-        0, \
+-        0, \
+-        ONLP_FAN_MODE_INVALID, \
+-    }
+-
+-/* Static fan information */
+-onlp_fan_info_t linfo[] = {
+-    { }, /* Not used */
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(1),
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(2),
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(3),
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(4),
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(5),
+-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(6),
+-    MAKE_FAN_INFO_NODE_ON_PSU(1,1),
+-    MAKE_FAN_INFO_NODE_ON_PSU(2,1),
+-};
+-
+ #define VALIDATE(_id)                           \
+     do {                                        \
+-        if(!ONLP_OID_IS_FAN(_id)) {             \
++        if(!ONLP_OID_IS_FAN(_id)) {         \
+             return ONLP_STATUS_E_INVALID;       \
+         }                                       \
+     } while(0)
+ 
+-#define OPEN_READ_FILE(fd,fullpath,data,nbytes,len) \
+-    DEBUG_PRINT("[Debug][%s][%d][openfile: %s]\n", __FUNCTION__, __LINE__, fullpath); \
+-    if ((fd = open(fullpath, O_RDONLY)) == -1)  \
+-       return ONLP_STATUS_E_INTERNAL;           \
+-    if ((len = read(fd, r_data, nbytes)) <= 0){ \
+-        close(fd);                              \
+-        return ONLP_STATUS_E_INTERNAL;}         \
+-    DEBUG_PRINT("[Debug][%s][%d][read data: %s]\n", __FUNCTION__, __LINE__, r_data); \
+-    if (close(fd) == -1)                        \
+-        return ONLP_STATUS_E_INTERNAL
+-
+-static uint32_t
+-_onlp_fani_info_get_psu_fan_direction(void)
+-{
+-    /* Try to read direction from PSU1.
+-     * If PSU1 is not valid, read from PSU2
+-     */
+-    int i = 0;
+-
+-    for (i = PSU1_ID; i <= PSU2_ID; i++) {
+-        psu_type_t psu_type;
+-        psu_type = get_psu_type(i, NULL, 0);
+-
+-        if (psu_type == PSU_TYPE_UNKNOWN) {
+-            continue;
+-        }
+ 
+-		switch (psu_type) {
+-			case PSU_TYPE_AC_F2B:
+-			case PSU_TYPE_DC_48V_F2B:
+-			case PSU_TYPE_DC_12V_F2B:
+-				return ONLP_FAN_STATUS_F2B;
+-			case PSU_TYPE_AC_B2F:
+-			case PSU_TYPE_DC_48V_B2F:
+-			case PSU_TYPE_DC_12V_B2F:
+-				return ONLP_FAN_STATUS_B2F;
+-			default:
+-				return 0;
+-		};
+-    }
+ 
+-    return 0;
+-}
+ 
+-static int
+-_onlp_fani_info_get_fan(int local_id, onlp_fan_info_t* info)
+-{
+-    int   fd, len, nbytes = 10;
+-    char  r_data[10]   = {0};
+-    char  fullpath[65] = {0};
++typedef struct fani_info_s {
++    int slow_pwm;
++    int normal_pwm;
++    int max_pwm;
++    int step_size;
++    char input_file[ONLP_CONFIG_INFO_STR_MAX];
++    char pwm_file[ONLP_CONFIG_INFO_STR_MAX];
++} fani_info_t;
+ 
+-    /* check if fan is present
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].present);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    if (atoi(r_data) == 0) {
+-        return ONLP_STATUS_OK;
+-    }
+-    info->status |= ONLP_FAN_STATUS_PRESENT;
+ 
+-    /* get fan fault status (turn on when any one fails)
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].status);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    if (atoi(r_data) > 0) {
+-        info->status |= ONLP_FAN_STATUS_FAILED;
+-        return ONLP_STATUS_OK;
++static fani_info_t __info_list[ONLP_FAN_COUNT] = {
++    {},
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan1_input",
++        "/sys/class/hwmon/hwmon1/device/pwm1"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan2_input",
++        "/sys/class/hwmon/hwmon1/device/pwm1"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan3_input",
++        "/sys/class/hwmon/hwmon1/device/pwm2"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan4_input",
++        "/sys/class/hwmon/hwmon1/device/pwm2"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan5_input",
++        "/sys/class/hwmon/hwmon1/device/pwm3"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan6_input",
++        "/sys/class/hwmon/hwmon1/device/pwm3"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan7_input",
++        "/sys/class/hwmon/hwmon1/device/pwm4"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/fan8_input",
++        "/sys/class/hwmon/hwmon1/device/pwm4"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/rpm_psu1",
++        "/sys/class/hwmon/hwmon1/device/pwm_psu1"
++    },
++    {
++        100,175,255,100,
++        "/sys/class/hwmon/hwmon1/device/rpm_psu2",
++        "/sys/class/hwmon/hwmon1/device/pwm_psu2"
+     }
++};
+ 
+-    /* get fan/fanr direction (both : the same) 
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].direction);	
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);    
+-   
+-    if (atoi(r_data) == 0) /*B2F*/
+-        info->status |= ONLP_FAN_STATUS_B2F;
+-    else 
+-        info->status |= ONLP_FAN_STATUS_F2B;
+-
+-    /* get fan speed (take the min from two speeds)
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].speed);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    info->rpm = atoi(r_data);
+-
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].r_speed);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    if (info->rpm > atoi(r_data)) {
+-        info->rpm = atoi(r_data);
++/* Static values */
++static onlp_fan_info_t __onlp_fan_info[ONLP_FAN_COUNT] = {
++    { }, /* Not used */
++    {   {
++            ONLP_FAN_ID_CREATE(ONLP_FAN_1), "Fan 1", 0,
++            {
++                ONLP_FAN_ID_CREATE(ONLP_FAN_1_WEAK),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN1_GREEN),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN1_RED)
++            }
++        },
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_1_WEAK), "Fan 1 WEAK", ONLP_FAN_ID_CREATE(ONLP_FAN_1)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   {
++            ONLP_FAN_ID_CREATE(ONLP_FAN_2), "Fan 2", 0,
++            {
++                ONLP_FAN_ID_CREATE(ONLP_FAN_2_WEAK),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN2_GREEN),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN2_RED)
++            }
++        },
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_2_WEAK), "Fan 2 WEAK", ONLP_FAN_ID_CREATE(ONLP_FAN_2)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   {
++            ONLP_FAN_ID_CREATE(ONLP_FAN_3), "Fan 3", 0,
++            {
++                ONLP_FAN_ID_CREATE(ONLP_FAN_3_WEAK),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN3_GREEN),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN3_RED)
++            }
++        },
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_3_WEAK), "Fan 3 WEAK", ONLP_FAN_ID_CREATE(ONLP_FAN_3)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   {
++            ONLP_FAN_ID_CREATE(ONLP_FAN_4), "Fan 4", 0,
++            {
++                ONLP_FAN_ID_CREATE(ONLP_FAN_4_WEAK),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN4_GREEN),
++                ONLP_LED_ID_CREATE(ONLP_LED_FAN4_RED)
++            }
++        },
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_4_WEAK), "Fan 4 WEAK", ONLP_FAN_ID_CREATE(ONLP_FAN_4)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_1), "PSU-1 Fan", ONLP_PSU_ID_CREATE(ONLP_PSU_1)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
++    },
++    {   { ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_2), "PSU-2 Fan", ONLP_PSU_ID_CREATE(ONLP_PSU_2)},
++        ONLP_FAN_STATUS_PRESENT|ONLP_FAN_STATUS_B2F,
++        ONLP_FAN_CAPS_B2F|ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
+     }
++};
+ 
+-    /* get speed percentage from rpm */
+-    info->percentage = (info->rpm * 100)/MAX_FAN_SPEED;
+ 
++/*
++ * This function will be called prior to all of onlp_fani_* functions.
++ */
++int
++onlp_fani_init(void)
++{
+     return ONLP_STATUS_OK;
+ }
+ 
+-static int
+-_onlp_fani_info_get_fan_on_psu(int local_id, onlp_fan_info_t* info)
++int
++onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
+ {
+-    int   fd, len, nbytes = 10;
+-    char  r_data[10]   = {0};
+-    char  fullpath[80] = {0};
++    int rv = ONLP_STATUS_OK;
++    int local_id;
++    int pwm;
++    VALIDATE(id);
+ 
+-    /* get fan direction
+-     */
+-    info->status |= _onlp_fani_info_get_psu_fan_direction();
++    local_id = ONLP_OID_ID_GET(id);
++    if(local_id >= ONLP_FAN_MAX) {
++        rv = ONLP_STATUS_E_INVALID;
++    }
+ 
+-    /* get fan fault status
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_PSU, fan_path[local_id].status);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    info->status |= (atoi(r_data) > 0) ? ONLP_FAN_STATUS_FAILED : 0;
++    if( ONLP_STATUS_OK == rv) {
++        *info = __onlp_fan_info[local_id];
++        rv = onlp_file_read_int(&info->rpm, __info_list[local_id].input_file);
++    }
+ 
+-    /* get fan speed
+-     */
+-    sprintf(fullpath, "%s%s", PREFIX_PATH_ON_PSU, fan_path[local_id].speed);
+-    OPEN_READ_FILE(fd,fullpath,r_data,nbytes,len);
+-    info->rpm = atoi(r_data);
++    if(ONLP_STATUS_OK == rv) {
++        rv = onlp_file_read_int(&pwm, __info_list[local_id].pwm_file);
++    }
+ 
+-    /* get speed percentage from rpm */
+-    info->percentage = (info->rpm * 100) / MAX_PSU_FAN_SPEED;
+-    info->status |= ONLP_FAN_STATUS_PRESENT;
++    if( ONLP_STATUS_OK == rv) {
++        if(0 == info->rpm) {
++            info->mode = ONLP_FAN_MODE_OFF;
++        } else if(pwm < __info_list[local_id].slow_pwm) {
++            info->mode = ONLP_FAN_MODE_SLOW;
++        } else if(pwm < __info_list[local_id].normal_pwm) {
++            info->mode = ONLP_FAN_MODE_NORMAL;
++        } else if(pwm < __info_list[local_id].max_pwm) {
++            info->mode = ONLP_FAN_MODE_FAST;
++        } else {
++            info->mode = ONLP_FAN_MODE_MAX;
++        }
+ 
+-    return ONLP_STATUS_OK;
++        info->percentage = (pwm*100)/__info_list[local_id].max_pwm;
++        snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "NA");
++        snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "NA");
++    }
++    return rv;
+ }
+ 
+-/*
+- * This function will be called prior to all of onlp_fani_* functions.
++/**
++ * @brief Retrieve the fan's operational status.
++ * @param id The fan OID.
++ * @param rv [out] Receives the fan's operations status flags.
++ * @notes Only operational state needs to be returned -
++ *        PRESENT/FAILED
+  */
+-int
+-onlp_fani_init(void)
++int onlp_fani_status_get(onlp_oid_t id, uint32_t* rv)
+ {
+-    return ONLP_STATUS_OK;
++    int result = ONLP_STATUS_OK;
++    onlp_fan_info_t* info;
++    int local_id;
++    VALIDATE(id);
++
++    local_id = ONLP_OID_ID_GET(id);
++    if(local_id >= ONLP_FAN_MAX) {
++        result = ONLP_STATUS_E_INVALID;
++    } else {
++        info = &__onlp_fan_info[local_id];
++        *rv = info->status;
++    }
++    return result;
+ }
+ 
+-int
+-onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
++/**
++ * @brief Retrieve the fan's OID hdr.
++ * @param id The fan OID.
++ * @param rv [out] Receives the OID header.
++ */
++int onlp_fani_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* hdr)
+ {
+-    int rc = 0;
++    int result = ONLP_STATUS_OK;
++    onlp_fan_info_t* info;
+     int local_id;
+     VALIDATE(id);
+ 
+     local_id = ONLP_OID_ID_GET(id);
+-    *info = linfo[local_id];
+-
+-    switch (local_id)
+-    {
+-	    case FAN_1_ON_PSU1:
+-        case FAN_1_ON_PSU2:
+-            rc = _onlp_fani_info_get_fan_on_psu(local_id, info);
+-            break;
+-        case FAN_1_ON_MAIN_BOARD:
+-        case FAN_2_ON_MAIN_BOARD:
+-        case FAN_3_ON_MAIN_BOARD:
+-        case FAN_4_ON_MAIN_BOARD:
+-        case FAN_5_ON_MAIN_BOARD:
+-        case FAN_6_ON_MAIN_BOARD:
+-            rc =_onlp_fani_info_get_fan(local_id, info);
+-            break;
+-        default:
+-            rc = ONLP_STATUS_E_INVALID;
+-            break;
++    if(local_id >= ONLP_FAN_MAX) {
++        result = ONLP_STATUS_E_INVALID;
++    } else {
++        info = &__onlp_fan_info[local_id];
++        *hdr = info->hdr;
+     }
+-
+-    return rc;
++    return result;
+ }
+ 
++
+ /*
+  * This function sets the speed of the given fan in RPM.
+  *
+@@ -313,54 +300,7 @@ onlp_fani_rpm_set(onlp_oid_t id, int rpm)
+ int
+ onlp_fani_percentage_set(onlp_oid_t id, int p)
+ {
+-    int  fd, len, nbytes=10, local_id;
+-    char data[10] = {0};
+-    char fullpath[70] = {0};
+-
+-    VALIDATE(id);
+-
+-    local_id = ONLP_OID_ID_GET(id);
+-
+-    /* reject p=0 (p=0, stop fan) */
+-    if (p == 0){
+-        return ONLP_STATUS_E_INVALID;
+-    }
+-
+-    /* get fullpath */
+-    switch (local_id)
+-	{
+-        case FAN_1_ON_PSU1:
+-        case FAN_1_ON_PSU2:
+-            sprintf(fullpath, "%s%s", PREFIX_PATH_ON_PSU, fan_path[local_id].ctrl_speed);
+-            break;
+-        case FAN_1_ON_MAIN_BOARD:
+-        case FAN_2_ON_MAIN_BOARD:
+-        case FAN_3_ON_MAIN_BOARD:
+-        case FAN_4_ON_MAIN_BOARD:
+-        case FAN_5_ON_MAIN_BOARD:
+-        case FAN_6_ON_MAIN_BOARD:
+-            sprintf(fullpath, "%s%s", PREFIX_PATH_ON_MAIN_BOARD, fan_path[local_id].ctrl_speed);
+-            break;
+-        default:
+-            return ONLP_STATUS_E_INVALID;
+-    }
+-    sprintf(data, "%d", p);
+-    DEBUG_PRINT("[Debug][%s][%d][openfile: %s][data=%s]\n", __FUNCTION__, __LINE__, fullpath, data);
+-
+-    /* Create output file descriptor */
+-    fd = open(fullpath, O_WRONLY,  0644);
+-    if (fd == -1){
+-        return ONLP_STATUS_E_INTERNAL;
+-    }
+-
+-    len = write (fd, data, (ssize_t) nbytes);
+-    if (len != nbytes) {
+-        close(fd);
+-        return ONLP_STATUS_E_INTERNAL;
+-    }
+-
+-    close(fd);
+-    return ONLP_STATUS_OK;
++    return ONLP_STATUS_E_UNSUPPORTED;
+ }
+ 
+ 
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/ledi.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/ledi.c
+index 09c2cd6f..d07a7fcb 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/ledi.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/ledi.c
+@@ -24,17 +24,14 @@
+  *
+  ***********************************************************/
+ #include <onlp/platformi/ledi.h>
++#include <onlplib/file.h>
+ #include <sys/mman.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <fcntl.h>
+-#include <onlplib/mmap.h>
+ 
+ #include "platform_lib.h"
+ 
+-#define prefix_path "/sys/class/leds/inventec_cypress_led::"
+-#define filename    "brightness"
+-
+ #define VALIDATE(_id)                           \
+     do {                                        \
+         if(!ONLP_OID_IS_LED(_id)) {             \
+@@ -44,119 +41,353 @@
+ 
+ /* LED related data
+  */
+-enum onlp_led_id
+-{
+-    LED_RESERVED = 0,
+-    LED_DIAG,
+-    LED_LOC,
+-    LED_FAN,
+-    LED_PSU1,
+-    LED_PSU2
+-};
+-        
+-enum led_light_mode {
+-	LED_MODE_OFF = 0,
+-	LED_MODE_GREEN,
+-	LED_MODE_AMBER,
+-	LED_MODE_RED,
+-	LED_MODE_BLUE,
+-	LED_MODE_GREEN_BLINK,
+-	LED_MODE_AMBER_BLINK,
+-	LED_MODE_RED_BLINK,
+-	LED_MODE_BLUE_BLINK,
+-	LED_MODE_AUTO,
+-	LED_MODE_UNKNOWN
+-};
+ 
+-typedef struct led_light_mode_map {
+-    enum onlp_led_id id;
+-    enum led_light_mode driver_led_mode;
+-    enum onlp_led_mode_e onlp_led_mode;
+-} led_light_mode_map_t;
+-
+-led_light_mode_map_t led_map[] = {
+-{LED_DIAG, LED_MODE_OFF,   ONLP_LED_MODE_OFF},
+-{LED_DIAG, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
+-{LED_DIAG, LED_MODE_AMBER, ONLP_LED_MODE_ORANGE},
+-{LED_DIAG, LED_MODE_RED,   ONLP_LED_MODE_RED},
+-{LED_LOC,  LED_MODE_OFF,   ONLP_LED_MODE_OFF},
+-{LED_LOC,  LED_MODE_BLUE,  ONLP_LED_MODE_BLUE},
+-{LED_FAN,  LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
+-{LED_PSU1, LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
+-{LED_PSU2, LED_MODE_AUTO,  ONLP_LED_MODE_AUTO}
+-};
++/* CAPS*/
++#define CPLD_LED_GREEN_CAPS ONLP_LED_CAPS_ON_OFF|ONLP_LED_CAPS_GREEN|ONLP_LED_CAPS_GREEN_BLINKING
++#define CPLD_LED_RED_CAPS ONLP_LED_CAPS_ON_OFF|ONLP_LED_CAPS_RED|ONLP_LED_CAPS_RED_BLINKING
++#define PSOC_LED_GREEN_CAPS ONLP_LED_CAPS_ON_OFF|ONLP_LED_CAPS_GREEN
++#define PSOC_LED_RED_CAPS ONLP_LED_CAPS_ON_OFF|ONLP_LED_CAPS_RED
+ 
+-static char last_path[][10] =  /* must map with onlp_led_id */
+-{
+-    "reserved",
+-    "diag",
+-    "loc",
+-    "fan",
+-    "psu1",
+-    "psu2"
++
++typedef enum platform_led_color_e {
++    PLATFORM_LED_COLOR_NONE,
++    PLATFORM_LED_COLOR_RED,
++    PLATFORM_LED_COLOR_GREEN,
++    PLATFORM_LED_COLOR_ANY,
++    PLATFORM_LED_COLOR_MAX
++} platform_led_color_t;
++
++typedef enum cpld_led_mode_e {
++    CPLD_LED_MODE_OFF = 0,
++    CPLD_LED_MODE_0_5_HZ = 1,
++    CPLD_LED_MODE_1_HZ = 2,
++    CPLD_LED_MODE_2_HZ = 3,
++    CPLD_LED_MODE_ON = 7
++} cpld_led_mode_t;
++
++typedef enum led_driver_mode_e {
++    LED_DRIVER_MODE_NONE,
++    LED_DRIVER_MODE_CPLD,
++    LED_DRIVER_MODE_PSOC
++} led_driver_mode_t;
++
++
++typedef struct ledi_info_s {
++    platform_led_color_t color;
++    led_driver_mode_t driver;
++    char file[ONLP_CONFIG_INFO_STR_MAX];
++} ledi_info_t;
++
++/* function declarations*/
++static onlp_led_mode_t _cpld_onlp_led_mode_convert(platform_led_color_t color, cpld_led_mode_t mode);
++static int _onlp_cpld_led_mode_convert(onlp_led_mode_t onlp_led_mode, platform_led_color_t *pcolor, cpld_led_mode_t *pmode);
++static int _cpld_onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info);
++static int _psoc_onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info);
++static int _cpld_onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t onlp_mode);
++static int _psoc_onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t onlp_mode);
++
++static ledi_info_t __info_list[ONLP_LED_COUNT] = {
++    {},
++    {PLATFORM_LED_COLOR_GREEN, LED_DRIVER_MODE_CPLD, "/sys/bus/i2c/devices/0-0055*grn_led"},
++    {PLATFORM_LED_COLOR_RED, LED_DRIVER_MODE_CPLD, "/sys/bus/i2c/devices/0-0055*red_led"},
++    {PLATFORM_LED_COLOR_GREEN, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_grn1"},
++    {PLATFORM_LED_COLOR_RED, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_red1"},
++    {PLATFORM_LED_COLOR_GREEN, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_grn2"},
++    {PLATFORM_LED_COLOR_RED, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_red2"},
++    {PLATFORM_LED_COLOR_GREEN, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_grn3"},
++    {PLATFORM_LED_COLOR_RED, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_red3"},
++    {PLATFORM_LED_COLOR_GREEN, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_grn4"},
++    {PLATFORM_LED_COLOR_RED, LED_DRIVER_MODE_PSOC,"/sys/bus/i2c/devices/0-0066*fan_led_red4"},
+ };
+ 
++
+ /*
+  * Get the information for the given LED OID.
+  */
+-static onlp_led_info_t linfo[] =
+-{
++static onlp_led_info_t __onlp_led_info[ONLP_LED_COUNT] = {
+     { }, /* Not used */
+     {
+-        { ONLP_LED_ID_CREATE(LED_DIAG), "Chassis LED 1 (DIAG LED)", 0 },
++        { ONLP_LED_ID_CREATE(ONLP_LED_MGMT_GREEN), "MGMT LED GREEN", 0 },
++        ONLP_LED_STATUS_PRESENT,
++        CPLD_LED_GREEN_CAPS,
++    },
++    {
++        { ONLP_LED_ID_CREATE(ONLP_LED_MGMT_RED), "MGMT LED RED", 0 },
++        ONLP_LED_STATUS_PRESENT,
++        CPLD_LED_RED_CAPS,
++    },
++    {
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN1_GREEN), "FAN LED 1 GREEN", 0 },
++        ONLP_LED_STATUS_PRESENT,
++        PSOC_LED_GREEN_CAPS,
++    },
++    {
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN1_RED), "FAN LED 1 RED", 0 },
++        ONLP_LED_STATUS_PRESENT,
++        PSOC_LED_RED_CAPS,
++    },
++    {
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN2_GREEN), "FAN LED 2 GREEN", 0 },
++        ONLP_LED_STATUS_PRESENT,
++        PSOC_LED_GREEN_CAPS,
++    },
++    {
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN2_RED), "FAN LED 2 RED", 0 },
+         ONLP_LED_STATUS_PRESENT,
+-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
++        PSOC_LED_RED_CAPS,
+     },
+     {
+-        { ONLP_LED_ID_CREATE(LED_LOC), "Chassis LED 2 (LOC LED)", 0 },
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN3_GREEN), "FAN LED 3 GREEN", 0 },
+         ONLP_LED_STATUS_PRESENT,
+-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_BLUE,
++        PSOC_LED_GREEN_CAPS,
+     },
+     {
+-        { ONLP_LED_ID_CREATE(LED_FAN), "Chassis LED 3 (FAN LED)", 0 },
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN3_RED), "FAN LED 3 RED", 0 },
+         ONLP_LED_STATUS_PRESENT,
+-        ONLP_LED_CAPS_AUTO,
++        PSOC_LED_RED_CAPS,
+     },
+     {
+-        { ONLP_LED_ID_CREATE(LED_PSU1), "Chassis LED 4 (PSU1 LED)", 0 },
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN4_GREEN), "FAN LED 4 GREEN", 0 },
+         ONLP_LED_STATUS_PRESENT,
+-        ONLP_LED_CAPS_AUTO,
++        PSOC_LED_GREEN_CAPS,
+     },
+     {
+-        { ONLP_LED_ID_CREATE(LED_PSU2), "Chassis LED 4 (PSU2 LED)", 0 },
++        { ONLP_LED_ID_CREATE(ONLP_LED_FAN4_RED), "FAN LED 4 RED", 0 },
+         ONLP_LED_STATUS_PRESENT,
+-        ONLP_LED_CAPS_AUTO,
++        PSOC_LED_RED_CAPS,
+     },
+ };
+ 
+-static int driver_to_onlp_led_mode(enum onlp_led_id id, enum led_light_mode driver_led_mode)
++
++/* convert platform led type to onlp_led_mode type*/
++static onlp_led_mode_t _cpld_onlp_led_mode_convert(platform_led_color_t color, cpld_led_mode_t mode)
+ {
+-    int i, nsize = sizeof(led_map)/sizeof(led_map[0]);
+-    
+-    for (i = 0; i < nsize; i++)
+-    {
+-        if (id == led_map[i].id && driver_led_mode == led_map[i].driver_led_mode)
+-        {
+-            return led_map[i].onlp_led_mode;
++    onlp_led_mode_t ret = ONLP_LED_MODE_OFF;
++
++    /* First select the basic state */
++    switch(mode) {
++    case CPLD_LED_MODE_0_5_HZ:
++    case CPLD_LED_MODE_1_HZ:
++    case CPLD_LED_MODE_2_HZ:
++        ret = ONLP_LED_MODE_BLINKING;
++        break;
++    case CPLD_LED_MODE_ON:
++        ret = ONLP_LED_MODE_ON;
++        break;
++    case CPLD_LED_MODE_OFF:
++    default:
++        ret = ONLP_LED_MODE_OFF;
++        break;
++    }
++    if (ret != ONLP_LED_MODE_OFF) {
++        /* Add shift to color */
++        switch(color) {
++        case PLATFORM_LED_COLOR_RED:
++            ret += (ONLP_LED_MODE_RED - ONLP_LED_MODE_ON);
++            break;
++        case PLATFORM_LED_COLOR_GREEN:
++            ret += (ONLP_LED_MODE_GREEN - ONLP_LED_MODE_ON);
++            break;
++        default:
++            break;
+         }
+     }
+-    
+-    return 0;
++    return ret;
+ }
+ 
+-static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led_mode)
++static int _onlp_cpld_led_mode_convert(onlp_led_mode_t onlp_led_mode, platform_led_color_t *pcolor, cpld_led_mode_t *pmode)
+ {
+-    int i, nsize = sizeof(led_map)/sizeof(led_map[0]);
+-    
+-    for(i = 0; i < nsize; i++)
+-    {
+-        if (id == led_map[i].id && onlp_led_mode == led_map[i].onlp_led_mode)
+-        {
+-            return led_map[i].driver_led_mode;
++    int rv = ONLP_STATUS_OK;
++    switch(onlp_led_mode) {
++    case ONLP_LED_MODE_OFF:
++        *pcolor = PLATFORM_LED_COLOR_ANY;
++        *pmode = CPLD_LED_MODE_OFF;
++        break;
++    case ONLP_LED_MODE_ON:
++        *pcolor = PLATFORM_LED_COLOR_ANY;
++        *pmode = CPLD_LED_MODE_ON;
++        break;
++    case ONLP_LED_MODE_BLINKING:
++        *pcolor = PLATFORM_LED_COLOR_ANY;
++        *pmode = CPLD_LED_MODE_1_HZ;
++        break;
++    case ONLP_LED_MODE_RED:
++        *pcolor = PLATFORM_LED_COLOR_RED;
++        *pmode = CPLD_LED_MODE_ON;
++        break;
++    case ONLP_LED_MODE_RED_BLINKING:
++        /* cannot determine the blink level currently, just choose 1Hz*/
++        *pcolor = PLATFORM_LED_COLOR_RED;
++        *pmode = CPLD_LED_MODE_1_HZ;
++        break;
++    case ONLP_LED_MODE_GREEN:
++        *pcolor = PLATFORM_LED_COLOR_GREEN;
++        *pmode = CPLD_LED_MODE_ON;
++        break;
++    case ONLP_LED_MODE_GREEN_BLINKING:
++        /* cannot determine the blink level currently, just choose 1Hz*/
++        *pcolor = PLATFORM_LED_COLOR_GREEN;
++        *pmode = CPLD_LED_MODE_1_HZ;
++        break;
++
++    default:
++        rv = ONLP_STATUS_E_INVALID;
++        break;
++    }
++    return rv;
++}
++
++
++static int _cpld_onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
++{
++    int local_id;
++    int rv = ONLP_STATUS_OK;
++    platform_led_color_t color;
++    cpld_led_mode_t mode;
++
++    local_id = ONLP_OID_ID_GET(id);
++
++    /* Set the onlp_oid_hdr_t and capabilities */
++    *info = __onlp_led_info[local_id];
++
++    color = __info_list[local_id].color;
++
++    rv = onlp_file_read_int((int*)&mode, __info_list[local_id].file);
++
++    if( ONLP_STATUS_OK == rv ) {
++        info->mode = _cpld_onlp_led_mode_convert(color, mode);
++
++        /* Set the on/off status */
++        if (info->mode != ONLP_LED_MODE_OFF) {
++            info->status |= ONLP_LED_STATUS_ON;
++        } else {
++            info->status &= (~ONLP_LED_STATUS_ON);
++        }
++    }
++
++    return rv;
++}
++
++static int _psoc_onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
++{
++    int local_id;
++    int rv = ONLP_STATUS_OK;
++    int mode;
++    platform_led_color_t color;
++
++
++    local_id = ONLP_OID_ID_GET(id);
++
++    /* Set the onlp_oid_hdr_t and capabilities */
++    *info = __onlp_led_info[local_id];
++    color = __info_list[local_id].color;
++
++    rv = onlp_file_read_int((int*)&mode, __info_list[local_id].file);
++
++    if( ONLP_STATUS_OK == rv ) {
++
++        if(!mode) {
++            info->mode = ONLP_LED_MODE_OFF;
++        } else {
++            info->mode = ONLP_LED_MODE_ON;
++        }
++
++        if(info->mode != ONLP_LED_MODE_OFF) {
++            switch(color) {
++            case PLATFORM_LED_COLOR_RED:
++                info->mode += (ONLP_LED_MODE_RED - ONLP_LED_MODE_ON);
++                break;
++            case PLATFORM_LED_COLOR_GREEN:
++                info->mode += (ONLP_LED_MODE_GREEN - ONLP_LED_MODE_ON);
++                break;
++            default:
++                break;
++            }
++        }
++
++        /* Set the on/off status */
++        if (info->mode != ONLP_LED_MODE_OFF) {
++            info->status |= ONLP_LED_STATUS_ON;
++        } else {
++            info->status &= (~ONLP_LED_STATUS_ON);
++        }
++    }
++
++    return rv;
++}
++
++static int _cpld_onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t onlp_mode)
++{
++    int local_id;
++    int rv = ONLP_STATUS_OK;
++    platform_led_color_t color;
++    cpld_led_mode_t cpld_mode;
++
++    local_id = ONLP_OID_ID_GET(id);
++
++
++    /*convert onlp_led_mode to platform mod*/
++    rv = _onlp_cpld_led_mode_convert(onlp_mode, &color, &cpld_mode);
++
++    if( ONLP_STATUS_OK == rv) {
++        if((color != __info_list[local_id].color)&&(color != PLATFORM_LED_COLOR_ANY)) {
++            rv = ONLP_STATUS_E_INVALID;
++        } else {
++            rv = onlp_file_write_int(cpld_mode, __info_list[local_id].file);
+         }
+     }
+-    
+-    return 0;
++
++    return rv;
++}
++
++static int _psoc_onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t onlp_mode)
++{
++    int local_id;
++    int rv = ONLP_STATUS_OK;
++    platform_led_color_t color;
++    int psoc_mode;
++    int psoc_diag;
++
++    local_id = ONLP_OID_ID_GET(id);
++
++    rv = platform_psoc_diag_enable_read(&psoc_diag);
++
++    if( ONLP_STATUS_OK == rv ) {
++        if(!psoc_diag) {
++            rv = ONLP_STATUS_E_UNSUPPORTED;
++        }
++    }
++
++    switch(onlp_mode) {
++    case ONLP_LED_MODE_OFF:
++        psoc_mode = 0;
++        color = PLATFORM_LED_COLOR_ANY;
++        break;
++    case ONLP_LED_MODE_ON:
++        psoc_mode = 1;
++        color = PLATFORM_LED_COLOR_ANY;
++        break;
++    case ONLP_LED_MODE_RED:
++        color = PLATFORM_LED_COLOR_RED;
++        psoc_mode = 1;
++        break;
++    case ONLP_LED_MODE_GREEN:
++        color = PLATFORM_LED_COLOR_GREEN;
++        psoc_mode = 1;
++        break;
++    default:
++        rv = ONLP_STATUS_E_INVALID;
++        break;
++    }
++
++    if( ONLP_STATUS_OK == rv) {
++        if((psoc_mode)&&(color != __info_list[local_id].color)&&(color != PLATFORM_LED_COLOR_ANY)) {
++            rv = ONLP_STATUS_E_INVALID;
++        } else {
++            rv = onlp_file_write_int(psoc_mode, __info_list[local_id].file);
++        }
++    }
++    return rv;
+ }
+ 
+ /*
+@@ -165,45 +396,76 @@ static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led
+ int
+ onlp_ledi_init(void)
+ {
+-    /*
+-     * Diag LED Off
+-     */
+-    onlp_ledi_mode_set(ONLP_LED_ID_CREATE(LED_DIAG), ONLP_LED_MODE_OFF);
+-
+     return ONLP_STATUS_OK;
+ }
+ 
+ int
+ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
+ {
+-    int  local_id;
+-	char data[2] = {0};
+-    char fullpath[50] = {0};
+-		
++    int rv = ONLP_STATUS_OK;
+     VALIDATE(id);
+-	
+-    local_id = ONLP_OID_ID_GET(id);
+-    		
+-    /* get fullpath */
+-    sprintf(fullpath, "%s%s/%s", prefix_path, last_path[local_id], filename);
+-		
+-	/* Set the onlp_oid_hdr_t and capabilities */
+-    *info = linfo[ONLP_OID_ID_GET(id)];
+-
+-    /* Set LED mode */
+-    if (deviceNodeReadString(fullpath, data, sizeof(data), 0) != 0) {
+-        DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+-        return ONLP_STATUS_E_INTERNAL;
++
++    if(ONLP_OID_ID_GET(id) >= ONLP_LED_MAX) {
++        return ONLP_STATUS_E_INVALID;
+     }
+ 
+-    info->mode = driver_to_onlp_led_mode(local_id, atoi(data));
++    switch(__info_list[ONLP_OID_ID_GET(id)].driver) {
++    case LED_DRIVER_MODE_NONE:
++        *info = __onlp_led_info[ONLP_OID_ID_GET(id)];
++        break;
++    case LED_DRIVER_MODE_CPLD:
++        rv = _cpld_onlp_ledi_info_get(id, info);
++        break;
++    case LED_DRIVER_MODE_PSOC:
++        rv = _psoc_onlp_ledi_info_get(id, info);
++        break;
++    default:
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++        break;
++    }
++    return rv;
++}
+ 
+-    /* Set the on/off status */
+-    if (info->mode != ONLP_LED_MODE_OFF) {
+-        info->status |= ONLP_LED_STATUS_ON;
++/**
++ * @brief Get the LED operational status.
++ * @param id The LED OID
++ * @param rv [out] Receives the operational status.
++ */
++int onlp_ledi_status_get(onlp_oid_t id, uint32_t* rv)
++{
++    int result = ONLP_STATUS_OK;
++    onlp_led_info_t* info;
++
++    VALIDATE(id);
++
++    if(ONLP_OID_ID_GET(id) >= ONLP_LED_MAX) {
++        result = ONLP_STATUS_E_INVALID;
++    } else {
++        info = &__onlp_led_info[ONLP_OID_ID_GET(id)];
++        *rv = info->status;
+     }
++    return result;
++}
+ 
+-    return ONLP_STATUS_OK;
++/**
++ * @brief Get the LED header.
++ * @param id The LED OID
++ * @param rv [out] Receives the header.
++ */
++int onlp_ledi_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* rv)
++{
++    int result = ONLP_STATUS_OK;
++    onlp_led_info_t* info;
++
++    VALIDATE(id);
++
++    if(ONLP_OID_ID_GET(id) >= ONLP_LED_MAX) {
++        result = ONLP_STATUS_E_INVALID;
++    } else {
++        info = &__onlp_led_info[ONLP_OID_ID_GET(id)];
++        *rv = info->hdr;
++    }
++    return result;
+ }
+ 
+ /*
+@@ -218,10 +480,17 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
+ int
+ onlp_ledi_set(onlp_oid_t id, int on_or_off)
+ {
++    onlp_led_mode_t mode;
+     VALIDATE(id);
+ 
+-    if (!on_or_off) {
+-        return onlp_ledi_mode_set(id, ONLP_LED_MODE_OFF);
++    if(ONLP_OID_ID_GET(id) >= ONLP_LED_MAX) {
++        return ONLP_STATUS_E_INVALID;
++    }
++
++
++    if (__onlp_led_info[ONLP_OID_ID_GET(id)].caps & ONLP_LED_CAPS_ON_OFF) {
++        mode = on_or_off?ONLP_LED_MODE_ON:ONLP_LED_MODE_OFF;
++        return onlp_ledi_mode_set(id, mode);
+     }
+ 
+     return ONLP_STATUS_E_UNSUPPORTED;
+@@ -236,20 +505,25 @@ onlp_ledi_set(onlp_oid_t id, int on_or_off)
+ int
+ onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
+ {
+-    int  local_id;
+-    char fullpath[50] = {0};		
+-
++    int rv = ONLP_STATUS_OK;
+     VALIDATE(id);
+-	
+-    local_id = ONLP_OID_ID_GET(id);
+-    sprintf(fullpath, "%s%s/%s", prefix_path, last_path[local_id], filename);	
+-    
+-    if (deviceNodeWriteInt(fullpath, onlp_to_driver_led_mode(local_id, mode), 0) != 0)
+-    {
+-        return ONLP_STATUS_E_INTERNAL;
++
++    if(ONLP_OID_ID_GET(id) >= ONLP_LED_MAX) {
++        return ONLP_STATUS_E_INVALID;
+     }
+ 
+-    return ONLP_STATUS_OK;
++    switch(__info_list[ONLP_OID_ID_GET(id)].driver) {
++    case LED_DRIVER_MODE_CPLD:
++        rv = _cpld_onlp_ledi_mode_set(id, mode);
++        break;
++    case LED_DRIVER_MODE_PSOC:
++        rv = _psoc_onlp_ledi_mode_set(id, mode);
++        break;
++    default:
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++        break;
++    }
++    return rv;
+ }
+ 
+ /*
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.c
+index b4ef2d04..8bd82691 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.c
+@@ -23,178 +23,28 @@
+  *
+  *
+  ***********************************************************/
+-#include <sys/mman.h>
+ #include <errno.h>
+ #include <string.h>
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <fcntl.h>
+ #include <AIM/aim.h>
++#include <onlp/onlp.h>
++#include <onlplib/file.h>
+ #include "platform_lib.h"
+ 
+-int deviceNodeWrite(char *filename, char *buffer, int buf_size, int data_len)
+-{
+-    int fd;
+-    int len;
+-
+-    if ((buffer == NULL) || (buf_size < 0)) {
+-        return -1;
+-    }
+-
+-    if ((fd = open(filename, O_WRONLY, S_IWUSR)) == -1) {
+-        return -1;
+-    }
+-
+-    if ((len = write(fd, buffer, buf_size)) < 0) {
+-        close(fd);
+-        return -1;
+-    }
+-
+-    if ((close(fd) == -1)) {
+-        return -1;
+-    }
+-
+-    if ((len > buf_size) || (data_len != 0 && len != data_len)) {
+-        return -1;
+-    }
+ 
+-    return 0;
+-}
+-
+-int deviceNodeWriteInt(char *filename, int value, int data_len)
++int platform_psoc_diag_enable_read(int *enable)
+ {
+-    char buf[8] = {0};
+-    sprintf(buf, "%d", value);
+-
+-    return deviceNodeWrite(filename, buf, (int)strlen(buf), data_len);
++    int rv = ONLP_STATUS_OK;
++    rv = onlp_file_read_int((int*)enable, PLATFORM_PSOC_DIAG_PATH);
++    return rv;
+ }
+ 
+-int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len)
+-{
+-    int fd;
+-    int len;
+-
+-    if ((buffer == NULL) || (buf_size < 0)) {
+-        return -1;
+-    }
+ 
+-    if ((fd = open(filename, O_RDONLY)) == -1) {
+-        return -1;
+-    }
+-
+-    if ((len = read(fd, buffer, buf_size)) < 0) {
+-        close(fd);
+-        return -1;
+-    }
+-
+-    if ((close(fd) == -1)) {
+-        return -1;
+-    }
+-
+-    if ((len > buf_size) || (data_len != 0 && len != data_len)) {
+-        return -1;
+-    }
+-
+-    return 0;
+-}
+-
+-int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len)
++int platform_psoc_diag_enable_write(int enable)
+ {
+-    int ret;
+-
+-    if (data_len >= buf_size) {
+-	    return -1;
+-	}
+-
+-	ret = deviceNodeReadBinary(filename, buffer, buf_size-1, data_len);
+-
+-    if (ret == 0) {
+-        buffer[buf_size-1] = '\0';
+-    }
+-
+-    return ret;
+-}
+-
+-#define I2C_PSU_MODEL_NAME_LEN 11
+-#define I2C_PSU_FAN_DIR_LEN    3
+-#include <ctype.h>
+-psu_type_t get_psu_type(int id, char* modelname, int modelname_len)
+-{
+-    char *node = NULL;
+-    char  model_name[I2C_PSU_MODEL_NAME_LEN + 1] = {0};
+-    char  fan_dir[I2C_PSU_FAN_DIR_LEN + 1] = {0};
+-
+-    /* Check AC model name */
+-    node = (id == PSU1_ID) ? PSU1_AC_HWMON_NODE(psu_model_name) : PSU2_AC_HWMON_NODE(psu_model_name);
+-
+-    if (deviceNodeReadString(node, model_name, sizeof(model_name), 0) != 0) {
+-        return PSU_TYPE_UNKNOWN;
+-    }
+-
+-    if(isspace(model_name[strlen(model_name)-1])) {
+-        model_name[strlen(model_name)-1] = 0;
+-    }
+-
+-    if (strncmp(model_name, "YM-2651Y", 8) == 0) {
+-	    if (modelname) {
+-			strncpy(modelname, model_name, 8);
+-	    }
+-
+-	    node = (id == PSU1_ID) ? PSU1_AC_PMBUS_NODE(psu_fan_dir) : PSU2_AC_PMBUS_NODE(psu_fan_dir);
+-	    if (deviceNodeReadString(node, fan_dir, sizeof(fan_dir), 0) != 0) {
+-	        return PSU_TYPE_UNKNOWN;
+-	    }
+-
+-	    if (strncmp(fan_dir, "F2B", strlen("F2B")) == 0) {
+-	        return PSU_TYPE_AC_F2B;
+-	    }
+-
+-	    if (strncmp(fan_dir, "B2F", strlen("B2F")) == 0) {
+-	        return PSU_TYPE_AC_B2F;
+-	    }
+-    }
+-
+-    if (strncmp(model_name, "YM-2651V", 8) == 0) {
+-	    if (modelname) {
+-			strncpy(modelname, model_name, 8);
+-	    }
+-
+-	    node = (id == PSU1_ID) ? PSU1_AC_PMBUS_NODE(psu_fan_dir) : PSU2_AC_PMBUS_NODE(psu_fan_dir);
+-	    if (deviceNodeReadString(node, fan_dir, sizeof(fan_dir), 0) != 0) {
+-	        return PSU_TYPE_UNKNOWN;
+-	    }
+-
+-	    if (strncmp(fan_dir, "F2B", strlen("F2B")) == 0) {
+-	        return PSU_TYPE_DC_48V_F2B;
+-	    }
+-
+-	    if (strncmp(fan_dir, "B2F", strlen("B2F")) == 0) {
+-	        return PSU_TYPE_DC_48V_B2F;
+-	    }
+-    }
+-
+-	if (strncmp(model_name, "PSU-12V-750", 11) == 0) {
+-	    if (modelname) {
+-			strncpy(modelname, model_name, 11);
+-	    }
+-
+-	    node = (id == PSU1_ID) ? PSU1_AC_HWMON_NODE(psu_fan_dir) : PSU2_AC_HWMON_NODE(psu_fan_dir);
+-	    if (deviceNodeReadString(node, fan_dir, sizeof(fan_dir), 0) != 0) {
+-	        return PSU_TYPE_UNKNOWN;
+-	    }
+-
+-	    if (strncmp(fan_dir, "F2B", 3) == 0) {
+-	        return PSU_TYPE_DC_12V_F2B;
+-	    }
+-
+-	    if (strncmp(fan_dir, "B2F", 3) == 0) {
+-	        return PSU_TYPE_DC_12V_B2F;
+-	    }
+-
+-	    if (strncmp(fan_dir, "NON", 3) == 0) {
+-	        return PSU_TYPE_DC_12V_FANLESS;
+-	    }
+-	}
+-
+-    return PSU_TYPE_UNKNOWN;
++    int rv = ONLP_STATUS_OK;
++    rv = onlp_file_write_int(enable, PLATFORM_PSOC_DIAG_PATH);
++    return rv;
+ }
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.h b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.h
+index 53cffca7..44edbad6 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.h
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/platform_lib.h
+@@ -28,50 +28,125 @@
+ 
+ #include "x86_64_inventec_cypress_log.h"
+ 
+-#define CHASSIS_FAN_COUNT     6
+-#define CHASSIS_THERMAL_COUNT 5
++/* This is definitions for x86-64-inventec-cypress*/
++/* OID map*/
++/*
++ *  SYS---------ONLP_THERMAL_CPU_PHY
++ *         |----ONLP_THERMAL_CPU_CORE0
++ *         |----ONLP_THERMAL_CPU_CORE1
++ *         |----ONLP_THERMAL_CPU_CORE2
++ *         |----ONLP_THERMAL_CPU_CORE3
++ *         |----ONLP_THERMAL_1_ON_MAIN_BROAD
++ *         |----ONLP_THERMAL_2_ON_MAIN_BROAD
++ *         |----ONLP_THERMAL_3_ON_MAIN_BROAD
++ *         |----ONLP_THERMAL_4_ON_MAIN_BROAD
++ *         |----ONLP_THERMAL_5_ON_MAIN_BROAD
++ *         |----ONLP_FAN_1--------ONLP_FAN_1_WEAK
++ *         |                   |--ONLP_LED_FAN1_GREEN
++ *         |                   |--ONLP_LED_FAN1_RED
++ *         |
++ *         |----ONLP_FAN_2--------ONLP_FAN_2_WEAK
++ *         |                   |--ONLP_LED_FAN2_GREEN
++ *         |                   |--ONLP_LED_FAN2_RED
++ *         |
++ *         |----ONLP_FAN_3--------ONLP_FAN_3_WEAK
++ *         |                   |--ONLP_LED_FAN3_GREEN
++ *         |                   |--ONLP_LED_FAN3_RED
++ *         |
++ *         |----ONLP_FAN_4--------ONLP_FAN_4_WEAK
++ *         |                   |--ONLP_LED_FAN4_GREEN
++ *         |                   |--ONLP_LED_FAN4_RED
++ *         |
++ *         |----ONLP_PSU_1--------ONLP_THERMAL_1_ON_PSU1
++ *         |                   |--ONLP_THERMAL_2_ON_PSU1
++ *         |                   |--ONLP_FAN_PSU_1
++ *         |
++ *         |----ONLP_PSU_2--------ONLP_THERMAL_1_ON_PSU2
++ *         |                   |--ONLP_THERMAL_2_ON_PSU2
++ *         |                   |--ONLP_FAN_PSU_2
++ *         |
++ *         |----ONLP_LED_MGMT_GREEN
++ *         |----ONLP_LED_MGMT_RED
++ */
+ 
+-#define PSU1_ID 1
+-#define PSU2_ID 2
++/* Thermal definitions*/
++enum onlp_thermal_id {
++    ONLP_THERMAL_RESERVED = 0,
++    ONLP_THERMAL_CPU_PHY,
++    ONLP_THERMAL_CPU_CORE0,
++    ONLP_THERMAL_CPU_CORE1,
++    ONLP_THERMAL_CPU_CORE2,
++    ONLP_THERMAL_CPU_CORE3,
++    ONLP_THERMAL_1_ON_MAIN_BROAD,
++    ONLP_THERMAL_2_ON_MAIN_BROAD,
++    ONLP_THERMAL_3_ON_MAIN_BROAD,
++    ONLP_THERMAL_4_ON_MAIN_BROAD,
++    ONLP_THERMAL_5_ON_MAIN_BROAD,
++    ONLP_THERMAL_1_ON_PSU1,
++    ONLP_THERMAL_2_ON_PSU1,
++    ONLP_THERMAL_1_ON_PSU2,
++    ONLP_THERMAL_2_ON_PSU2,
++    ONLP_THERMAL_MAX
++};
+ 
+-#define PSU1_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/11-005b/"
+-#define PSU2_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/10-0058/"
++#define ONLP_THERMAL_COUNT 15 /*include "reserved"*/
+ 
+-#define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
+-#define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
++/* Fan definitions*/
++enum onlp_fan_id {
++    ONLP_FAN_RESERVED = 0,
++    ONLP_FAN_1,
++    ONLP_FAN_1_WEAK,
++    ONLP_FAN_2,
++    ONLP_FAN_2_WEAK,
++    ONLP_FAN_3,
++    ONLP_FAN_3_WEAK,
++    ONLP_FAN_4,
++    ONLP_FAN_4_WEAK,
++    ONLP_FAN_PSU_1,
++    ONLP_FAN_PSU_2,
++    ONLP_FAN_MAX
++};
+ 
+-#define PSU1_AC_HWMON_PREFIX "/sys/bus/i2c/devices/11-0053/"
+-#define PSU2_AC_HWMON_PREFIX "/sys/bus/i2c/devices/10-0050/"
++#define ONLP_FAN_COUNT 11 /*include "reserved"*/
+ 
+-#define PSU1_AC_HWMON_NODE(node) PSU1_AC_HWMON_PREFIX#node
+-#define PSU2_AC_HWMON_NODE(node) PSU2_AC_HWMON_PREFIX#node
++/* PSU definitions*/
++enum onlp_psu_id {
++    ONLP_PSU_RESERVED,
++    ONLP_PSU_1,
++    ONLP_PSU_2,
++    ONLP_PSU_MAX
++};
+ 
+-#define IDPROM_PATH "/sys/class/i2c-adapter/i2c-1/1-0057/eeprom"
++#define ONLP_PSU_COUNT 3 /*include "reserved"*/
+ 
+-int deviceNodeWriteInt(char *filename, int value, int data_len);
+-int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len);
+-int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len);
++/* LED definitions*/
++enum onlp_led_id {
++    ONLP_LED_RESERVED = 0,
++    ONLP_LED_MGMT_GREEN,
++    ONLP_LED_MGMT_RED,
++    ONLP_LED_FAN1_GREEN,
++    ONLP_LED_FAN1_RED,
++    ONLP_LED_FAN2_GREEN,
++    ONLP_LED_FAN2_RED,
++    ONLP_LED_FAN3_GREEN,
++    ONLP_LED_FAN3_RED,
++    ONLP_LED_FAN4_GREEN,
++    ONLP_LED_FAN4_RED,
++    ONLP_LED_MAX
++};
+ 
+-typedef enum psu_type {
+-    PSU_TYPE_UNKNOWN,
+-    PSU_TYPE_AC_F2B,
+-    PSU_TYPE_AC_B2F,
+-    PSU_TYPE_DC_48V_F2B,
+-    PSU_TYPE_DC_48V_B2F,
+-    PSU_TYPE_DC_12V_FANLESS,
+-    PSU_TYPE_DC_12V_F2B,
+-    PSU_TYPE_DC_12V_B2F
+-} psu_type_t;
++#define ONLP_LED_COUNT 11 /*include "reserved"*/
++
++
++/* platform functions*/
++#define PLATFORM_PSOC_DIAG_PATH "/sys/class/hwmon/hwmon1/device/diag"
++#define PLATFORM_PSOC_DIAG_LOCK platform_psoc_diag_enable_write(0)
++#define PLATFORM_PSOC_DIAG_UNLOCK platform_psoc_diag_enable_write(1)
++int platform_psoc_diag_enable_read(int *enable);
++int platform_psoc_diag_enable_write(int enable);
+ 
+-psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
+ 
+-#define DEBUG_MODE 0
+ 
+-#if (DEBUG_MODE == 1)
+-    #define DEBUG_PRINT(format, ...)   printf(format, __VA_ARGS__)
+-#else
+-    #define DEBUG_PRINT(format, ...)
+-#endif
+ 
+ #endif  /* __PLATFORM_LIB_H__ */
+ 
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/psui.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/psui.c
+index 88c02f03..b90f4beb 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/psui.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/psui.c
+@@ -23,17 +23,11 @@
+  *
+  *
+  ***********************************************************/
+-#include <onlp/platformi/psui.h>
+-#include <onlplib/mmap.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include "platform_lib.h"
+-
+-#define PSU_STATUS_PRESENT    1
+-#define PSU_STATUS_POWER_GOOD 1
+-
+-#define PSU_NODE_MAX_INT_LEN  8
+-#define PSU_NODE_MAX_PATH_LEN 64
++#include <onlp/platformi/psui.h>
++#include <onlplib/file.h>
+ 
+ #define VALIDATE(_id)                           \
+     do {                                        \
+@@ -42,224 +36,151 @@
+         }                                       \
+     } while(0)
+ 
+-static int 
+-psu_status_info_get(int id, char *node, int *value)
+-{
+-    int ret = 0;
+-    char buf[PSU_NODE_MAX_INT_LEN + 1] = {0};
+-    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+-    
+-    *value = 0;
+-
+-    if (PSU1_ID == id) {
+-        sprintf(node_path, "%s%s", PSU1_AC_HWMON_PREFIX, node);
+-    }
+-    else if (PSU2_ID == id) {
+-        sprintf(node_path, "%s%s", PSU2_AC_HWMON_PREFIX, node);
+-    }
+-    
+-    ret = deviceNodeReadString(node_path, buf, sizeof(buf), 0);
+-
+-    if (ret == 0) {
+-        *value = atoi(buf);
+-    }
+-
+-    return ret;
+-}
+-
+-static int
+-psu_ym2651_pmbus_info_get(int id, char *node, int *value)
+-{
+-    int  ret = 0;
+-    char buf[PSU_NODE_MAX_INT_LEN + 1]    = {0};
+-    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+-    
+-    *value = 0;
+-
+-    if (PSU1_ID == id) {
+-        sprintf(node_path, "%s%s", PSU1_AC_PMBUS_PREFIX, node);
+-    }
+-    else {
+-        sprintf(node_path, "%s%s", PSU2_AC_PMBUS_PREFIX, node);
+-    }
+-
+-    ret = deviceNodeReadString(node_path, buf, sizeof(buf), 0);
+-
+-    if (ret == 0) {
+-        *value = atoi(buf);
+-    }
+-
+-    return ret;
+-}
+-
+-int
+-onlp_psui_init(void)
+-{
+-    return ONLP_STATUS_OK;
+-}
+-
+-static int
+-psu_ym2651_info_get(onlp_psu_info_t* info)
+-{
+-    int val   = 0;
+-    int index = ONLP_OID_ID_GET(info->hdr.id);
+-
+-    if (info->status & ONLP_PSU_STATUS_FAILED) {
+-        return ONLP_STATUS_OK;
+-    }
+-
+-    /* Set the associated oid_table */
+-    info->hdr.coids[0] = ONLP_FAN_ID_CREATE(index + CHASSIS_FAN_COUNT);
+-    info->hdr.coids[1] = ONLP_THERMAL_ID_CREATE(index + CHASSIS_THERMAL_COUNT);
+-
+-    /* Read voltage, current and power */
+-    if (psu_ym2651_pmbus_info_get(index, "psu_v_out", &val) == 0) {
+-        info->mvout = val;
+-        info->caps |= ONLP_PSU_CAPS_VOUT;
+-    }
+-
+-    if (psu_ym2651_pmbus_info_get(index, "psu_i_out", &val) == 0) {
+-        info->miout = val;
+-        info->caps |= ONLP_PSU_CAPS_IOUT;
+-    }
+-
+-    if (psu_ym2651_pmbus_info_get(index, "psu_p_out", &val) == 0) {
+-        info->mpout = val;
+-        info->caps |= ONLP_PSU_CAPS_POUT;
+-    } 
+-
+-    return ONLP_STATUS_OK;
+-}
+-
+-#include <onlplib/i2c.h>
+-#define DC12V_750_REG_TO_CURRENT(low, high) (((low << 4 | high >> 4) * 20 * 1000) / 754)
+-#define DC12V_750_REG_TO_VOLTAGE(low, high) ((low << 4 | high >> 4) * 25)
+-
+-static int
+-psu_dc12v_750_info_get(onlp_psu_info_t* info)
+-{
+-    int pid = ONLP_OID_ID_GET(info->hdr.id);
+-    int bus = (PSU1_ID == pid) ? 11 : 10;
+-    int iout_low, iout_high;
+-    int vout_low, vout_high;
++#define PSUI_PLATFORM_PSU_MODEL "PS-2551-7L-LF"
+ 
+-    /* Set capability
+-     */
+-    info->caps = ONLP_PSU_CAPS_DC12;
+-    
+-    if (info->status & ONLP_PSU_STATUS_FAILED) {
+-        return ONLP_STATUS_OK;
+-    }
+ 
+-    /* Get current
+-     */
+-    iout_low  = onlp_i2c_readb(bus, 0x6f, 0x0, ONLP_I2C_F_FORCE);
+-    iout_high = onlp_i2c_readb(bus, 0x6f, 0x1, ONLP_I2C_F_FORCE);
++typedef enum psoc_psu_state_e {
++    PSOC_PSU_NORMAL = 0,
++    PSOC_PSU_NA_1,            //001
++    PSOC_PSU_UNPOWERED,       //010
++    PSOC_PSU_NA_3,            //011
++    PSOC_PSU_FAULT,           //100
++    PSOC_PSU_NA_5,            //101
++    PSOC_PSU_NA_6,            //110
++    PSOC_PSU_NOT_INSTALLED    //111
++} psoc_psu_state_t;
+ 
+-    if ((iout_low >= 0) && (iout_high >= 0)) {
+-        info->miout = DC12V_750_REG_TO_CURRENT(iout_low, iout_high);
+-        info->caps |= ONLP_PSU_CAPS_IOUT;
+-    }
+ 
+-    /* Get voltage
+-     */
+-    vout_low  = onlp_i2c_readb(bus, 0x6f, 0x2, ONLP_I2C_F_FORCE);
+-    vout_high = onlp_i2c_readb(bus, 0x6f, 0x3, ONLP_I2C_F_FORCE);
++typedef struct psui_info_s {
++    char vendor[ONLP_CONFIG_INFO_STR_MAX];
++    char serial[ONLP_CONFIG_INFO_STR_MAX];
++    char state[ONLP_CONFIG_INFO_STR_MAX];
++    char vin[ONLP_CONFIG_INFO_STR_MAX];
++    char vout[ONLP_CONFIG_INFO_STR_MAX];
++    char iin[ONLP_CONFIG_INFO_STR_MAX];
++    char iout[ONLP_CONFIG_INFO_STR_MAX];
++    char pin[ONLP_CONFIG_INFO_STR_MAX];
++    char pout[ONLP_CONFIG_INFO_STR_MAX];
++} psui_info_t;
+ 
+-    if ((vout_low >= 0) && (vout_high >= 0)) {
+-        info->mvout = DC12V_750_REG_TO_VOLTAGE(vout_low, vout_high);
+-        info->caps |= ONLP_PSU_CAPS_VOUT;
+-    }
+ 
+-    /* Get power based on current and voltage
+-     */
+-    if ((info->caps & ONLP_PSU_CAPS_IOUT) && (info->caps & ONLP_PSU_CAPS_VOUT)) {
+-        info->mpout = (info->miout * info->mvout) / 1000;
+-        info->caps |= ONLP_PSU_CAPS_POUT;
++static psui_info_t __info_list[ONLP_PSU_COUNT] = {
++    {},
++    {
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vender",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_serial",
++        "/sys/class/hwmon/hwmon1/device/psu0",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vout",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_iin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_iout",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_pin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu1_pout"
++    },
++    {
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vender",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_serial",
++        "/sys/class/hwmon/hwmon1/device/psu1",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vout",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_iin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_iout",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_pin",
++        "/sys/class/hwmon/hwmon1/device/psoc_psu2_pout"
+     }
++};
+ 
+-    return ONLP_STATUS_OK;
+-}
+ 
+ /*
+  * Get all information about the given PSU oid.
+  */
+-static onlp_psu_info_t pinfo[] =
+-{
++static onlp_psu_info_t __onlp_psu_info[ONLP_PSU_COUNT] = {
+     { }, /* Not used */
+     {
+-        { ONLP_PSU_ID_CREATE(PSU1_ID), "PSU-1", 0 },
++        {
++            ONLP_PSU_ID_CREATE(ONLP_PSU_1), "PSU-1", 0,
++            {
++                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU1),
++                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU1),
++                ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_1)
++            }
++        },
++        "","",ONLP_PSU_STATUS_PRESENT,
++        ONLP_PSU_CAPS_DC12|ONLP_PSU_CAPS_VIN|ONLP_PSU_CAPS_VOUT|ONLP_PSU_CAPS_IIN|ONLP_PSU_CAPS_IOUT|ONLP_PSU_CAPS_PIN|ONLP_PSU_CAPS_POUT
+     },
+     {
+-        { ONLP_PSU_ID_CREATE(PSU2_ID), "PSU-2", 0 },
++        {
++            ONLP_PSU_ID_CREATE(ONLP_PSU_2), "PSU-2", 0,
++            {
++                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU2),
++                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU2),
++                ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_2)
++            }
++        },
++        "","",ONLP_PSU_STATUS_PRESENT,
++        ONLP_PSU_CAPS_DC12|ONLP_PSU_CAPS_VIN|ONLP_PSU_CAPS_VOUT|ONLP_PSU_CAPS_IIN|ONLP_PSU_CAPS_IOUT|ONLP_PSU_CAPS_PIN|ONLP_PSU_CAPS_POUT
+     }
+ };
+ 
++
++int
++onlp_psui_init(void)
++{
++    return ONLP_STATUS_OK;
++}
++
++
+ int
+ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
+ {
+-    int val   = 0;
+     int ret   = ONLP_STATUS_OK;
+-    int index = ONLP_OID_ID_GET(id);
+-    psu_type_t psu_type; 
++    int len;
++    int local_id = ONLP_OID_ID_GET(id);
++    uint8_t temp[ONLP_CONFIG_INFO_STR_MAX] = {0};
++    psoc_psu_state_t psoc_state;
+ 
+     VALIDATE(id);
+ 
+-    memset(info, 0, sizeof(onlp_psu_info_t));
+-    *info = pinfo[index]; /* Set the onlp_oid_hdr_t */
+-
+-    /* Get the present state */
+-    if (psu_status_info_get(index, "psu_present", &val) != 0) {
+-        printf("Unable to read PSU(%d) node(psu_present)\r\n", index);
++    if(local_id >= ONLP_PSU_MAX) {
++        return ONLP_STATUS_E_INVALID;
+     }
+ 
+-    if (val != PSU_STATUS_PRESENT) {
+-        info->status &= ~ONLP_PSU_STATUS_PRESENT;
+-        return ONLP_STATUS_OK;
+-    }
+-    info->status |= ONLP_PSU_STATUS_PRESENT;
+ 
++    *info = __onlp_psu_info[local_id]; /* Set the onlp_oid_hdr_t */
+ 
+-    /* Get power good status */
+-    if (psu_status_info_get(index, "psu_power_good", &val) != 0) {
+-        printf("Unable to read PSU(%d) node(psu_power_good)\r\n", index);
+-    }
++    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, __info_list[local_id].vendor);
++    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
++    memset(temp, 0, ONLP_CONFIG_INFO_STR_MAX);
+ 
+-    if (val != PSU_STATUS_POWER_GOOD) {
+-        info->status |=  ONLP_PSU_STATUS_FAILED;
+-    }
+ 
++    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len,__info_list[local_id].serial);
++    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
+ 
+-    /* Get PSU type
+-     */
+-    psu_type = get_psu_type(index, info->model, sizeof(info->model));
+ 
+-    switch (psu_type) {
+-        case PSU_TYPE_AC_F2B:
+-        case PSU_TYPE_AC_B2F:
+-            info->caps = ONLP_PSU_CAPS_AC;
+-            ret = psu_ym2651_info_get(info);
+-            break;
+-        case PSU_TYPE_DC_48V_F2B:
+-        case PSU_TYPE_DC_48V_B2F:
+-            info->caps = ONLP_PSU_CAPS_DC48;
+-            ret = psu_ym2651_info_get(info);
+-            break;
+-        case PSU_TYPE_DC_12V_F2B:
+-        case PSU_TYPE_DC_12V_B2F:
+-        case PSU_TYPE_DC_12V_FANLESS:
+-            ret = psu_dc12v_750_info_get(info);
+-            break;
+-        case PSU_TYPE_UNKNOWN:  /* User insert a unknown PSU or unplugged.*/
+-            info->status |= ONLP_PSU_STATUS_UNPLUGGED;
+-            info->status &= ~ONLP_PSU_STATUS_FAILED;
+-            ret = ONLP_STATUS_OK;
+-            break;
+-        default:
+-            ret = ONLP_STATUS_E_UNSUPPORTED;
+-            break;
++    ret = onlp_file_read_int((int*)&psoc_state, __info_list[local_id].state);
++
++    if( PSOC_PSU_UNPOWERED == psoc_state) {
++        info->status = ONLP_PSU_STATUS_PRESENT|ONLP_PSU_STATUS_UNPLUGGED;
++    } else if ( PSOC_PSU_NORMAL == psoc_state) {
++        info->status = ONLP_PSU_STATUS_PRESENT;
++    } else if( PSOC_PSU_FAULT == psoc_state) {
++        info->status = ONLP_PSU_STATUS_PRESENT|ONLP_PSU_STATUS_FAILED;
++    } else {
++        info->status = 0;
+     }
+ 
++    /*millivolts*/
++    ret = onlp_file_read_int(&info->mvin, __info_list[local_id].vin);
++    ret = onlp_file_read_int(&info->mvout, __info_list[local_id].vout);
++
++    /* milliamps */
++    ret = onlp_file_read_int(&info->miin, __info_list[local_id].iin);
++    ret = onlp_file_read_int(&info->miout, __info_list[local_id].iout);
++
++    /* milliwatts */
++    ret = onlp_file_read_int(&info->mpin, __info_list[local_id].pin);
++    ret = onlp_file_read_int(&info->mpout, __info_list[local_id].pout);
++
+     return ret;
+ }
+ 
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sfpi.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sfpi.c
+index 6c7f381b..9294dd0b 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sfpi.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sfpi.c
+@@ -32,69 +32,104 @@
+ #include <sys/ioctl.h>
+ #include <onlplib/i2c.h>
+ #include "platform_lib.h"
++#include <dirent.h>
+ 
+-#define MAX_SFP_PATH 64
+-static char sfp_node_path[MAX_SFP_PATH] = {0};
++#define MAX_SFP_PATH 128
++//static char sfp_node_path[MAX_SFP_PATH] = {0};
+ 
+-#define MUX_START_INDEX 18
+-#define NUM_OF_SFP_PORT 32
+-static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
+- 4,  5,  6,  7,  9,  8, 11, 10,
+- 0,  1,  2,  3, 12, 13, 14, 15,
+-16, 17, 18, 19, 28, 29, 30, 31,
+-20, 21, 22, 23, 24, 25, 26, 27
+-};
+-
+-#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
+-
+-static int
+-as7512_32x_sfp_node_read_int(char *node_path, int *value, int data_len)
++#define MUX_START_INDEX 1
++#define NUM_OF_SFP_PORT 48
++#define NUM_OF_QSFP_PORT 6
++#define NUM_OF_ALL_PORT (NUM_OF_SFP_PORT+NUM_OF_QSFP_PORT)
++/************************************************************
++ *
++ * SFPI Entry Points
++ *
++ ***********************************************************/
++int
++onlp_sfpi_init(void)
+ {
+-    int ret = 0;
+-    char buf[8];
+-    *value = 0;
++    /* Called at initialization time */
++    return ONLP_STATUS_OK;
++}
+ 
+-    ret = deviceNodeReadString(node_path, buf, sizeof(buf), data_len);
++int
++onlp_sfpi_port_is_valid(int port)
++{
++    if(port > NUM_OF_ALL_PORT || port < 1)
++        return 0;
++    return 1;
++}
+ 
+-    if (ret == 0) {
+-        *value = atoi(buf);
++int
++onlp_sfpi_get_file_byte(int port, char* attr)
++{
++    if(!onlp_sfpi_port_is_valid(port)) {
++        return -1;
+     }
+-
++    char path[128]= {0};
++    int err = snprintf(path, sizeof(path), "/sys/class/swps/port%d/%s", (port-1), attr);
++    if( err < 0) {
++        return err;
++    }
++    FILE* pFile = fopen(path, "r");
++    if(pFile == NULL) {
++        return ONLP_STATUS_E_UNSUPPORTED;
++    }
++    char buf[8] = {0};
++    fread( buf, sizeof(buf), sizeof(buf), pFile );
++    int ret = strtol (buf, NULL, 10);
++    fclose(pFile);
+     return ret;
+ }
+ 
+-static char*
+-as7512_32x_sfp_get_port_path(int port, char *node_name)
++int
++onlp_sfpi_set_file_byte(int port, char* attr, int value)
+ {
+-    sprintf(sfp_node_path, "/sys/bus/i2c/devices/%d-0050/%s",
+-                           FRONT_PORT_TO_MUX_INDEX(port),
+-                           node_name);
+-
+-    return sfp_node_path;
++    if(!onlp_sfpi_port_is_valid(port)) {
++        return -1;
++    }
++    if(value > 10 || value < 0) {
++        return -1;
++    }
++    char path[128]= {0};
++    int err = snprintf(path, sizeof(path), "/sys/class/swps/port%d/%s", (port-1), attr);
++    if( err < 0) {
++        return err;
++    }
++    FILE* pFile = fopen(path, "r+");
++    if(pFile == NULL) {
++        return ONLP_STATUS_E_UNSUPPORTED;
++    }
++    char buf = 0;
++    buf = value+'0';
++    err = fwrite(&buf, sizeof(buf), sizeof(buf), pFile);
++    if(err < 0) {
++        return err;
++    }
++    fclose(pFile);
++    return err;
+ }
+ 
+-/************************************************************
+- *
+- * SFPI Entry Points
+- *
+- ***********************************************************/
+ int
+-onlp_sfpi_init(void)
++onlp_sfpi_port2chan(int port)
+ {
+-    /* Called at initialization time */
+-    return ONLP_STATUS_OK;
++    if(port%2) {
++        return port+10;
++    }
++    return (port-2)+10;
+ }
+ 
+ int
+ onlp_sfpi_bitmap_get(onlp_sfp_bitmap_t* bmap)
+ {
+     /*
+-     * Ports {0, 32}
++     * Ports {1, 54}
+      */
+     int p;
+     AIM_BITMAP_CLR_ALL(bmap);
+ 
+-    for(p = 0; p < NUM_OF_SFP_PORT; p++) {
++    for(p = 1; p <= NUM_OF_ALL_PORT; p++) {
+         AIM_BITMAP_SET(bmap, p);
+     }
+ 
+@@ -109,66 +144,64 @@ onlp_sfpi_is_present(int port)
+      * Return 0 if not present.
+      * Return < 0 if error.
+      */
+-    int present;
+-    char* path = as7512_32x_sfp_get_port_path(port, "sfp_is_present");
+-
+-    if (as7512_32x_sfp_node_read_int(path, &present, 0) != 0) {
+-        AIM_LOG_ERROR("Unable to read present status from port(%d)\r\n", port);
+-        return ONLP_STATUS_E_INTERNAL;
++    int present = -999;
++    present = onlp_sfpi_get_file_byte(port, "present");
++    if(present >= 0) {
++        return (-present)+1;
+     }
+-
+     return present;
+ }
+ 
+ int
+ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
+ {
+-    uint32_t bytes[4];
+-    char* path;
+-    FILE* fp;
+-
+-    path = as7512_32x_sfp_get_port_path(0, "sfp_is_present_all");
+-    fp = fopen(path, "r");
+-
+-    if(fp == NULL) {
+-        AIM_LOG_ERROR("Unable to open the sfp_is_present_all device file.");
+-        return ONLP_STATUS_E_INTERNAL;
+-    }
+-    int count = fscanf(fp, "%x %x %x %x",
+-                       bytes+0,
+-                       bytes+1,
+-                       bytes+2,
+-                       bytes+3
+-                       );
+-    fclose(fp);
+-    if(count != AIM_ARRAYSIZE(bytes)) {
+-        /* Likely a CPLD read timeout. */
+-        AIM_LOG_ERROR("Unable to read all fields from the sfp_is_present_all device file.");
+-        return ONLP_STATUS_E_INTERNAL;
++    AIM_BITMAP_CLR_ALL(dst);
++    int port=MUX_START_INDEX;
++    for(port=MUX_START_INDEX; port<=NUM_OF_ALL_PORT; port++) {
++        if(onlp_sfpi_is_present(port))
++            AIM_BITMAP_SET(dst, port);
+     }
++    return ONLP_STATUS_OK;
++}
+ 
+-    /* Convert to 64 bit integer in port order */
+-    int i = 0;
+-    uint32_t presence_all = 0 ;
+-    for(i = AIM_ARRAYSIZE(bytes)-1; i >= 0; i--) {
+-        presence_all <<= 8;
+-        presence_all |= bytes[i];
++int
++onlp_sfpi_is_rx_los(int port)
++{
++    if(port <= NUM_OF_SFP_PORT) {
++        int rxlos = onlp_sfpi_get_file_byte(port, "rxlos");
++        if(rxlos < 0) {
++            AIM_LOG_ERROR("Unable to read rxlos from port(%d)\r\n", port);
++            return ONLP_STATUS_E_INTERNAL;
++        }
++        return rxlos;
++    } else if(port > NUM_OF_SFP_PORT) {
++        return 0;
+     }
++    AIM_LOG_ERROR("Read rxlos from port(%d) out of range.\r\n", port);
++    return ONLP_STATUS_E_INTERNAL;
++}
+ 
+-    /* Populate bitmap */
+-    for(i = 0; presence_all; i++) {
+-        AIM_BITMAP_MOD(dst, i, (presence_all & 1));
+-        presence_all >>= 1;
++int
++onlp_sfpi_rx_los_bitmap_get(onlp_sfp_bitmap_t* dst)
++{
++    AIM_BITMAP_CLR_ALL(dst);
++    int port=MUX_START_INDEX;
++    for(port=MUX_START_INDEX; port<=NUM_OF_ALL_PORT; port++) {
++        if(onlp_sfpi_is_rx_los(port))
++            AIM_BITMAP_SET(dst, port);
+     }
+-
+     return ONLP_STATUS_OK;
+ }
+ 
+ int
+-onlp_sfpi_eeprom_read(int port, uint8_t data[256])
++onlp_sfpi_dom_read(int port, uint8_t data[256])
+ {
+-    char* path = as7512_32x_sfp_get_port_path(port, "sfp_eeprom");
++    return ONLP_STATUS_E_UNSUPPORTED;
++}
+ 
++int
++onlp_sfpi_eeprom_read(int port, uint8_t data[256])
++{
+     /*
+      * Read the SFP eeprom into data[]
+      *
+@@ -177,45 +210,186 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
+      */
+     memset(data, 0, 256);
+ 
+-    if (deviceNodeReadBinary(path, (char*)data, 256, 256) != 0) {
++    int byte = -1;
++    byte = onlp_i2c_read(onlp_sfpi_port2chan(port), 0x50, 0, 256, data, 0);
++    if(byte < 0) {
+         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
+         return ONLP_STATUS_E_INTERNAL;
+     }
+-
+     return ONLP_STATUS_OK;
+ }
+ 
+ int
+ onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
+ {
+-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
++    int bus = onlp_sfpi_port2chan(port);
+     return onlp_i2c_readb(bus, devaddr, addr, ONLP_I2C_F_FORCE);
+ }
+ 
+ int
+ onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
+ {
+-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
++    int bus = onlp_sfpi_port2chan(port);
+     return onlp_i2c_writeb(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+ }
+ 
+ int
+ onlp_sfpi_dev_readw(int port, uint8_t devaddr, uint8_t addr)
+ {
+-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
++    int bus = onlp_sfpi_port2chan(port);
+     return onlp_i2c_readw(bus, devaddr, addr, ONLP_I2C_F_FORCE);
+ }
+ 
+ int
+ onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
+ {
+-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
++    int bus = onlp_sfpi_port2chan(port);
+     return onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+ }
+ 
++int
++onlp_sfpi_control_supported(int port, onlp_sfp_control_t control, int* rv)
++{
++    switch (control) {
++    case ONLP_SFP_CONTROL_RESET_STATE:
++        if(port >= NUM_OF_SFP_PORT && port < (NUM_OF_SFP_PORT + NUM_OF_QSFP_PORT)) {
++            *rv = 1;
++        } else {
++            *rv = 0;
++        }
++        break;
++    case ONLP_SFP_CONTROL_RX_LOS:
++        *rv = 0;
++        break;
++    case ONLP_SFP_CONTROL_TX_DISABLE:
++        if(port <= NUM_OF_SFP_PORT) {
++            *rv = 1;
++        } else if(port >= NUM_OF_SFP_PORT && port < (NUM_OF_SFP_PORT + NUM_OF_QSFP_PORT)) {
++            *rv = 0;
++        }
++        break;
++    case ONLP_SFP_CONTROL_LP_MODE:
++        if(port >= NUM_OF_SFP_PORT && port < (NUM_OF_SFP_PORT + NUM_OF_QSFP_PORT)) {
++            *rv = 1;
++        } else {
++            *rv = 0;
++        }
++        break;
++    default:
++        break;
++    }
++
++    return ONLP_STATUS_OK;
++}
++
++int
++onlp_sfpi_control_set(int port, onlp_sfp_control_t control, int value)
++{
++    uint8_t ret_val = 0;
++    int err = 0;
++
++    switch (control) {
++    case ONLP_SFP_CONTROL_RESET_STATE:
++        err = onlp_sfpi_set_file_byte(port, "reset", value);
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_RX_LOS:
++        ret_val = ONLP_STATUS_E_UNSUPPORTED;
++        break;
++    case ONLP_SFP_CONTROL_TX_DISABLE:
++        err = onlp_sfpi_set_file_byte(port, "tx_disable", value);
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_LP_MODE:
++        err = onlp_sfpi_set_file_byte(port, "lpmod", value);
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        ret_val = ONLP_STATUS_OK;
++        break;
++    default:
++        ret_val = ONLP_STATUS_E_UNSUPPORTED;
++        break;
++    }
++    return ret_val;
++}
++
++int
++onlp_sfpi_control_get(int port, onlp_sfp_control_t control, int* value)
++{
++    uint8_t ret_val = 0;
++    int err = 0;
++
++    switch (control) {
++    case ONLP_SFP_CONTROL_RESET_STATE:
++        err = onlp_sfpi_get_file_byte(port, "reset");
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        *value = err;
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_RX_LOS:
++        err = onlp_sfpi_get_file_byte(port, "rxlos");
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        *value = err;
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_TX_DISABLE:
++        err = onlp_sfpi_get_file_byte(port, "tx_disable");
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        *value = err;
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_LP_MODE:
++        err = onlp_sfpi_get_file_byte(port, "lpmod");
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        *value = err;
++        ret_val = ONLP_STATUS_OK;
++        break;
++    case ONLP_SFP_CONTROL_TX_FAULT:
++        err = onlp_sfpi_get_file_byte(port, "tx_fault");
++        if(err == ONLP_STATUS_E_UNSUPPORTED) {
++            ret_val = ONLP_STATUS_E_UNSUPPORTED;
++            break;
++        }
++        *value = err;
++        ret_val = ONLP_STATUS_OK;
++        break;
++    default:
++        ret_val = ONLP_STATUS_E_UNSUPPORTED;
++        break;
++    }
++    return ret_val;
++}
++
+ int
+ onlp_sfpi_denit(void)
+ {
+     return ONLP_STATUS_OK;
+ }
+ 
++void
++onlp_sfpi_debug(int port, aim_pvs_t* pvs)
++{
++    aim_printf(pvs, "Debug data for port %d goes here.", port);
++}
+\ No newline at end of file
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sysi.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sysi.c
+index 38f47451..30627597 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sysi.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/sysi.c
+@@ -25,8 +25,11 @@
+  ***********************************************************/
+ #include <unistd.h>
+ #include <fcntl.h>
++#include <linux/i2c-dev.h>
+ 
+ #include <onlplib/file.h>
++#include <onlplib/i2c.h>
++#include <onlplib/onie.h>
+ #include <onlp/platformi/sysi.h>
+ #include <onlp/platformi/ledi.h>
+ #include <onlp/platformi/thermali.h>
+@@ -38,258 +41,1131 @@
+ 
+ #include "platform_lib.h"
+ 
+-#define NUM_OF_THERMAL_ON_MAIN_BROAD  CHASSIS_THERMAL_COUNT
+-#define NUM_OF_FAN_ON_MAIN_BROAD      CHASSIS_FAN_COUNT
+-#define NUM_OF_PSU_ON_MAIN_BROAD      2
+-#define NUM_OF_LED_ON_MAIN_BROAD      5
++#define SYSI_ONIE_TYPE_SUPPORT_NUM        17
++#define SYSI_PLATFORM_INFO_TYPE_STR_MAX   10
++#define SYSI_PLATFORM_INFO_NUM             2
+ 
+-#define PREFIX_PATH_ON_CPLD_DEV          "/sys/bus/i2c/devices/"
+-#define NUM_OF_CPLD                      3
+-static char arr_cplddev_name[NUM_OF_CPLD][10] =
+-{
+- "4-0060",
+- "5-0062",
+- "6-0064"
++/**
++ *  The TLV Types.
++ */
++#define TLV_CODE_PRODUCT_NAME   0x21
++#define TLV_CODE_PART_NUMBER    0x22
++#define TLV_CODE_SERIAL_NUMBER  0x23
++#define TLV_CODE_MAC_BASE       0x24
++#define TLV_CODE_MANUF_DATE     0x25
++#define TLV_CODE_DEVICE_VERSION 0x26
++#define TLV_CODE_LABEL_REVISION 0x27
++#define TLV_CODE_PLATFORM_NAME  0x28
++#define TLV_CODE_ONIE_VERSION   0x29
++#define TLV_CODE_MAC_SIZE       0x2A
++#define TLV_CODE_MANUF_NAME     0x2B
++#define TLV_CODE_MANUF_COUNTRY  0x2C
++#define TLV_CODE_VENDOR_NAME    0x2D
++#define TLV_CODE_DIAG_VERSION   0x2E
++#define TLV_CODE_SERVICE_TAG    0x2F
++#define TLV_CODE_VENDOR_EXT     0xFD
++#define TLV_CODE_CRC_32         0xFE
++
++
++typedef struct sysi_onie_vpd_s {
++    uint8_t type;
++    char file[ONLP_CONFIG_INFO_STR_MAX];
++} sysi_onie_vpd_t;
++
++
++
++
++
++typedef struct sysi_platform_info_s {
++    char type[SYSI_PLATFORM_INFO_TYPE_STR_MAX];
++    char file[ONLP_CONFIG_INFO_STR_MAX];
++    int (*parsing_func_ptr)(char* file_str, char* version);
++} sysi_platform_info_t;
++
++static int _sysi_cpld_version_parsing(char* file_str, char* version);
++static int _sysi_psoc_version_parsing(char* file_str, char* version);
++static int _sysi_onie_product_name_get(char** product_name);
++static int _sysi_onie_part_number_get(char** part_number);
++static int _sysi_onie_serial_number_get(char** serial_number);
++static int _sysi_onie_mac_base_get(uint8_t mac_base[6]);
++static int _sysi_onie_manuf_date_get(char** manuf_date);
++static int _sysi_onie_device_version_get(uint8_t* device_version);
++static int _sysi_onie_label_revision_get(char** label_revision);
++static int _sysi_onie_platform_name_get(char** platform_name);
++static int _sysi_onie_onie_version_get(char** onie_version);
++static int _sysi_onie_mac_size_get(uint16_t* mac_size);
++static int _sysi_onie_manuf_name_get(char** manuf_name);
++static int _sysi_onie_manuf_country_get(char** manuf_country);
++static int _sysi_onie_vendor_name_get(char** vendor_name);
++static int _sysi_onie_diag_version_get(char** diag_version);
++static int _sysi_onie_service_tag_get(char** service_tag);
++static int _sysi_onie_vendor_ext_get(list_head_t *vendor_ext);
++static int _sysi_onie_crc_32_get(uint32_t* crc_32);
++
++static int _sysi_onie_info_total_len_get(onlp_onie_info_t *onie, uint16_t *total_len);
++
++
++
++static sysi_onie_vpd_t __tlv_vpd_info[SYSI_ONIE_TYPE_SUPPORT_NUM] = {
++    {
++        TLV_CODE_PRODUCT_NAME,
++        "/sys/class/eeprom/vpd/product_name"
++    },
++    {
++        TLV_CODE_PART_NUMBER,
++        "/sys/class/eeprom/vpd/pn"
++    },
++    {
++        TLV_CODE_SERIAL_NUMBER,
++        "/sys/class/eeprom/vpd/sn"
++    },
++    {
++        TLV_CODE_MAC_BASE,
++        "/sys/class/eeprom/vpd/base_mac_addr"
++    },
++    {
++        TLV_CODE_MANUF_DATE,
++        "/sys/class/eeprom/vpd/man_date"
++    },
++    {
++        TLV_CODE_DEVICE_VERSION,
++        "/sys/class/eeprom/vpd/dev_ver"
++    },
++    {
++        TLV_CODE_LABEL_REVISION,
++        "/sys/class/eeprom/vpd/label_rev"
++    },
++    {
++        TLV_CODE_PLATFORM_NAME,
++        "/sys/class/eeprom/vpd/plat_name"
++    },
++    {
++        TLV_CODE_ONIE_VERSION,
++        "/sys/class/eeprom/vpd/ldr_ver"
++    },
++    {
++        TLV_CODE_MAC_SIZE,
++        "/sys/class/eeprom/vpd/mac_addr"
++    },
++    {
++        TLV_CODE_MANUF_NAME,
++        "/sys/class/eeprom/vpd/manufacturer"
++    },
++    {
++        TLV_CODE_MANUF_COUNTRY,
++        "/sys/class/eeprom/vpd/country_code"
++    },
++    {
++        TLV_CODE_VENDOR_NAME,
++        "/sys/class/eeprom/vpd/vendor_name"
++    },
++    {
++        TLV_CODE_DIAG_VERSION,
++        "/sys/class/eeprom/vpd/diag_ver"
++    },
++    {
++        TLV_CODE_SERVICE_TAG,
++        "/sys/class/eeprom/vpd/service_tag"
++    },
++    {
++        TLV_CODE_VENDOR_EXT,
++        "/sys/class/eeprom/vpd/vendor_ext"
++    },
++    {
++        TLV_CODE_CRC_32,
++        "/sys/class/eeprom/vpd/crc32"
++    }
+ };
+ 
+-const char*
+-onlp_sysi_platform_get(void)
++
++static sysi_platform_info_t __platform_info[SYSI_PLATFORM_INFO_NUM] = {
++    {"cpld", "/sys/class/hwmon/hwmon2/device/info",_sysi_cpld_version_parsing},
++    {"psoc", "/sys/class/hwmon/hwmon1/device/version",_sysi_psoc_version_parsing}
++};
++
++
++static onlp_oid_t __oid_info[] = {
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_PHY),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE0),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE1),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE2),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE3),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_MAIN_BROAD),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_MAIN_BROAD),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_3_ON_MAIN_BROAD),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_4_ON_MAIN_BROAD),
++    ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_5_ON_MAIN_BROAD),
++    ONLP_FAN_ID_CREATE(ONLP_FAN_1),
++    ONLP_FAN_ID_CREATE(ONLP_FAN_2),
++    ONLP_FAN_ID_CREATE(ONLP_FAN_3),
++    ONLP_FAN_ID_CREATE(ONLP_FAN_4),
++    ONLP_PSU_ID_CREATE(ONLP_PSU_1),
++    ONLP_PSU_ID_CREATE(ONLP_PSU_2),
++    ONLP_LED_ID_CREATE(ONLP_LED_MGMT_GREEN),
++    ONLP_LED_ID_CREATE(ONLP_LED_MGMT_RED),
++    0 /*end*/
++};
++
++
++
++
++static int _sysi_cpld_version_parsing(char* file_str, char* version)
+ {
+-    return "x86-64-inventec-cypress-r0";
++    int rv = ONLP_STATUS_OK;
++    int len;
++    char buf[ONLP_CONFIG_INFO_STR_MAX*4];
++    char *temp;
++
++    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX*4, &len, file_str);
++
++    temp = strstr(buf, "The CPLD version is ");
++    if(temp) {
++        temp += strlen("The CPLD version is ");
++        snprintf(version,ONLP_CONFIG_INFO_STR_MAX, temp);
++        /*remove '\n'*/
++        version[strlen(version)-1] = 0;
++    } else {
++        rv = ONLP_STATUS_E_MISSING;
++    }
++    return rv;
+ }
+ 
+-int
+-onlp_sysi_onie_data_get(uint8_t** data, int* size)
++static int _sysi_psoc_version_parsing(char* file_str, char* version)
++{
++    int rv = ONLP_STATUS_OK;
++    int len;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++    char *temp;
++
++    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, file_str);
++    temp = strstr(buf, "ver: ");
++    if(temp) {
++        temp += strlen("ver: ");
++        snprintf(version,ONLP_CONFIG_INFO_STR_MAX, temp);
++        /*remove '\n'*/
++        version[strlen(version)-1] = 0;
++    } else {
++        rv = ONLP_STATUS_E_MISSING;
++    }
++    return rv;
++}
++
++static int _sysi_onie_product_name_get(char** product_name)
+ {
+-    uint8_t* rdata = aim_zmalloc(256);
+-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
+-        if(*size == 256) {
+-            *data = rdata;
+-            return ONLP_STATUS_OK;
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_PRODUCT_NAME == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
+         }
+     }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *product_name = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *product_name = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
+ 
+-    aim_free(rdata);
+-    *size = 0;
+-    return ONLP_STATUS_E_INTERNAL;
++    return rv;
+ }
+ 
+-int
+-onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
++
++static int _sysi_onie_part_number_get(char** part_number)
+ {
+-    int   i, v[NUM_OF_CPLD]={0};
+-    for (i=0; i < NUM_OF_CPLD; i++) {
+-        v[i] = 0;
+-        if(onlp_file_read_int(v+i, "%s%s/version", PREFIX_PATH_ON_CPLD_DEV, arr_cplddev_name[i]) < 0) {
+-            return ONLP_STATUS_E_INTERNAL;
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_PART_NUMBER == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
+         }
+     }
+-    pi->cpld_versions = aim_fstrdup("%d.%d.%d", v[0], v[1], v[2]);
+-    return 0;
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *part_number = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *part_number = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
+ }
+ 
+-void
+-onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
++
++static int _sysi_onie_serial_number_get(char** serial_number)
+ {
+-    aim_free(pi->cpld_versions);
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_SERIAL_NUMBER == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *serial_number = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *serial_number = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
+ }
+ 
+ 
+-int
+-onlp_sysi_oids_get(onlp_oid_t* table, int max)
++static int _sysi_onie_mac_base_get(uint8_t mac_base[6])
+ {
++    int rv = ONLP_STATUS_OK;
+     int i;
+-    onlp_oid_t* e = table;
+-    memset(table, 0, max*sizeof(onlp_oid_t));
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
+ 
+-    /* 4 Thermal sensors on the chassis */
+-    for (i = 1; i <= NUM_OF_THERMAL_ON_MAIN_BROAD; i++)
+-    {
+-        *e++ = ONLP_THERMAL_ID_CREATE(i);
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_MAC_BASE == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        if(6 != sscanf( buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\n",
++                        &mac_base[0], &mac_base[1], &mac_base[2],
++                        &mac_base[3], &mac_base[4], &mac_base[5])) {
++            /*parsing fail*/
++            memset(mac_base, 0, 6);
++        }
++    } else {
++        memset(mac_base, 0, 6);
++        rv = ONLP_STATUS_OK;
+     }
+ 
+-    /* 5 LEDs on the chassis */
+-    for (i = 1; i <= NUM_OF_LED_ON_MAIN_BROAD; i++)
+-    {
+-        *e++ = ONLP_LED_ID_CREATE(i);
++    return rv;
++}
++
++
++static int _sysi_onie_manuf_date_get(char** manuf_date)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_MANUF_DATE == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *manuf_date = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *manuf_date = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
+     }
+ 
+-    /* 2 PSUs on the chassis */
+-    for (i = 1; i <= NUM_OF_PSU_ON_MAIN_BROAD; i++)
+-    {
+-        *e++ = ONLP_PSU_ID_CREATE(i);
++    return rv;
++}
++
++
++static int _sysi_onie_device_version_get(uint8_t* device_version)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_DEVICE_VERSION == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        *device_version = (uint8_t)strtoul(buf, NULL, 0);
++    } else {
++        rv = ONLP_STATUS_OK;
+     }
+ 
+-    /* 4 Fans on the chassis */
+-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
+-    {
+-        *e++ = ONLP_FAN_ID_CREATE(i);
++    return rv;
++}
++
++
++static int _sysi_onie_label_revision_get(char** label_revision)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_LABEL_REVISION == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *label_revision = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *label_revision = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
+     }
+ 
+-    return 0;
++    return rv;
+ }
+ 
+-typedef struct fan_ctrl_policy {
+-   int duty_cycle;
+-   int temp_down_adjust; /* The boundary temperature to down adjust fan speed */
+-   int temp_up_adjust;   /* The boundary temperature to up adjust fan speed */
+-} fan_ctrl_policy_t;
+-
+-fan_ctrl_policy_t  fan_ctrl_policy_f2b[] = {
+-{32,      0, 174000},
+-{38, 170000, 182000},
+-{50, 178000, 190000},
+-{63, 186000,      0}
+-};
+ 
+-fan_ctrl_policy_t  fan_ctrl_policy_b2f[] = {
+-{32,     0,  140000},
+-{38, 135000, 150000},
+-{50, 145000, 160000},
+-{69, 155000,      0}
+-};
++static int _sysi_onie_platform_name_get(char** platform_name)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_PLATFORM_NAME == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *platform_name = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *platform_name = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_onie_version_get(char** onie_version)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_ONIE_VERSION == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *onie_version = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *onie_version = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_mac_size_get(uint16_t* mac_size)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_MAC_SIZE == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        *mac_size = (uint16_t)strtoul(buf, NULL, 0);
++    }
++    /*return OK no matter what*/
++    return ONLP_STATUS_OK;
++}
++
++
++static int _sysi_onie_manuf_name_get(char** manuf_name)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_MANUF_NAME == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *manuf_name = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *manuf_name = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_manuf_country_get(char** manuf_country)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_MANUF_COUNTRY == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *manuf_country = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *manuf_country = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_vendor_name_get(char** vendor_name)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_VENDOR_NAME == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *vendor_name = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *vendor_name = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_diag_version_get(char** diag_version)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_DIAG_VERSION == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *diag_version = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *diag_version = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_service_tag_get(char** service_tag)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_SERVICE_TAG == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*remove \n in file output*/
++        buf[strlen(buf)-1] = 0;
++        *service_tag = aim_fstrdup("%s",buf);
++    } else {
++        /*alloc a empty array for it*/
++        *service_tag = aim_zmalloc(1);
++        rv = ONLP_STATUS_OK;
++    }
++
++    return rv;
++}
++
++
++static int _sysi_onie_vendor_ext_get(list_head_t* vendor_ext)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    list_init(vendor_ext);
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_VENDOR_EXT == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*TODO*/
++    }
++    /*return OK no matter what*/
++    return ONLP_STATUS_OK;
++}
++
++
++static int _sysi_onie_crc_32_get(uint32_t* crc_32)
++{
++    int rv = ONLP_STATUS_OK;
++    int i;
++    int len;
++    char* path;
++    char buf[ONLP_CONFIG_INFO_STR_MAX];
++
++    for(i=0; i<SYSI_ONIE_TYPE_SUPPORT_NUM; i++ ) {
++        if( TLV_CODE_CRC_32 == __tlv_vpd_info[i].type) {
++            path = __tlv_vpd_info[i].file;
++            break;
++        }
++    }
++    if( SYSI_ONIE_TYPE_SUPPORT_NUM == i) {
++        /* Cannot find support type */
++        rv = ONLP_STATUS_E_UNSUPPORTED;
++    }
++    if( ONLP_STATUS_OK == rv) {
++        /*get info*/
++        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
++    }
++    if( ONLP_STATUS_OK == rv) {
++        *crc_32 = (uint32_t)strtoul (buf, NULL, 0);
++    }
++    /*return OK no matter what*/
++    return ONLP_STATUS_OK;
++}
++
++static int _sysi_onie_info_total_len_get(onlp_onie_info_t *onie, uint16_t *total_len)
++{
++    uint16_t len = 0;
++
++    /*product_name*/
++    if(strlen(onie->product_name)!= 0) {
++        len += 2;
++        len += strlen(onie->product_name);
++    }
++    /*part_number*/
++    if(strlen(onie->part_number)!= 0) {
++        len += 2;
++        len += strlen(onie->part_number);
++    }
++    /*serial_number*/
++    if(strlen(onie->serial_number)!= 0) {
++        len += 2;
++        len += strlen(onie->serial_number);
++    }
++
++    /*mac*/
++    len += 2;
++    len += 6;
++
++    /*manufacture_date*/
++    if(strlen(onie->manufacture_date)!= 0) {
++        len += 2;
++        len += 19;
++    }
++
++    /*device_version*/
++    len += 2;
++    len += 1;
++
++    /*label_revision*/
++    if(strlen(onie->label_revision)!= 0) {
++        len += 2;
++        len += strlen(onie->label_revision);
++    }
++
++    /*platform_name*/
++    if(strlen(onie->platform_name)!= 0) {
++        len += 2;
++        len += strlen(onie->platform_name);
++    }
++
++    /*onie_version*/
++    if(strlen(onie->onie_version)!= 0) {
++        len += 2;
++        len += strlen(onie->onie_version);
++    }
++
++    /*mac_range*/
++    len += 2;
++    len += 2;
++
++    /*manufacturer*/
++    if(strlen(onie->manufacturer)!= 0) {
++        len += 2;
++        len += strlen(onie->manufacturer);
++    }
++
++    /*country_code*/
++    if(strlen(onie->country_code)!= 0) {
++        len += 2;
++        len += 2;
++    }
++
++    /*vendor*/
++    if(strlen(onie->vendor)!= 0) {
++        len += 2;
++        len += strlen(onie->vendor);
++    }
++
++    /*diag_version*/
++    if(strlen(onie->diag_version)!= 0) {
++        len += 2;
++        len += strlen(onie->diag_version);
++    }
++
++    /*service_tag*/
++    if(strlen(onie->service_tag)!= 0) {
++        len += 2;
++        len += strlen(onie->service_tag);
++    }
++
++    /*crc*/
++    len += 2;
++    len += 4;
++
++    /*vx_list*/
++    /*TODO*/
++
++    *total_len = len;
++    return ONLP_STATUS_OK;
++}
++
++
++
++const char*
++onlp_sysi_platform_get(void)
++{
++    return "x86-64-inventec-cypress-r0";
++}
+ 
+-#define FAN_DUTY_CYCLE_MAX  100
+-#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/2-0066/fan_duty_cycle_percentage"
+ 
+ /*
+- * For AC power Front to Back :
+- *	* If any fan fail, please fan speed register to 15
+- *	* The max value of Fan speed register is 9
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 174  => set Fan speed value from 4 to 5
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 182  => set Fan speed value from 5 to 7
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 190  => set Fan speed value from 7 to 9
++ * This function is called to return the physical base address
++ * of the ONIE boot rom.
+  *
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 170  => set Fan speed value from 5 to 4
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 178  => set Fan speed value from 7 to 5
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 186  => set Fan speed value from 9 to 7
++ * The ONLP framework will mmap() and parse the ONIE TLV structure
++ * from the given data.
+  *
++ * If you platform does not support a mappable address for the ONIE
++ * eeprom then you should not provide this function at all.
+  *
+- * For  AC power Back to Front :
+- *	* If any fan fail, please fan speed register to 15
+- *	* The max value of Fan speed register is 10
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 140  => set Fan speed value from 4 to 5
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 150  => set Fan speed value from 5 to 7
+- *		[LM75(48) + LM75(49) + LM75(4A)] > 160  => set Fan speed value from 7 to 10
++ * For the purposes of this example we will provide it but
++ * return UNSUPPORTED (which is all the default implementation does).
+  *
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 135  => set Fan speed value from 5 to 4
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 145  => set Fan speed value from 7 to 5
+- *		[LM75(48) + LM75(49) + LM75(4A)] < 155  => set Fan speed value from 10 to 7
+  */
+ int
+-onlp_sysi_platform_manage_fans(void)
++onlp_sysi_onie_data_phys_addr_get(void** pa)
+ {
+-    int i = 0, arr_size, temp;
+-    fan_ctrl_policy_t *policy;
+-    int cur_duty_cycle, new_duty_cycle;
+-    onlp_thermal_info_t thermal_1, thermal_2, thermal_3;
++    return ONLP_STATUS_E_UNSUPPORTED;
++}
+ 
+-    int  fd, len;
+-    char  buf[10] = {0};
+ 
+-    /* Get each fan status
+-     */
+-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
+-    {
+-        onlp_fan_info_t fan_info;
++/*
++ * If you cannot provide a base address you must provide the ONLP
++ * framework the raw ONIE data through whatever means necessary.
++ *
++ * This function will be called as a backup in the event that
++ * onlp_sysi_onie_data_phys_addr_get() fails.
++ */
++int
++onlp_sysi_onie_data_get(uint8_t** data, int* size)
++{
++#if 0
++    int rv;
++    int i;
+ 
+-        if (onlp_fani_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
+-            AIM_LOG_ERROR("Unable to get fan(%d) status\r\n", i);
+-            return ONLP_STATUS_E_INTERNAL;
+-        }
++    /*
++     * This represents the example ONIE data.
++     */
++    static uint8_t onie_data[] = {
++        'T', 'l', 'v','I','n','f','o', 0,
++        0x1, 0x0, 0x0,
++        0x21, 0x8, 'O', 'N', 'L', 'P', 'I', 'E', 0, 0,
++        0x22, 0x3, 'O', 'N', 'L',
++        0xFE, 0x4, 0x4b, 0x1b, 0x1d, 0xde,
++    };
+ 
+-        /* Decision 1: Set fan as full speed if any fan is failed.
+-         */
+-        if (fan_info.status & ONLP_FAN_STATUS_FAILED) {
+-            AIM_LOG_ERROR("Fan(%d) is not working, set the other fans as full speed\r\n", i);
+-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
+-        }
+ 
+-        /* Decision 1.1: Set fan as full speed if any fan is not present.
+-         */
+-        if (!(fan_info.status & ONLP_FAN_STATUS_PRESENT)) {
+-            AIM_LOG_ERROR("Fan(%d) is not present, set the other fans as full speed\r\n", i);
+-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
+-        }
++    memcpy(*data, onie_data, ONLPLIB_CONFIG_I2C_BLOCK_SIZE);
++    return 0;
++#endif
++    return ONLP_STATUS_E_UNSUPPORTED;
++}
+ 
+-        /* Get fan direction (Only get the first one since all fan direction are the same)
+-         */
+-        if (i == 1) {
+-            if (fan_info.status & ONLP_FAN_STATUS_F2B) {
+-                policy   = fan_ctrl_policy_f2b;
+-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_f2b);
+-            }
+-            else {
+-                policy   = fan_ctrl_policy_b2f;
+-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_b2f);
+-            }
+-        }
++/*
++ * IF the ONLP frame calles onlp_sysi_onie_data_get(),
++ * if will call this function to free the data when it
++ * is finished with it.
++ *
++ * This function is optional, and depends on the data
++ * you return in onlp_sysi_onie_data_get().
++ */
++void
++onlp_sysi_onie_data_free(uint8_t* data)
++{
++    /*
++     * We returned a static array in onlp_sysi_onie_data_get()
++     * so no free operation is required.
++     */
++    if(data) {
++        aim_free(data);
+     }
++}
+ 
+-    /* Get current fan speed
+-     */
+-    fd = open(FAN_SPEED_CTRL_PATH, O_RDONLY);
+-    if (fd == -1){
+-        AIM_LOG_ERROR("Unable to open fan speed control node (%s)", FAN_SPEED_CTRL_PATH);
+-        return ONLP_STATUS_E_INTERNAL;
++int
++onlp_sysi_onie_info_get (onlp_onie_info_t *onie)
++{
++    int rv = ONLP_STATUS_OK;
++    uint16_t total_len;
++
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_product_name_get(&onie->product_name);
+     }
+ 
+-    len = read(fd, buf, sizeof(buf));
+-    close(fd);
+-    if (len <= 0) {
+-        AIM_LOG_ERROR("Unable to read fan speed from (%s)", FAN_SPEED_CTRL_PATH);
+-        return ONLP_STATUS_E_INTERNAL;
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_part_number_get(&onie->part_number);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_serial_number_get(&onie->serial_number);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_mac_base_get(onie->mac);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_manuf_date_get(&onie->manufacture_date);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_device_version_get(&onie->device_version);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_label_revision_get(&onie->label_revision);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_platform_name_get(&onie->platform_name);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_onie_version_get(&onie->onie_version);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_mac_size_get(&onie->mac_range);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_manuf_name_get(&onie->manufacturer);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_manuf_country_get(&onie->country_code);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_vendor_name_get(&onie->vendor);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_diag_version_get(&onie->diag_version);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_service_tag_get(&onie->service_tag);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_vendor_ext_get(&onie->vx_list);
++    }
++    if(ONLP_STATUS_OK == rv) {
++        rv = _sysi_onie_crc_32_get(&onie->crc);
+     }
+-    cur_duty_cycle = atoi(buf);
+ 
++    _sysi_onie_info_total_len_get(onie, &total_len);
+ 
+-    /* Decision 2: If no matched fan speed is found from the policy,
+-     *             use FAN_DUTY_CYCLE_MIN as default speed
+-     */
+-	for (i = 0; i < arr_size; i++) {
+-	    if (policy[i].duty_cycle != cur_duty_cycle)
+-		    continue;
++    onie->_hdr_id_string = aim_fstrdup("TlvInfo");
++    onie->_hdr_version = 0x1;
++    onie->_hdr_length = total_len;
++    return rv;
++}
+ 
+-		break;
+-	}
+ 
+-	if (i == arr_size) {
+-        return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), policy[0].duty_cycle);
+-	}
++int
++onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
++{
++    int i;
++    int rv = ONLP_STATUS_OK;
++    char cpld_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
++    char other_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
++    char version[ONLP_CONFIG_INFO_STR_MAX];
+ 
+-    /* Get current temperature
+-     */
+-    if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(2), &thermal_1) != ONLP_STATUS_OK ||
+-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_2) != ONLP_STATUS_OK ||
+-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(4), &thermal_3) != ONLP_STATUS_OK) {
+-        AIM_LOG_ERROR("Unable to read thermal status");
+-        return ONLP_STATUS_E_INTERNAL;
++    for(i=0 ; i<SYSI_PLATFORM_INFO_NUM; i++) {
++        memset(version, 0, ONLP_CONFIG_INFO_STR_MAX);
++        /*get version info*/
++        rv = __platform_info[i].parsing_func_ptr(
++                 __platform_info[i].file, version);
++        if( 0 == strncmp(__platform_info[i].type,
++                         "cpld", strlen(__platform_info[i].type))) {
++            snprintf(cpld_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s ",cpld_str,version);
++        } else {
++            snprintf(other_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s.%s "
++                     ,other_str,__platform_info[i].type,version);
++        }
+     }
+-    temp = thermal_1.mcelsius + thermal_2.mcelsius + thermal_3.mcelsius;
+ 
++    /*cpld version*/
++    if(strlen(cpld_str) > 0) {
++        pi->cpld_versions = aim_fstrdup("%s",cpld_str);
++    }
+ 
+-    /* Decision 3: Decide new fan speed depend on fan direction/current fan speed/temperature
+-     */
+-    new_duty_cycle = cur_duty_cycle;
++    /*other version*/
++    if(strlen(other_str) > 0) {
++        pi->other_versions = aim_fstrdup("%s",other_str);
++    }
++    return rv;
++}
+ 
+-    if ((temp >= policy[i].temp_up_adjust) && (i != (arr_size-1))) {
+-	    new_duty_cycle = policy[i+1].duty_cycle;
+-	}
+-	else if ((temp <= policy[i].temp_down_adjust) && (i != 0)) {
+-	    new_duty_cycle = policy[i-1].duty_cycle;
+-	}
++void
++onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
++{
++    if(pi->cpld_versions) {
++        aim_free(pi->cpld_versions);
++    }
++    if(pi->other_versions) {
++        aim_free(pi->other_versions);
++    }
++    return;
++}
++
++
++int
++onlp_sysi_oids_get(onlp_oid_t* table, int max)
++{
++    int i;
++    onlp_oid_t* e = table;
++    memset(table, 0, max*sizeof(onlp_oid_t));
+ 
+-	if (new_duty_cycle == cur_duty_cycle) {
+-        /* Duty cycle does not change, just return */
+-	    return ONLP_STATUS_OK;
+-	}
++    for(i=0; i<max; i++) {
++        if(__oid_info[i]==0) {
++            break;
++        }
++        *e++ = __oid_info[i];
++    }
++    return ONLP_STATUS_OK;
++}
+ 
+-    return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
++int
++onlp_sysi_platform_manage_fans(void)
++{
++    /*Ensure switch manager is working*/
++    PLATFORM_PSOC_DIAG_LOCK;
++    return ONLP_STATUS_OK;
+ }
+ 
+ int
+ onlp_sysi_platform_manage_leds(void)
+ {
+-    return ONLP_STATUS_E_UNSUPPORTED;
++    /*Ensure switch manager is working*/
++    PLATFORM_PSOC_DIAG_LOCK;
++    return ONLP_STATUS_OK;
+ }
+-
+diff --git a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/thermali.c b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/thermali.c
+index 94f5353c..bcbfda1f 100644
+--- a/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/thermali.c
++++ b/packages/platforms/inventec/x86-64/x86-64-inventec-cypress/onlp/builds/src/module/src/thermali.c
+@@ -24,7 +24,6 @@
+  *
+  ***********************************************************/
+ #include <unistd.h>
+-#include <onlplib/mmap.h>
+ #include <onlplib/file.h>
+ #include <onlp/platformi/thermali.h>
+ #include <fcntl.h>
+@@ -37,69 +36,89 @@
+         }                                       \
+     } while(0)
+ 
+-enum onlp_thermal_id
+-{
+-    THERMAL_RESERVED = 0,
+-    THERMAL_CPU_CORE,
+-    THERMAL_1_ON_MAIN_BROAD,
+-    THERMAL_2_ON_MAIN_BROAD,
+-    THERMAL_3_ON_MAIN_BROAD,
+-    THERMAL_1_ON_PSU1,
+-    THERMAL_1_ON_PSU2,
+-};
+ 
+-static char* devfiles__[] =  /* must map with onlp_thermal_id */
+-{
+-    "reserved",
+-    NULL,                  /* CPU_CORE files */
+-    "/sys/bus/i2c/devices/3-0048*temp1_input",
+-    "/sys/bus/i2c/devices/3-0049*temp1_input",
+-    "/sys/bus/i2c/devices/3-004a*temp1_input",
+-    "/sys/bus/i2c/devices/3-004b*temp1_input",
+-    "/sys/bus/i2c/devices/11-005b*psu_temp1_input",
+-    "/sys/bus/i2c/devices/10-0058*psu_temp1_input",
++typedef struct thermali_info_s {
++    char file[ONLP_CONFIG_INFO_STR_MAX];
++} thermali_info_t;
++
++static thermali_info_t __info_list[ONLP_THERMAL_COUNT] = {
++    {},
++    {"/sys/class/hwmon/hwmon0/temp1_input"},
++    {"/sys/class/hwmon/hwmon0/temp2_input"},
++    {"/sys/class/hwmon/hwmon0/temp3_input"},
++    {"/sys/class/hwmon/hwmon0/temp4_input"},
++    {"/sys/class/hwmon/hwmon0/temp5_input"},
++    {"/sys/class/hwmon/hwmon1/device/temp1_input"},
++    {"/sys/class/hwmon/hwmon1/device/temp2_input"},
++    {"/sys/class/hwmon/hwmon1/device/temp3_input"},
++    {"/sys/class/hwmon/hwmon1/device/temp4_input"},
++    {"/sys/class/hwmon/hwmon1/device/temp5_input"},
++    {"/sys/class/hwmon/hwmon1/device/thermal_psu1"},
++    {"/sys/class/hwmon/hwmon1/device/thermal2_psu1"},
++    {"/sys/class/hwmon/hwmon1/device/thermal_psu2"},
++    {"/sys/class/hwmon/hwmon1/device/thermal2_psu2"}
+ };
+ 
+-static char* cpu_coretemp_files[] =
+-    {
+-        "/sys/devices/platform/coretemp.0*temp2_input",
+-        "/sys/devices/platform/coretemp.0*temp3_input",
+-        "/sys/devices/platform/coretemp.0*temp4_input",
+-        "/sys/devices/platform/coretemp.0*temp5_input",
+-        NULL,
+-    };
+ 
+ /* Static values */
+-static onlp_thermal_info_t linfo[] = {
+-	{ }, /* Not used */
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE), "CPU Core", 0},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_MAIN_BROAD), "Chassis Thermal Sensor 1", 0},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_MAIN_BROAD), "Chassis Thermal Sensor 2", 0},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 3", 0},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 4", 0},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU1), "PSU-1 Thermal Sensor 1", ONLP_PSU_ID_CREATE(PSU1_ID)},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        },
+-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU2), "PSU-2 Thermal Sensor 1", ONLP_PSU_ID_CREATE(PSU2_ID)},
+-            ONLP_THERMAL_STATUS_PRESENT,
+-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+-        }
++static onlp_thermal_info_t __onlp_thermal_info[ONLP_THERMAL_COUNT] = {
++    { }, /* Not used */
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_PHY), "CPU Physical", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE0), "CPU Core0", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE1), "CPU Core1", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE2), "CPU Core2", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_CPU_CORE3), "CPU Core3", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_MAIN_BROAD), "Thermal Sensor 1", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_MAIN_BROAD), "Thermal Sensor 2", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_3_ON_MAIN_BROAD), "Thermal Sensor 3", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_4_ON_MAIN_BROAD), "Thermal Sensor 4", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_5_ON_MAIN_BROAD), "Thermal Sensor 5", 0},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU1), "PSU-1 Thermal Sensor 1", ONLP_PSU_ID_CREATE(ONLP_PSU_1)},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU1), "PSU-1 Thermal Sensor 2", ONLP_PSU_ID_CREATE(ONLP_PSU_1)},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU2), "PSU-2 Thermal Sensor 1", ONLP_PSU_ID_CREATE(ONLP_PSU_2)},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    },
++    {   { ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU2), "PSU-2 Thermal Sensor 2", ONLP_PSU_ID_CREATE(ONLP_PSU_2)},
++        ONLP_THERMAL_STATUS_PRESENT,
++        ONLP_THERMAL_CAPS_GET_TEMPERATURE, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
++    }
+ };
+ 
+ /*
+@@ -128,14 +147,57 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
+     VALIDATE(id);
+ 
+     local_id = ONLP_OID_ID_GET(id);
++    if(local_id >= ONLP_THERMAL_MAX) {
++        return ONLP_STATUS_E_INVALID;
++    }
+ 
+     /* Set the onlp_oid_hdr_t and capabilities */
+-    *info = linfo[local_id];
++    *info = __onlp_thermal_info[local_id];
++    return onlp_file_read_int(&info->mcelsius, __info_list[local_id].file);
++}
++
+ 
+-    if(local_id == THERMAL_CPU_CORE) {
+-        int rv = onlp_file_read_int_max(&info->mcelsius, cpu_coretemp_files);
+-        return rv;
++/**
++ * @brief Retrieve the thermal's operational status.
++ * @param id The thermal oid.
++ * @param rv [out] Receives the operational status.
++ */
++int onlp_thermali_status_get(onlp_oid_t id, uint32_t* rv)
++{
++    int local_id;
++
++    onlp_thermal_info_t* info;
++    VALIDATE(id);
++
++    local_id = ONLP_OID_ID_GET(id);
++    if(local_id >= ONLP_THERMAL_MAX) {
++        return ONLP_STATUS_E_INVALID;
+     }
++    info = &__onlp_thermal_info[local_id];
+ 
+-    return onlp_file_read_int(&info->mcelsius, devfiles__[local_id]);
++    *rv = info->status;
++
++    return ONLP_STATUS_OK;
++}
++
++/**
++ * @brief Retrieve the thermal's oid header.
++ * @param id The thermal oid.
++ * @param rv [out] Receives the header.
++ */
++int onlp_thermali_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* rv)
++{
++    int local_id;
++    onlp_thermal_info_t* info;
++    VALIDATE(id);
++
++    local_id = ONLP_OID_ID_GET(id);
++    if(local_id >= ONLP_THERMAL_MAX) {
++        return ONLP_STATUS_E_INVALID;
++    }
++    info = &__onlp_thermal_info[local_id];
++
++    *rv = info->hdr;
++
++    return ONLP_STATUS_OK;
+ }
+-- 
+2.17.1
+

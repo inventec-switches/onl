@@ -10,7 +10,6 @@
 #include <linux/jiffies.h>
 #include <linux/dmi.h>
 #include <linux/inventec/d5254/inv_swps.h>
-
 static int ctl_major;
 static int port_major;
 static int ioexp_total;
@@ -1757,6 +1756,7 @@ get_platform_type(void){
         case PLATFORM_TYPE_LAVENDER_GA:
         case PLATFORM_TYPE_LAVENDER_ONL:
         case PLATFORM_TYPE_COTTONWOOD_RANGELEY:
+        case PLATFORM_TYPE_MAPLE:
         case PLATFORM_TYPE_GULMOHAR_GA:
             platform_p->id = PLATFORM_SETTINGS;
             for (i=0; i<pf_total; i++) {
@@ -1905,6 +1905,15 @@ get_layout_info(void){
             port_layout   = cottonwood_rangeley_port_layout;
             ioexp_total   = ARRAY_SIZE(cottonwood_rangeley_ioexp_layout);
             port_total    = ARRAY_SIZE(cottonwood_rangeley_port_layout);
+            break;
+#endif
+#ifdef SWPS_MAPLE
+        case PLATFORM_TYPE_MAPLE:
+            gpio_rest_mux = maple_gpio_rest_mux;
+            ioexp_layout  = maple_ioexp_layout;
+            port_layout   = maple_port_layout;
+            ioexp_total   = ARRAY_SIZE(maple_ioexp_layout);
+            port_total    = ARRAY_SIZE(maple_port_layout);
             break;
 #endif
 #ifdef SWPS_GULMOHAR
@@ -2614,6 +2623,7 @@ register_ioexp_attr(struct device *device_p,
             }
             break;
         case IOEXP_TYPE_CYPRESS_NABC:
+        case IOEXP_TYPE_MAPLE_NABC:
         case IOEXP_TYPE_GULMOHAR_NABC:
             if (register_ioexp_attr_sfp_2(device_p) < 0){
                 err_msg = "register_ioexp_attr_sfp_2 fail";
@@ -2631,6 +2641,7 @@ register_ioexp_attr(struct device *device_p,
         case IOEXP_TYPE_TAHOE_6ABC:
         case IOEXP_TYPE_SEQUOIA_NABC:
         case IOEXP_TYPE_LAVENDER_P65:
+        case IOEXP_TYPE_MAPLE_0ABC:
         case IOEXP_TYPE_GULMOHAR_7ABC:
             if (register_ioexp_attr_qsfp_1(device_p) < 0){
                 err_msg = "register_ioexp_attr_qsfp_1 fail";

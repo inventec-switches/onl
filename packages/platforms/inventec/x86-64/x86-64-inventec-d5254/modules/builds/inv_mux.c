@@ -1,11 +1,13 @@
-#include <linux/module.h>
 #include <asm/io.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/jiffies.h>
+/* For build single module using (Ex: ONL platform) */
+#include <linux/module.h>
 #include <linux/inventec/d5254/io_expander.h>
 #include <linux/inventec/d5254/inv_mux.h>
+
 
 static struct mux_obj_s *mux_head_p = NULL;
 
@@ -217,6 +219,7 @@ clean_mux_gpio(void){
 }
 EXPORT_SYMBOL(clean_mux_gpio);
 
+
 int
 reset_mux_gpio(void){
 
@@ -231,6 +234,7 @@ reset_mux_gpio(void){
     return 0;
 }
 EXPORT_SYMBOL(reset_mux_gpio);
+
 
 int
 init_mux_gpio(unsigned gpio){
@@ -269,10 +273,12 @@ err_init_mux_gpio:
     clean_mux_gpio();
     return -1;
 }
-
 EXPORT_SYMBOL(init_mux_gpio);
+
+/* For single ko module
+ * => You need to declare MODULE_LICENSE If you want to build single module along.
+ * => Ex: For ONL platform
+ */
 MODULE_LICENSE("GPL");
-
-
 
 

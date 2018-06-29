@@ -1,8 +1,9 @@
-#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/kobject.h>
 #include <linux/delay.h>
+/* For build single module using (Ex: ONL platform) */
+#include <linux/module.h>
 #include <linux/inventec/d5254/io_expander.h>
 #include <linux/inventec/d5254/transceiver.h>
 
@@ -175,9 +176,8 @@ lock_transvr_obj(struct transvr_obj_s *self) {
     mutex_lock(&self->lock);
     self->curr_page = VAL_TRANSVR_PAGE_FREE;
 }
-
-
 EXPORT_SYMBOL(lock_transvr_obj);
+
 
 void
 unlock_transvr_obj(struct transvr_obj_s *self) {
@@ -185,8 +185,8 @@ unlock_transvr_obj(struct transvr_obj_s *self) {
     self->curr_page = VAL_TRANSVR_PAGE_FREE;
     mutex_unlock(&self->lock);
 }
-
 EXPORT_SYMBOL(unlock_transvr_obj);
+
 
 static int
 _check_by_mode(struct transvr_obj_s *self,
@@ -5908,7 +5908,8 @@ _sfp_detect_if_type(struct transvr_obj_s* self,
     switch (self->chipset_type) {
         case BCM_CHIP_TYPE_TRIDENT_2:
             return _sfp_set_trident2_if_type(self, detect_cls, result);
-
+        
+        case BCM_CHIP_TYPE_TRIDENT_3:
         case BCM_CHIP_TYPE_TOMAHAWK:
             return _sfp_set_tomahawk_if_type(self, detect_cls, result);
 
@@ -6537,7 +6538,8 @@ _qsfp_detect_if_type(struct transvr_obj_s* self,
     switch (self->chipset_type) {
         case BCM_CHIP_TYPE_TRIDENT_2:
             return _qsfp_set_trident2_if_type(self, detect_cls, result);
-
+        
+        case BCM_CHIP_TYPE_TRIDENT_3:
         case BCM_CHIP_TYPE_TOMAHAWK:
             return _qsfp_set_tomahawk_if_type(self, detect_cls, result);
 
@@ -8256,6 +8258,7 @@ err_create_transvr_fail:
 }
 EXPORT_SYMBOL(create_transvr_obj);
 
+
 static int
 _reload_transvr_obj(struct transvr_obj_s *self,
                     int new_type){
@@ -8338,6 +8341,7 @@ isolate_transvr_obj(struct transvr_obj_s *self) {
 }
 EXPORT_SYMBOL(isolate_transvr_obj);
 
+
 int
 resync_channel_tier_2(struct transvr_obj_s *self) {
 
@@ -8355,6 +8359,9 @@ resync_channel_tier_2(struct transvr_obj_s *self) {
     return 0;
 }
 EXPORT_SYMBOL(resync_channel_tier_2);
+
+/* For build single module using (Ex: ONL platform) */
+MODULE_LICENSE("GPL");
 
 
 /* -----------------------------------------
@@ -8377,7 +8384,7 @@ EXPORT_SYMBOL(resync_channel_tier_2);
  *    => Verify 25GBASE-LR
  *    => Verify 40G Active Cable (XLPPI)
  */
-MODULE_LICENSE("GPL");
+
 
 
 

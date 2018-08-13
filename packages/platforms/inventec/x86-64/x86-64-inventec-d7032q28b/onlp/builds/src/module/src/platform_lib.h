@@ -34,14 +34,17 @@
 #define PSU1_ID 1
 #define PSU2_ID 2
 
-#define PSU1_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/11-005b/"
-#define PSU2_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/10-0058/"
+#define PSU_HWMON_PSOC_PREFIX "/sys/bus/i2c/devices/0-0066/"
+#define PSU_HWMON_CPLD_PREFIX "/sys/bus/i2c/devices/0-0055/"
 
+#define PSU1_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/0-0055/"
+#define PSU2_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/0-0055/"
+ 
 #define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
 #define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
-
-#define PSU1_AC_HWMON_PREFIX "/sys/bus/i2c/devices/11-0053/"
-#define PSU2_AC_HWMON_PREFIX "/sys/bus/i2c/devices/10-0050/"
+ 
+#define PSU1_AC_HWMON_PREFIX "/sys/bus/i2c/devices/0-0055/"
+#define PSU2_AC_HWMON_PREFIX "/sys/bus/i2c/devices/0-0055/"
 
 #define PSU1_AC_HWMON_NODE(node) PSU1_AC_HWMON_PREFIX#node
 #define PSU2_AC_HWMON_NODE(node) PSU2_AC_HWMON_PREFIX#node

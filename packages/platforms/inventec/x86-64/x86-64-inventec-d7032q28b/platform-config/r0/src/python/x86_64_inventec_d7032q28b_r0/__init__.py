@@ -12,4 +12,11 @@ class OnlPlatform_x86_64_inventec_d7032q28b_r0(OnlPlatformInventec,
         self.insmod('inv_platform')
         self.insmod('inv_psoc')
         self.insmod('inv_cpld')
+        self.insmod('io_expander')
+        self.insmod('transceiver')
+        self.insmod('inv_mux')
+        self.insmod('inv_swps')
+        self.insmod('onie_tlvinfo')
+        self.insmod('inv_vpd')
         return True
+

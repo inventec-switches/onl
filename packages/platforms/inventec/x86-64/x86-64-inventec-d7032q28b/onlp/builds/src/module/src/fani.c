@@ -1,35 +1,21 @@
 /************************************************************
- * <bsn.cl fy=2014 v=onl>
+ * fani.c
  *
- *           Copyright 2014 Big Switch Networks, Inc.
- *           Copyright 2014 Accton Technology Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
- * Licensed under the Eclipse Public License, Version 1.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- *
- *        http://www.eclipse.org/legal/epl-v10.html
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific
- * language governing permissions and limitations under the
- * License.
- *
- * </bsn.cl>
  ************************************************************
  *
  * Fan Platform Implementation Defaults.
  *
  ***********************************************************/
+#include <stdlib.h>
 #include <onlplib/file.h>
 #include <onlp/platformi/fani.h>
 #include <onlplib/mmap.h>
 #include <fcntl.h>
 #include "platform_lib.h"
 
-#define PREFIX_PATH_ON_MAIN_BOARD   "/sys/bus/i2c/devices/2-0066/"
+#define PREFIX_PATH_ON_MAIN_BOARD   "/sys/bus/i2c/devices/0-0066/"
 #define PREFIX_PATH_ON_PSU          "/sys/bus/i2c/devices/"
 
 #define MAX_FAN_SPEED     18000
@@ -45,6 +31,7 @@
 #define FAN_4_ON_MAIN_BOARD	4
 #define FAN_5_ON_MAIN_BOARD	5
 #define FAN_6_ON_MAIN_BOARD	6
+
 #define FAN_1_ON_PSU1       7
 #define FAN_1_ON_PSU2       8
 
@@ -95,8 +82,8 @@ onlp_fan_info_t linfo[] = {
     MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(2),
     MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(3),
     MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(4),
-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(5),
-    MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(6),
+    //MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(5),
+    //MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(6),
     MAKE_FAN_INFO_NODE_ON_PSU(1,1),
     MAKE_FAN_INFO_NODE_ON_PSU(2,1),
 };
@@ -112,21 +99,22 @@ onlp_fan_info_t linfo[] = {
 static int
 _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 {
-        int   value, ret;
+    int   value, ret;
+    char  vstr[32], *vstrp = vstr, **vp = &vstrp;
 
-        /* get fan present status
-         */
-        ret = onlp_file_read_int(&value, "%s""fan%d_present", FAN_BOARD_PATH, fid);
+    memset(vstr, 0, 32);
+    /* get fan present status
+     */
+    ret = onlp_file_read_str(vp, "%s""fan_gpi", PREFIX_PATH_ON_MAIN_BOARD, fid);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
+    sscanf(*vp, "%x", &value);
+    if (value == 0) {
+	info->status |= ONLP_FAN_STATUS_PRESENT;
+    }
 
-        if (value == 0) {
-                return ONLP_STATUS_OK;
-        }
-        info->status |= ONLP_FAN_STATUS_PRESENT;
-
-
+#if 0
     /* get fan fault status (turn on when any one fails)
      */
         ret = onlp_file_read_int(&value, "%s""fan%d_fault", FAN_BOARD_PATH, fid);
@@ -147,29 +135,37 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
     }
 
         info->status |= value ? ONLP_FAN_STATUS_B2F : ONLP_FAN_STATUS_F2B;
-
+#endif
 
     /* get front fan speed
      */
-        ret = onlp_file_read_int(&value, "%s""fan%d_front_speed_rpm", FAN_BOARD_PATH, fid);
+    memset(vstr, 0, 32);
+    ret = onlp_file_read_str(vp, "%s""fan%d_input", PREFIX_PATH_ON_MAIN_BOARD, fid);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
-        info->rpm = value;
+    sscanf(*vp, "%d", &value);
+    info->rpm = value;
 
-        /* get rear fan speed
-         */
-        ret = onlp_file_read_int(&value, "%s""fan%d_rear_speed_rpm", FAN_BOARD_PATH, fid);
+#if 0
+    memset(vstr, 0, 32);
+    /* get rear fan speed
+     */
+    ret = onlp_file_read_str(vp, "%s""fan%d_input", FAN_BOARD_PATH, fid);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
 
-        /* take the min value from front/rear fan speed
-         */
-        if (info->rpm > value) {
+    /* take the min value from front/rear fan speed
+     */
+    sscanf(*vp, "%d", &value);
+    if (info->rpm > value) {
         info->rpm = value;
     }
+    }
+#endif
 
+#if 0
     /* get speed percentage from rpm
          */
         ret = onlp_file_read_int(&value, "%s""fan_max_speed_rpm", FAN_BOARD_PATH);
@@ -178,8 +174,8 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
     }
 
     info->percentage = (info->rpm * 100)/value;
-
-        return ONLP_STATUS_OK;
+#endif
+    return ONLP_STATUS_OK;
 }
 
 

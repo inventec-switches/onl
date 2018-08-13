@@ -38,6 +38,10 @@ function build_source
 {
     BUILD_DIR=`mktemp -d`
     cp $2 $BUILD_DIR
+    if [ $INV_D7032Q28B == d7032q28b ]
+    then
+	cp *.h $BUILD_DIR
+    fi
     src=$(basename $2)
     obj=${src%.c}.o
     echo "obj-m := $obj" >> $BUILD_DIR/Kbuild

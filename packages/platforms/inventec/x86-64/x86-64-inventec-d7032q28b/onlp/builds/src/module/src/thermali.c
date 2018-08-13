@@ -51,15 +51,16 @@ enum onlp_thermal_id
 static char* devfiles__[] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    NULL,                  /* CPU_CORE files */
-    "/sys/bus/i2c/devices/3-0048*temp1_input",
-    "/sys/bus/i2c/devices/3-0049*temp1_input",
-    "/sys/bus/i2c/devices/3-004a*temp1_input",
-    "/sys/bus/i2c/devices/3-004b*temp1_input",
-    "/sys/bus/i2c/devices/11-005b*psu_temp1_input",
-    "/sys/bus/i2c/devices/10-0058*psu_temp1_input",
+    "/sys/bus/i2c/devices/0-0066/temp1_input",
+    "/sys/bus/i2c/devices/0-0066/temp2_input",
+    "/sys/bus/i2c/devices/0-0066/temp3_input",
+    "/sys/bus/i2c/devices/0-0066/temp4_input",
+    "/sys/bus/i2c/devices/0-0066/temp5_input",
+    "/sys/bus/i2c/devices/0-0066/thermal_psu1",
+    "/sys/bus/i2c/devices/0-0066/thermal_psu2",
 };
 
+#if 0
 static char* cpu_coretemp_files[] =
     {
         "/sys/devices/platform/coretemp.0*temp2_input",
@@ -68,6 +69,7 @@ static char* cpu_coretemp_files[] =
         "/sys/devices/platform/coretemp.0*temp5_input",
         NULL,
     };
+#endif
 
 /* Static values */
 static onlp_thermal_info_t linfo[] = {
@@ -132,10 +134,12 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[local_id];
 
+#if 0
     if(local_id == THERMAL_CPU_CORE) {
         int rv = onlp_file_read_int_max(&info->mcelsius, cpu_coretemp_files);
         return rv;
     }
+#endif
 
     return onlp_file_read_int(&info->mcelsius, devfiles__[local_id]);
 }

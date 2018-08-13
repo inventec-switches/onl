@@ -1,26 +1,9 @@
 /************************************************************
- * <bsn.cl fy=2014 v=onl>
+ * ledi.c
  *
- *           Copyright 2014 Big Switch Networks, Inc.
- *           Copyright 2014 Accton Technology Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
- * Licensed under the Eclipse Public License, Version 1.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- *
- *        http://www.eclipse.org/legal/epl-v10.html
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific
- * language governing permissions and limitations under the
- * License.
- *
- * </bsn.cl>
  ************************************************************
- *
- *
  *
  ***********************************************************/
 #include <onlp/platformi/ledi.h>
@@ -32,7 +15,7 @@
 #include <onlplib/file.h>
 #include "platform_lib.h"
 
-#define prefix_path "/sys/class/leds/inventec_d7032q28b_led::"
+#define PREFIX_PATH "/sys/bus/i2c/devices/0-0066/"
 #define filename    "brightness"
 
 #define VALIDATE(_id)                           \
@@ -129,6 +112,7 @@ static onlp_led_info_t linfo[] =
     },
 };
 
+#if 0
 static int driver_to_onlp_led_mode(enum onlp_led_id id, enum led_light_mode driver_led_mode)
 {
     int i, nsize = sizeof(led_map)/sizeof(led_map[0]);
@@ -143,6 +127,7 @@ static int driver_to_onlp_led_mode(enum onlp_led_id id, enum led_light_mode driv
     
     return 0;
 }
+#endif
 
 static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led_mode)
 {
@@ -177,7 +162,7 @@ int
 onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 {
     int  local_id;
-	char data[2] = {0};
+    int  gvalue, rvalue;
     char fullpath[50] = {0};
 		
     VALIDATE(id);
@@ -185,23 +170,48 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     local_id = ONLP_OID_ID_GET(id);
     		
     /* get fullpath */
-    sprintf(fullpath, "%s%s/%s", prefix_path, last_path[local_id], filename);
+    sprintf(fullpath, "%s%s%d", PREFIX_PATH, "fan_led_grn", local_id);
+//printf("RYU: onlp_ledi_info_get(): fullpath = %s (id = %d)\n", fullpath,local_id);
 		
-	/* Set the onlp_oid_hdr_t and capabilities */
+    /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[ONLP_OID_ID_GET(id)];
 
     /* Set LED mode */
-    if (onlp_file_read_string(fullpath, data, sizeof(data), 0) != 0) {
+    if (onlp_file_read_int(&gvalue, "%s%s%d", PREFIX_PATH, "fan_led_grn", local_id) != 0) {
         DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
         return ONLP_STATUS_E_INTERNAL;
     }
 
-    info->mode = driver_to_onlp_led_mode(local_id, atoi(data));
+    if (onlp_file_read_int(&rvalue, "%s%s%d", PREFIX_PATH, "fan_led_red", local_id) != 0) {
+        DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+        return ONLP_STATUS_E_INTERNAL;
+    }
 
+    if (gvalue == 1 && rvalue == 0) {
+	info->mode = ONLP_LED_MODE_GREEN;
+    }
+    else
+    if (gvalue == 0 && rvalue == 1) {
+	info->mode = ONLP_LED_MODE_RED;
+    }
+    else
+    if (gvalue == 1 && rvalue == 1) {
+	info->mode = ONLP_LED_MODE_ORANGE;
+    }
+    else
+    if (gvalue == 0 && rvalue == 0) {
+	info->mode = ONLP_LED_MODE_OFF;
+    }
+    else {
+        return ONLP_STATUS_E_INTERNAL;
+    }
+
+#if 0
     /* Set the on/off status */
     if (info->mode != ONLP_LED_MODE_OFF) {
         info->status |= ONLP_LED_STATUS_ON;
     }
+#endif
 
     return ONLP_STATUS_OK;
 }
@@ -242,7 +252,7 @@ onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
     VALIDATE(id);
 	
     local_id = ONLP_OID_ID_GET(id);
-    sprintf(fullpath, "%s%s/%s", prefix_path, last_path[local_id], filename);	
+    sprintf(fullpath, "%s%s/%s", PREFIX_PATH, last_path[local_id], filename);	
     
     if (onlp_file_write_int(onlp_to_driver_led_mode(local_id, mode), fullpath, NULL) != 0)
     {

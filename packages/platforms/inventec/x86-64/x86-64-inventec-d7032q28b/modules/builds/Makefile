@@ -4,3 +4,5 @@ VENDOR := inventec
 BASENAME := x86-64-inventec-d7032q28b
 ARCH := x86_64
 include $(ONL)/make/kmodule.mk
+
+export INV_D7032Q28B := d7032q28b

@@ -60,6 +60,7 @@ typedef struct tlvinfo_tlv_s tlvinfo_tlv_t;
 #define TLV_CODE_SERVICE_TAG    0x2F
 #define TLV_CODE_VENDOR_EXT     0xFD
 #define TLV_CODE_CRC_32         0xFE
+#define TLV_CODE_EEPROM_DATA    0x00
 
 /*
  *  Struct for displaying the TLV codes and names.

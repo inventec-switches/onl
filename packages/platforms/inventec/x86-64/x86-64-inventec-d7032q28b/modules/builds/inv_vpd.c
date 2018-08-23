@@ -10,11 +10,14 @@
 #include <linux/jiffies.h>
 #include <linux/dmi.h>
 #include <linux/i2c.h>
+#include <linux/fs.h>
+#include <asm/uaccess.h>
 #include "./inv_vpd.h"
 #include "./onie_tlvinfo.h"
 
 static int vpd_major;
 static struct class *vpd_class_p = NULL;
+static struct device *device_p = NULL;
 static char cEeprom[SYS_EEPROM_MAX_SIZE];
 static DEFINE_MUTEX(vpd_mutex); 
 
@@ -31,6 +34,37 @@ __swp_match(struct device *dev,
     if (strcmp(dev_name(dev), name) == 0)
         return 1;
     return 0;
+}
+
+#define EEPROM_DATA_FILENAME	("/tmp/eeprom_data")
+#define EEPROM_DATA_SYSFSNAME	("/sys/class/eeprom/vpd/eeprom_data")
+
+static int creat_eeprom_data_file(void *datap, int size)
+{
+    char* eeprom_data_file = EEPROM_DATA_FILENAME;
+    struct file *filep;
+    loff_t pos = 0;
+    mm_segment_t old_fs;
+
+    old_fs = get_fs();  //Save the current FS segment
+    set_fs(get_ds());
+
+    filep = filp_open(eeprom_data_file, O_RDWR|O_CREAT, 0644);
+    if(!filep) {
+	set_fs(old_fs); //Reset to save FS
+	return -1;
+    }
+    vfs_write(filep, datap, size, &pos);
+    filp_close(filep,NULL);
+    set_fs(old_fs); //Reset to save FS
+    return 0;
+}
+
+static
+int get_eeprom_data(struct i2c_client *pi2c_client)
+{
+	read_eeprom( pi2c_client, cEeprom);
+	return creat_eeprom_data_file(cEeprom, 256);
 }
 
 static
@@ -130,6 +164,32 @@ show_attr_vpd(struct device *dev_p,
 	return iLen;
 }
 
+static ssize_t
+show_attr_eeprom_data(struct device *dev_p,
+                 struct device_attribute *attr_p,
+                 char *buf_p){
+
+    struct i2c_client *pi2c_client = dev_get_drvdata(dev_p);
+    struct vpd_device_attribute *attr = to_vpd_dev_attr(attr_p);
+    int iOffset = attr->index;
+    int iErr , iLen;
+
+    if (!pi2c_client){
+        return -ENODEV;
+    }
+    mutex_lock(&vpd_mutex);
+    iErr = get_eeprom_data( pi2c_client);
+    mutex_unlock(&vpd_mutex);
+
+    if( iErr <= 0 )
+	iLen = 0;
+    else
+	iLen = snprintf(buf_p, TLV_DECODE_VALUE_MAX_LEN, "eeprom raw data is in %s\n", EEPROM_DATA_FILENAME);
+
+    return iLen;
+}
+
+
 /* ================= Vpd attribute ========================
  */
 static VPD_DEVICE_ATTR(product_name ,S_IWUSR|S_IRUGO, show_attr_vpd, store_attr_vpd, TLV_CODE_PRODUCT_NAME  );
@@ -148,7 +208,8 @@ static VPD_DEVICE_ATTR(vendor_name  ,S_IWUSR|S_IRUGO, show_attr_vpd, store_attr_
 static VPD_DEVICE_ATTR(diag_ver     ,S_IWUSR|S_IRUGO, show_attr_vpd, store_attr_vpd, TLV_CODE_DIAG_VERSION  );
 static VPD_DEVICE_ATTR(service_tag  ,S_IWUSR|S_IRUGO, show_attr_vpd, store_attr_vpd, TLV_CODE_SERVICE_TAG  );
 static VPD_DEVICE_ATTR(vendor_ext   ,S_IWUSR|S_IRUGO, show_attr_vpd, store_attr_vpd, TLV_CODE_VENDOR_EXT  );
-static VPD_DEVICE_ATTR(crc32        ,S_IRUGO, show_attr_vpd, NULL, TLV_CODE_CRC_32  );
+static VPD_DEVICE_ATTR(crc32        ,S_IRUGO,	      show_attr_vpd, NULL,	     TLV_CODE_CRC_32  );
+static VPD_DEVICE_ATTR(eeprom_data  ,S_IRUGO,	      show_attr_eeprom_data, NULL,   TLV_CODE_EEPROM_DATA  );
 
 static void
 clean_vpd_common(void)
@@ -166,7 +227,7 @@ clean_vpd_common(void)
 }
 
 
-static struct register_attr VpdRegAttr[VPD_ENTRY_SIZE ] ={
+static struct register_attr VpdRegAttr[] ={
     { &vpd_dev_attr_product_name.dev_attr, "vpd_dev_attr_product_name"},
     { &vpd_dev_attr_pn.dev_attr, "vpd_dev_attr_pn"},
     { &vpd_dev_attr_sn.dev_attr, "vpd_dev_attr_sn"},
@@ -184,7 +245,9 @@ static struct register_attr VpdRegAttr[VPD_ENTRY_SIZE ] ={
     { &vpd_dev_attr_service_tag.dev_attr, "vpd_dev_attr_service_tag"},
     { &vpd_dev_attr_vendor_ext.dev_attr, "vpd_dev_attr_vendor_ext"},
     { &vpd_dev_attr_crc32.dev_attr, "vpd_dev_attr_crc32"},
+    { &vpd_dev_attr_eeprom_data.dev_attr, "vpd_dev_attr_eeprom_data"},
 };
+#define VPD_ENTRY_SIZE	(sizeof(VpdRegAttr)/sizeof(struct register_attr))
 
 static int
 register_vpd_attr(struct device *device_p){
@@ -209,7 +272,6 @@ err_register_vpd_attr:
 static int
 register_vpd_device(void)
 {
-    struct device *device_p = NULL;
     int minor_comm = 0; /* Default minor number for common device */
     dev_t dev_num  = MKDEV(vpd_major, minor_comm);
     char *err_msg  = "ERROR";
@@ -298,6 +360,9 @@ err_init_vpd_common:
 static int __init
 vpd_module_init(void)
 {
+    struct i2c_client *pi2c_client = NULL;
+    int iErr;
+
     if (register_vpd_module() < 0){
         goto err_vpd_module_init;
     }
@@ -305,6 +370,34 @@ vpd_module_init(void)
         goto err_vpd_module_init_1;
     }
     VPD_INFO("Inventec vpd module V.%s initial success.\n", VPD_VERSION);
+
+    VPD_INFO("%s/%d: device_p = %p\n", __func__,__LINE__,device_p);
+    if (!device_p) {
+	VPD_INFO("%s/%d: device_p = %p\n", __func__,__LINE__,device_p);
+	VPD_INFO("Creat %s failed.\n",EEPROM_DATA_FILENAME);
+	VPD_INFO("'cat %s' to creat it.\n",EEPROM_DATA_SYSFSNAME);
+	return 0;
+    }
+
+    pi2c_client = dev_get_drvdata(device_p);
+    if (!pi2c_client) {
+	VPD_INFO("%s/%d: pi2c_client = %p\n", __func__,__LINE__,pi2c_client);
+	VPD_INFO("Creat %s failed.\n",EEPROM_DATA_FILENAME);
+	VPD_INFO("'cat %s' to creat it.\n",EEPROM_DATA_SYSFSNAME);
+	return 0;
+    }	
+
+    mutex_lock(&vpd_mutex);
+    iErr = get_eeprom_data(pi2c_client);
+    mutex_unlock(&vpd_mutex);
+
+    if( iErr == 0 ) {
+        VPD_INFO("system eeprom raw data file %s created success.\n", EEPROM_DATA_FILENAME);
+    }
+    else {
+        VPD_ERR("system eeprom raw data file %s created failed.\n", EEPROM_DATA_FILENAME);
+    }
+
     return 0;
 
 err_vpd_module_init_1:

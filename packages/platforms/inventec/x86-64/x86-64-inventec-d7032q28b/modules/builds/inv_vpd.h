@@ -8,7 +8,6 @@
 #define VPD_VERSION    "1.0.0"
 #define VPD_LICENSE    "GPL"
 
-#define VPD_ENTRY_SIZE        (17)
 #define VPD_I2C_BUS           (0)
 #define VPD_I2C_ADDR          (0x53)
 

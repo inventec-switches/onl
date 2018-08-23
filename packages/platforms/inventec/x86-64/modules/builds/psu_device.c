@@ -268,7 +268,6 @@ void psu_get_voltin(void)
 		    continue;
 		}
 		sprintf(acc_path, devnamep->inv_dev_pathp, invwirep);
-		//printk(KERN_DEBUG "RYU: %s/%d: acc_path = %s\n",__func__,__LINE__,acc_path);
 		if (inventec_show_attr(volt, acc_path) <= 0) {
 		    printk(KERN_DEBUG "Read %s failed\n", acc_path);
 		    continue;
@@ -310,7 +309,6 @@ int psus_control(void)
 		    continue;
 		}
 		sprintf(acc_path, devnamep->inv_dev_pathp, invwirep);
-		//printk(KERN_INFO "RYU: %s/%d: acc_path = %s\n",__func__,__LINE__,acc_path);
 		if (inventec_show_attr(state, acc_path) <= 0) {
 		    printk(KERN_DEBUG "Read %s failed\n", acc_path);
 		    if (strncmp(psu_statep, PSU_STATE_ERROR, strlen(PSU_STATE_ERROR)) != 0) {
@@ -336,7 +334,6 @@ int psus_control(void)
 		else
 #endif
 		if (psu_voltin > PSU_VOLTIN_ACDC) {	/* AC PSUS */
-		    //printk(KERN_INFO "RYU: %s: %s\n", psu_dev_group[i].psu_name, state);
 		    if (strncmp(psu_statep, state, strlen(state)) != 0) {
 			strcpy(psu_statep, state);
 			SYSFS_LOG("%s: %s\n",psu_dev_group[i].psu_name,state);
@@ -354,7 +351,6 @@ int psus_control(void)
 	}
     }
 
-    //SYSFS_LOG("RYU: %s: flag = %d\n",psu_wire_tbl[i].psu_name,flag);
     if (flag == 1) {
 	status_led_change(STATUS_LED_RED_PATH, "0", STATUS_LED_GRN_PATH, "3");
 	return 1;
@@ -398,7 +394,6 @@ show_attr_common(struct device *dev_p, struct device_attribute *attr_p, char *bu
             return sprintf(buf_p, "Invalid psu number: %s\n", dev_p->kobj.name);
 	}
 	sprintf(acc_path, invpathp, invwirep);
-	//printk(KERN_DEBUG "RYU: %s/%d: acc_path = %s\n",__func__,__LINE__,acc_path);
 	return inventec_show_attr(&buf_p[0], acc_path);
     }
 

@@ -171,7 +171,6 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     		
     /* get fullpath */
     sprintf(fullpath, "%s%s%d", PREFIX_PATH, "fan_led_grn", local_id);
-//printf("RYU: onlp_ledi_info_get(): fullpath = %s (id = %d)\n", fullpath,local_id);
 		
     /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[ONLP_OID_ID_GET(id)];

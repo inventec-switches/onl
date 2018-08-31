@@ -18,7 +18,6 @@
 #define PSU_STATUS_UNPOWERED	2
 #define PSU_STATUS_FAULT	4
 #define PSU_STATUS_UNINSTALLED	7
-//#define PSU_STATUS_POWER_GOOD	1
 
 #define PSU_NODE_MAX_INT_LEN  8
 #define PSU_NODE_MAX_PATH_LEN 64
@@ -188,6 +187,7 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     int index = ONLP_OID_ID_GET(id);
 
     VALIDATE(id);
+
     memset(info, 0, sizeof(onlp_psu_info_t));
     *info = pinfo[index]; /* Set the onlp_oid_hdr_t */
 
@@ -220,53 +220,4 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     }
 
     return ONLP_STATUS_E_UNSUPPORTED;
-#if 0
-    /* Get power good status */
-    if (psu_status_info_get(index, "psu_power_good", &val) != 0) {
-        printf("Unable to read PSU(%d) node(psu_power_good)\r\n", index);
-    }
-
-    if (val != PSU_STATUS_POWER_GOOD) {
-        info->status |=  ONLP_PSU_STATUS_FAILED;
-    }
-
-
-    /* Get PSU type
-     */
-    psu_type = get_psu_type(index, info->model, sizeof(info->model));
-
-    switch (psu_type) {
-        case PSU_TYPE_AC_F2B:
-        case PSU_TYPE_AC_B2F:
-            info->caps = ONLP_PSU_CAPS_AC;
-            ret = psu_ym2651_info_get(info);
-            break;
-        case PSU_TYPE_DC_48V_F2B:
-        case PSU_TYPE_DC_48V_B2F:
-            info->caps = ONLP_PSU_CAPS_DC48;
-            ret = psu_ym2651_info_get(info);
-            break;
-        case PSU_TYPE_DC_12V_F2B:
-        case PSU_TYPE_DC_12V_B2F:
-        case PSU_TYPE_DC_12V_FANLESS:
-            ret = psu_dc12v_750_info_get(info);
-            break;
-        case PSU_TYPE_UNKNOWN:  /* User insert a unknown PSU or unplugged.*/
-            info->status |= ONLP_PSU_STATUS_UNPLUGGED;
-            info->status &= ~ONLP_PSU_STATUS_FAILED;
-            ret = ONLP_STATUS_OK;
-            break;
-        default:
-            ret = ONLP_STATUS_E_UNSUPPORTED;
-            break;
-    }
-    return ret;
-#endif
 }
-
-int
-onlp_psui_ioctl(onlp_oid_t pid, va_list vargs)
-{
-    return ONLP_STATUS_E_UNSUPPORTED;
-}
-

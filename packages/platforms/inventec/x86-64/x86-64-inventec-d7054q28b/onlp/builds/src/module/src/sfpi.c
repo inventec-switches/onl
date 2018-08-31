@@ -1,26 +1,9 @@
 /************************************************************
- * <bsn.cl fy=2014 v=onl>
+ * sfpi.c
  *
- *           Copyright 2014 Big Switch Networks, Inc.
- *           Copyright 2014 Accton Technology Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
- * Licensed under the Eclipse Public License, Version 1.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- *
- *        http://www.eclipse.org/legal/epl-v10.html
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific
- * language governing permissions and limitations under the
- * License.
- *
- * </bsn.cl>
  ************************************************************
- *
- *
  *
  ***********************************************************/
 #include <onlp/platformi/sfpi.h>
@@ -67,9 +50,7 @@ sfp_node_read_int(char *node_path, int *value, int data_len)
 static char*
 sfp_get_port_path(int port, char *node_name)
 {
-    sprintf(sfp_node_path, "/sys/bus/i2c/devices/%d-0050/%s",
-                           FRONT_PORT_TO_MUX_INDEX(port),
-                           node_name);
+    sprintf(sfp_node_path, "/sys/class/swps/port%d/%s", port, node_name);
 
     return sfp_node_path;
 }
@@ -111,64 +92,57 @@ onlp_sfpi_is_present(int port)
      * Return < 0 if error.
      */
     int present;
-    char* path = sfp_get_port_path(port, "sfp_is_present");
-
+    char* path = sfp_get_port_path(port, "present");
     if (sfp_node_read_int(path, &present, 0) != 0) {
         AIM_LOG_ERROR("Unable to read present status from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }
-
+    if (present == 0) {
+	present = 1;
+    }
+    else
+    if (present == 1) {
+	present = 0;
+    }
+    else {
+        AIM_LOG_ERROR("Unvalid present status %d from port(%d)\r\n",present,port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
     return present;
 }
 
 int
 onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 {
-    uint32_t bytes[4];
-    char* path;
-    FILE* fp;
-
-    path = sfp_get_port_path(0, "sfp_is_present_all");
-    fp = fopen(path, "r");
-
-    if(fp == NULL) {
-        AIM_LOG_ERROR("Unable to open the sfp_is_present_all device file.");
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    int count = fscanf(fp, "%x %x %x %x",
-                       bytes+0,
-                       bytes+1,
-                       bytes+2,
-                       bytes+3
-                       );
-    fclose(fp);
-    if(count != AIM_ARRAYSIZE(bytes)) {
-        /* Likely a CPLD read timeout. */
-        AIM_LOG_ERROR("Unable to read all fields from the sfp_is_present_all device file.");
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    /* Convert to 64 bit integer in port order */
-    int i = 0;
     uint32_t presence_all = 0 ;
-    for(i = AIM_ARRAYSIZE(bytes)-1; i >= 0; i--) {
-        presence_all <<= 8;
-        presence_all |= bytes[i];
+    int port, ret;
+
+    for (port = 0; port < NUM_OF_SFP_PORT; port++) {
+	ret = onlp_sfpi_is_present(port);
+	if (ret == 1) {
+	    presence_all |= (1<<port);
+	}
+	else
+	if (ret == 0) {
+	    presence_all &= ~(1<<port);
+	}
+	else {
+            AIM_LOG_ERROR("Unable to read present status of port(%d).", port);
+	}
     }
 
     /* Populate bitmap */
-    for(i = 0; presence_all; i++) {
-        AIM_BITMAP_MOD(dst, i, (presence_all & 1));
+    for(port = 0; presence_all; port++) {
+        AIM_BITMAP_MOD(dst, port, (presence_all & 1));
         presence_all >>= 1;
     }
-
     return ONLP_STATUS_OK;
 }
 
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-    char* path = sfp_get_port_path(port, "sfp_eeprom");
+    char* path = sfp_get_port_path(port, "eeprom");
     int len = 0;
 
     /*
@@ -178,12 +152,10 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      * Return OK if eeprom is read
      */
     memset(data, 0, 256);
-
     if (onlp_file_read((uint8_t*)data, 256, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }
-
     return ONLP_STATUS_OK;
 }
 

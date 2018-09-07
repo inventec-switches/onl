@@ -2,11 +2,8 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/ctype.h>
-//#include <linux/crc32.h>
 #include <linux/delay.h>
 
-//#include <linux/slab.h>
-//#include <linux/platform_device.h>
 #include "./onie_tlvinfo.h"
 
 /* Set to 1 if we've read EEPROM into memory */
@@ -30,19 +27,6 @@ static inline int is_valid_ether_addr(const u_int8_t *addr)
     return !is_multicast_ether_addr(addr) && !is_zero_ether_addr(addr);
 }
 
-#if 0
-static unsigned int crc32(unsigned char const *p, unsigned int len)
-{
-	int i;
-	unsigned int crc = 0;
-	while (len--) {
-		crc ^= *p++;
-		for (i = 0; i < 8; i++)
-			crc = (crc >> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
-	}
-	return crc;
-}
-#else
 static unsigned long crc32_tab[] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
 	0xe963a535, 0x9e6495a3,	0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -91,7 +75,7 @@ static unsigned long crc32_tab[] = {
 
 static unsigned long crc32(unsigned char const *buf, unsigned int size)
 {
-	unsigned char *p = buf;
+	unsigned char *p = (unsigned char*)buf;
 	unsigned long crc = 0;
 
     crc = crc ^ ~0U;
@@ -101,7 +85,6 @@ static unsigned long crc32(unsigned char const *buf, unsigned int size)
 
 	return crc ^ ~0U;
 }
-#endif
 
 static int set_bytes(char *buf, const char *string, int * converted_accum)
 {
@@ -161,7 +144,7 @@ static int set_date(char *buf, const char *string)
 	return -1;
     }
     if (strlen(string) != 19) {
-	printk("ERROR: Date strlen() != 19 -- %d\n", strlen(string));
+	printk("ERROR: Date strlen() != 19 -- %zd\n", strlen(string));
 	printk("ERROR: Bad date format (MM/DD/YYYY hh:mm:ss): %s\n", string);
 	return -1;
     }
@@ -237,7 +220,7 @@ static int set_mac(char *buf, const char *string)
 	return -1;
     }
     if (strlen(p) != 17) {
-	printk("ERROR: MAC address strlen() != 17 -- %d\n", strlen(p));
+	printk("ERROR: MAC address strlen() != 17 -- %zd\n", strlen(p));
 	printk("ERROR: Bad MAC address format: %s\n", string);
 	return -1;
     }

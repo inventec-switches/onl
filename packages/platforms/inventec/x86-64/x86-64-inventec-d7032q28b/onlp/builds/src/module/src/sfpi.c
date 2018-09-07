@@ -142,9 +142,8 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-    char* path = sfp_get_port_path(port, "eeprom");
+    char* path;
     int len = 0;
-
     /*
      * Read the SFP eeprom into data[]
      *
@@ -152,7 +151,13 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      * Return OK if eeprom is read
      */
     memset(data, 0, 256);
-    if (onlp_file_read((uint8_t*)data, 256, &len, path) < 0) {
+    path = sfp_get_port_path(port, "eeprom");
+    if (onlp_file_read(&data[0], 128, &len, path) < 0) {
+        AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    path = sfp_get_port_path(port, "uppage");
+    if (onlp_file_read(&data[128], 128, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }

@@ -4,7 +4,7 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 
-#include "./onie_tlvinfo.h"
+#include <linux/inventec/d7032q28b/onie_tlvinfo.h>
 
 /* Set to 1 if we've read EEPROM into memory */
 static int has_been_read = 0;

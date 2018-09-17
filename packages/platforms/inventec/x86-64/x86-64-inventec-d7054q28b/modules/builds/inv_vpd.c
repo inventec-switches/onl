@@ -10,8 +10,8 @@
 #include <linux/jiffies.h>
 #include <linux/dmi.h>
 #include <linux/i2c.h>
-#include <linux/inventec/cypress/inv_vpd.h>
-#include <linux/inventec/cypress/onie_tlvinfo.h>
+#include <linux/inventec/d7054q28b/inv_vpd.h>
+#include <linux/inventec/d7054q28b/onie_tlvinfo.h>
 
 static int vpd_major;
 static struct class *vpd_class_p = NULL;

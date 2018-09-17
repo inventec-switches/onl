@@ -12,8 +12,8 @@
 #include <linux/i2c.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>
-#include "./inv_vpd.h"
-#include "./onie_tlvinfo.h"
+#include <linux/inventec/d7032q28b/inv_vpd.h>
+#include <linux/inventec/d7032q28b/onie_tlvinfo.h>
 
 static int vpd_major;
 static struct class *vpd_class_p = NULL;

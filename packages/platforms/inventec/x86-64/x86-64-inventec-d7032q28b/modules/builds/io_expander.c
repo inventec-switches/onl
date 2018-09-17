@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
-#include "./io_expander.h"
+#include <linux/inventec/d7032q28b/io_expander.h>
 
 static struct ioexp_obj_s *ioexp_head_p = NULL;
 static struct ioexp_obj_s *ioexp_tail_p = NULL;

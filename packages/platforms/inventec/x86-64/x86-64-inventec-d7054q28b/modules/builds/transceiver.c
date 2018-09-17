@@ -3,8 +3,8 @@
 #include <linux/i2c.h>
 #include <linux/kobject.h>
 #include <linux/delay.h>
-#include <linux/inventec/cypress/io_expander.h>
-#include <linux/inventec/cypress/transceiver.h>
+#include <linux/inventec/d7054q28b/io_expander.h>
+#include <linux/inventec/d7054q28b/transceiver.h>
 
 
 /* ========== Register EEPROM address mapping ==========

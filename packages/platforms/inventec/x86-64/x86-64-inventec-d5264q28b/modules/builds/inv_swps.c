@@ -9,7 +9,7 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/dmi.h>
-#include <linux/inventec/lavender/inv_swps.h>
+#include <linux/inventec/d5264q28b/inv_swps.h>
 
 static int ctl_major;
 static int port_major;

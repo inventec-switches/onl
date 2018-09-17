@@ -7,7 +7,7 @@
 
 //#include <linux/slab.h>
 //#include <linux/platform_device.h>
-#include <linux/inventec/cypress/onie_tlvinfo.h>
+#include <linux/inventec/d7054q28b/onie_tlvinfo.h>
 
 /* Set to 1 if we've read EEPROM into memory */
 static int has_been_read = 0;

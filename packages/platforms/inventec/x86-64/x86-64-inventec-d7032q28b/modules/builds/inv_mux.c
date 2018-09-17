@@ -4,8 +4,8 @@
 #include <linux/gpio.h>
 #include <linux/delay.h>
 #include <linux/jiffies.h>
-#include "./io_expander.h"
-#include "./inv_mux.h"
+#include <linux/inventec/d7032q28b/io_expander.h>
+#include <linux/inventec/d7032q28b/inv_mux.h>
 
 static struct mux_obj_s *mux_head_p = NULL;
 

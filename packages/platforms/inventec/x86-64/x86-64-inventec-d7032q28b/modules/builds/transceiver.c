@@ -4,8 +4,8 @@
 #include <linux/kobject.h>
 #include <linux/delay.h>
 #include <linux/ctype.h>
-#include "./io_expander.h"
-#include "./transceiver.h"
+#include <linux/inventec/d7032q28b/io_expander.h>
+#include <linux/inventec/d7032q28b/transceiver.h>
 
 
 /* ========== Register EEPROM address mapping ==========

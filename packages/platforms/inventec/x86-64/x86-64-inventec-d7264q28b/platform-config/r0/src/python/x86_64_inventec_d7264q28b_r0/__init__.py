@@ -8,7 +8,7 @@ class OnlPlatform_x86_64_inventec_d7264q28b_r0(OnlPlatformInventec,
     SYS_OBJECT_ID="7264.28"
 
     def baseconfig(self):
-        os.system("insmod /lib/modules/`uname -r`/onl/inventec/x86-64-inventec-d7264q28b/gpio-ich.ko gpiobase=0")
+	os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko")
         self.insmod('inv_platform')
         self.insmod('inv_psoc')
         self.insmod('inv_cpld')

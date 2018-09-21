@@ -8,8 +8,8 @@ class OnlPlatform_x86_64_inventec_d5254_r0(OnlPlatformInventec,
     SYS_OBJECT_ID=".1.32"
 
     def baseconfig(self):
-        #os.system("insmod /lib/modules/`uname -r`/onl/inventec/x86-64-inventec-d5254/gpio-ich.ko")
-        self.insmod('gpio-ich.ko')
+	os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko")
+        #self.insmod('gpio-ich.ko')
         self.insmod('i2c-gpio')
         self.insmod('inv_platform')
         self.insmod('inv_psoc')

@@ -8,7 +8,7 @@ class OnlPlatform_x86_64_inventec_lavender_r0(OnlPlatformInventec,
     SYS_OBJECT_ID=".1.32"
 
     def baseconfig(self):
-        os.system("insmod /lib/modules/`uname -r`/onl/inventec/x86-64-inventec-lavender/gpio-ich.ko gpiobase=0")
+        os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko")
 
         #self.insmod('inv_platform')
         os.system("echo pca9548 0x70 > /sys/bus/i2c/devices/i2c-0/new_device")

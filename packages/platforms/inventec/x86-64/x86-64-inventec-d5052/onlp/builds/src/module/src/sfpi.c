@@ -21,13 +21,10 @@
 static char sfp_node_path[MAX_SFP_PATH] = {0};
 
 #define MUX_START_INDEX 18
-#define NUM_OF_SFP_PORT 32
-static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
- 4,  5,  6,  7,  9,  8, 11, 10,
- 0,  1,  2,  3, 12, 13, 14, 15,
-16, 17, 18, 19, 28, 29, 30, 31,
-20, 21, 22, 23, 24, 25, 26, 27
+static const int sfp_mux_index[] = {
+ 49,  50,  51,  52
 };
+static int NUM_OF_SFP_PORT = (sizeof(sfp_mux_index)/sizeof(int));
 
 #define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
 
@@ -144,6 +141,10 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
     char* path;
     int len = 0;
+
+    /* To be implement after swps driver update */
+    return ONLP_STATUS_OK;
+
     /*
      * Read the SFP eeprom into data[]
      *

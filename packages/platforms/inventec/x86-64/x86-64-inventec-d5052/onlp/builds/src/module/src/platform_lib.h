@@ -12,13 +12,13 @@
 #include "x86_64_inventec_d5052_log.h"
 
 #define CHASSIS_FAN_COUNT     10
-#define CHASSIS_THERMAL_COUNT 5
+#define CHASSIS_THERMAL_COUNT 11
 
 #define PSU1_ID 1
 #define PSU2_ID 2
 
-#define PSU_HWMON_PSOC_PREFIX	"/sys/bus/i2c/devices/0-0066/"
-#define PSU_HWMON_CPLD_PREFIX	"/sys/bus/i2c/devices/0-0055/"
+#define PSU_HWMON_PSOC_PREFIX	"/sys/bus/i2c/devices/1-0066/"
+#define PSU_HWMON_CPLD_PREFIX	"/sys/bus/i2c/devices/1-0055/"
 
 #define PSU1_AC_PMBUS_PREFIX	PSU_HWMON_PSOC_PREFIX
 #define PSU2_AC_PMBUS_PREFIX	PSU_HWMON_PSOC_PREFIX

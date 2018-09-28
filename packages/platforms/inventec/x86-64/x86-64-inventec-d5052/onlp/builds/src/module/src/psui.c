@@ -75,10 +75,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_vout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_vout", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_vout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_vout", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -90,10 +90,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_iout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_iout", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_iout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_iout", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -105,10 +105,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_pout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_pout", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_pout", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_pout", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -120,10 +120,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_vin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_vin", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_vin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_vin", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -135,10 +135,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_iin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_iin", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_iin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_iin", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -150,10 +150,10 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
     if (PSU1_ID == id) {
-        sprintf(node_path, "%spsu2_pin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu1_pin", PSU_HWMON_PSOC_PREFIX);
     }
     else if (PSU2_ID == id) {
-        sprintf(node_path, "%spsu1_pin", PSU_HWMON_PSOC_PREFIX);
+        sprintf(node_path, "%spsoc_psu2_pin", PSU_HWMON_PSOC_PREFIX);
     }
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {

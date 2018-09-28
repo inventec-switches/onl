@@ -194,8 +194,8 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    }
 	    break;
 	case LED_FAN1:
-	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan_led_grn1");
-	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan_led_red1");
+	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan1_led_grn");
+	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan1_led_red");
 
 	    /* Set LED mode */
 	    if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {
@@ -208,8 +208,8 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    }
 	    break;
 	case LED_FAN2:
-	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan_led_grn2");
-	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan_led_red2");
+	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan2_led_grn");
+	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan2_led_red");
 
 	    /* Set LED mode */
 	    if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {
@@ -222,8 +222,8 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    }
 	    break;
 	case LED_FAN3:
-	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan_led_grn3");
-	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan_led_red3");
+	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan3_led_grn");
+	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan3_led_red");
 
 	    /* Set LED mode */
 	    if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {
@@ -236,8 +236,8 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    }
 	    break;
 	case LED_FAN4:
-	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan_led_grn4");
-	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan_led_red4");
+	    sprintf(fullpath_grn, "%s%s", PREFIX_PSOC_PATH, "fan4_led_grn");
+	    sprintf(fullpath_red, "%s%s", PREFIX_PSOC_PATH, "fan4_led_red");
 
 	    /* Set LED mode */
 	    if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {

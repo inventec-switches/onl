@@ -133,7 +133,7 @@ fan_ctrl_policy_t  fan_ctrl_policy_b2f[] = {
 };
 
 #define FAN_DUTY_CYCLE_MAX  100
-#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/2-0066/fan_duty_cycle_percentage"
+#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/1-0066/fan_duty_cycle_percentage"
 
 /*
  * For AC power Front to Back :

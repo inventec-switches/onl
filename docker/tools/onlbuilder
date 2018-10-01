@@ -204,6 +204,8 @@ else:
 
 
 if ops.proxy is not None:
+   g_docker_arguments += " -e \"http_proxy=\"%(proxy)s\"\"" % g_arg_d
+   g_docker_arguments += " -e \"https_proxy=\"%(proxy)s\"\"" % g_arg_d
    g_docker_arguments += " %(image)s docker/tools/docker_shell --user %(user)s --start-cacher --proxy \"%(proxy)s\" -c %(commands)s" % g_arg_d
 else:
    g_arg_d['cacher'] = "--start-cacher" if ops.isolate else ""

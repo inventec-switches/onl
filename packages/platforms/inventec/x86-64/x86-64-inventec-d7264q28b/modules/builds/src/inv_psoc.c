@@ -50,7 +50,9 @@ DEFINE_MUTEX(ipmi_mutex);
 DEFINE_MUTEX(ipmi2_mutex);
 static struct ipmi_result ipmiresult;
 static struct device *hwmon_dev;
+#if 0
 static struct kobject *device_kobj;
+#endif
 static ipmi_user_t ipmi_mh_user = NULL;
 static void msg_handler(struct ipmi_recv_msg *msg,void* handler_data);
 static struct ipmi_user_hndl ipmi_hndlrs = {   .ipmi_recv_hndl = msg_handler,};

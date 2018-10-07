@@ -733,6 +733,7 @@ static int __init inv_psoc_init(void)
 		goto fail_hwmon_device_register;
 	}	
 	
+#if 0
 	device_kobj = kobject_create_and_add("device", &hwmon_dev->kobj);
 	if(!device_kobj) {
 		goto fail_hwmon_device_register;	
@@ -742,6 +743,12 @@ static int __init inv_psoc_init(void)
 	if (ret) {
 		goto fail_create_group_hwmon;
 	}
+#else
+	ret = sysfs_create_group(&hwmon_dev->kobj, &psoc_group);
+	if (ret) {
+		goto fail_create_group_hwmon;
+	}
+#endif
 
 	printk(" Enable IPMI PSoC protocol.\n");
 	return ret;
@@ -756,7 +763,11 @@ static void __exit inv_psoc_exit(void)
 {
 	if(ipmi_mh_user!=NULL) {ipmi_destroy_user(ipmi_mh_user);}
 	if(hwmon_dev != NULL) hwmon_device_unregister(hwmon_dev);
+#if 0
 	sysfs_remove_group(device_kobj, &psoc_group);
+#else
+	sysfs_remove_group(&hwmon_dev->kobj, &psoc_group);
+#endif
 }
 
 MODULE_AUTHOR("Ting.Jack <ting.jack@inventec>");

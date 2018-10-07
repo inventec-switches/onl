@@ -1,33 +1,26 @@
 /************************************************************
- * <bsn.cl fy=2014 v=onl>
+ * psui.c
  *
- *           Copyright 2014 Big Switch Networks, Inc.
- *           Copyright 2014 Accton Technology Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
- * Licensed under the Eclipse Public License, Version 1.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- *
- *        http://www.eclipse.org/legal/epl-v10.html
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific
- * language governing permissions and limitations under the
- * License.
- *
- * </bsn.cl>
  ************************************************************
  *
- *
- *
  ***********************************************************/
+#include <onlp/platformi/psui.h>
+#include <onlplib/mmap.h>
+#include <onlplib/file.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include "platform_lib.h"
-#include <onlp/platformi/psui.h>
-#include <onlplib/file.h>
+
+#define PSU_STATUS_PRESENT	0
+#define PSU_STATUS_UNPOWERED	2
+#define PSU_STATUS_FAULT	4
+#define PSU_STATUS_UNINSTALLED	7
+
+#define PSU_NODE_MAX_INT_LEN  8
+#define PSU_NODE_MAX_PATH_LEN 64
 
 #define VALIDATE(_id)                           \
     do {                                        \
@@ -36,91 +29,52 @@
         }                                       \
     } while(0)
 
-#define PSUI_PLATFORM_PSU_MODEL "PS-2551-7L-LF"
-
-
-typedef enum psoc_psu_state_e {
-    PSOC_PSU_NORMAL = 0,
-    PSOC_PSU_NA_1,            //001
-    PSOC_PSU_UNPOWERED,       //010
-    PSOC_PSU_NA_3,            //011
-    PSOC_PSU_FAULT,           //100
-    PSOC_PSU_NA_5,            //101
-    PSOC_PSU_NA_6,            //110
-    PSOC_PSU_NOT_INSTALLED    //111
-} psoc_psu_state_t;
-
-
-typedef struct psui_info_s {
-    char vendor[ONLP_CONFIG_INFO_STR_MAX];
-    char serial[ONLP_CONFIG_INFO_STR_MAX];
-    char state[ONLP_CONFIG_INFO_STR_MAX];
-    char vin[ONLP_CONFIG_INFO_STR_MAX];
-    char vout[ONLP_CONFIG_INFO_STR_MAX];
-    char iin[ONLP_CONFIG_INFO_STR_MAX];
-    char iout[ONLP_CONFIG_INFO_STR_MAX];
-    char pin[ONLP_CONFIG_INFO_STR_MAX];
-    char pout[ONLP_CONFIG_INFO_STR_MAX];
-} psui_info_t;
-
-
-static psui_info_t __info_list[ONLP_PSU_COUNT] = {
-    {},
-    {
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vender",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_serial",
-        "/sys/class/hwmon/hwmon1/device/psu0",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_vout",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_iin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_iout",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_pin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu1_pout"
-    },
-    {
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vender",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_serial",
-        "/sys/class/hwmon/hwmon1/device/psu1",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_vout",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_iin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_iout",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_pin",
-        "/sys/class/hwmon/hwmon1/device/psoc_psu2_pout"
-    }
+static char* status_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
+{
+    "reserved",
+    "/sys/class/hwmon/hwmon%d/device/psu0",
+    "/sys/class/hwmon/hwmon%d/device/psu1",
 };
 
-
-/*
- * Get all information about the given PSU oid.
- */
-static onlp_psu_info_t __onlp_psu_info[ONLP_PSU_COUNT] = {
-    { }, /* Not used */
-    {
-        {
-            ONLP_PSU_ID_CREATE(ONLP_PSU_1), "PSU-1", 0,
-            {
-                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU1),
-                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU1),
-                ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_1)
-            }
-        },
-        "","",ONLP_PSU_STATUS_PRESENT,
-        ONLP_PSU_CAPS_DC12|ONLP_PSU_CAPS_VIN|ONLP_PSU_CAPS_VOUT|ONLP_PSU_CAPS_IIN|ONLP_PSU_CAPS_IOUT|ONLP_PSU_CAPS_PIN|ONLP_PSU_CAPS_POUT
-    },
-    {
-        {
-            ONLP_PSU_ID_CREATE(ONLP_PSU_2), "PSU-2", 0,
-            {
-                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_1_ON_PSU2),
-                ONLP_THERMAL_ID_CREATE(ONLP_THERMAL_2_ON_PSU2),
-                ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_2)
-            }
-        },
-        "","",ONLP_PSU_STATUS_PRESENT,
-        ONLP_PSU_CAPS_DC12|ONLP_PSU_CAPS_VIN|ONLP_PSU_CAPS_VOUT|ONLP_PSU_CAPS_IIN|ONLP_PSU_CAPS_IOUT|ONLP_PSU_CAPS_PIN|ONLP_PSU_CAPS_POUT
-    }
+static char* module_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
+{
+    "reserved",
+    "/sys/class/hwmon/hwmon%d/psoc_psu1_%s",
+    "/sys/class/hwmon/hwmon%d/psoc_psu2_%s",
 };
+
+static int inv_cpld_id = D7264Q28B_CPLD_HWMON_ID;
+static int inv_psoc_id = D7264Q28B_PSOC_HWMON_ID;
+
+static int 
+psu_status_info_get(int id, char *node, int *value)
+{
+    int ret = 0;
+    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+    char vstr[32], *vstrp = vstr, **vp = &vstrp;
+    
+    *value = 0;
+
+    if (PSU1_ID == id) {
+	sprintf(node_path, status_devfiles__[id], inv_cpld_id);
+    }
+    else if (PSU2_ID == id) {
+	sprintf(node_path, status_devfiles__[id], inv_cpld_id);
+    }
+    
+    ret = onlp_file_read_str(vp, node_path);
+
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+
+    if (!isdigit(*vstrp)) {
+	return ONLP_STATUS_E_INTERNAL;
+    }
+    *value = *vstrp - '0';
+    return ONLP_STATUS_OK;
+}
 
 
 int
@@ -129,64 +83,128 @@ onlp_psui_init(void)
     return ONLP_STATUS_OK;
 }
 
+static int
+psu_module_info_get(int id, onlp_psu_info_t* info)
+{
+    int ret = 0;
+    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+    int value = 0;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "vout");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->mvout = value;
+    info->caps |= ONLP_PSU_CAPS_VOUT;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "iout");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->miout = value;
+    info->caps |= ONLP_PSU_CAPS_IOUT;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "pout");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->mpout = value;
+    info->caps |= ONLP_PSU_CAPS_POUT;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "vin");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->mvin = value;
+    info->caps |= ONLP_PSU_CAPS_VIN;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "iin");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->miin = value;
+    info->caps |= ONLP_PSU_CAPS_IIN;
+
+    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "pin");
+    ret = onlp_file_read_int(&value, node_path);
+    if (ret < 0) {
+        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    info->mpin = value;
+    info->caps |= ONLP_PSU_CAPS_PIN;
+
+    return ONLP_STATUS_OK;
+}
+
+/*
+ * Get all information about the given PSU oid.
+ */
+static onlp_psu_info_t pinfo[] =
+{
+    { }, /* Not used */
+    {
+        { ONLP_PSU_ID_CREATE(PSU1_ID), "PSU-1", 0 },
+    },
+    {
+        { ONLP_PSU_ID_CREATE(PSU2_ID), "PSU-2", 0 },
+    }
+};
 
 int
 onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 {
-    int ret   = ONLP_STATUS_OK;
-    int len;
-    int local_id = ONLP_OID_ID_GET(id);
-    uint8_t temp[ONLP_CONFIG_INFO_STR_MAX] = {0};
-    psoc_psu_state_t psoc_state;
+    int val   = 0;
+    int index = ONLP_OID_ID_GET(id);
 
     VALIDATE(id);
 
-    if(local_id >= ONLP_PSU_MAX) {
-        return ONLP_STATUS_E_INVALID;
+    memset(info, 0, sizeof(onlp_psu_info_t));
+    *info = pinfo[index]; /* Set the onlp_oid_hdr_t */
+
+    /* Get the present state */
+    if (psu_status_info_get(index, "psu", &val) == ONLP_STATUS_E_INTERNAL) {
+        printf("Unable to read PSU(%d) node(psu_present)\r\n", index);
     }
 
-
-    *info = __onlp_psu_info[local_id]; /* Set the onlp_oid_hdr_t */
-
-    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, __info_list[local_id].vendor);
-    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
-    memset(temp, 0, ONLP_CONFIG_INFO_STR_MAX);
-
-
-    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len,__info_list[local_id].serial);
-    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
-
-
-    ret = onlp_file_read_int((int*)&psoc_state, __info_list[local_id].state);
-
-    if( PSOC_PSU_UNPOWERED == psoc_state) {
-        info->status = ONLP_PSU_STATUS_PRESENT|ONLP_PSU_STATUS_UNPLUGGED;
-    } else if ( PSOC_PSU_NORMAL == psoc_state) {
-        info->status = ONLP_PSU_STATUS_PRESENT;
-    } else if( PSOC_PSU_FAULT == psoc_state) {
-        info->status = ONLP_PSU_STATUS_PRESENT|ONLP_PSU_STATUS_FAILED;
-    } else {
-        info->status = 0;
+    if (val == PSU_STATUS_PRESENT) {
+	info->status |= ONLP_PSU_STATUS_PRESENT;
+	if (psu_module_info_get(index, info) != ONLP_STATUS_OK) {
+	    printf("Unable to read PSU(%d) module information\r\n", index);
+	}
+	return ONLP_STATUS_OK;
     }
 
-    /*millivolts*/
-    ret = onlp_file_read_int(&info->mvin, __info_list[local_id].vin);
-    ret = onlp_file_read_int(&info->mvout, __info_list[local_id].vout);
+    if (val == PSU_STATUS_UNPOWERED) {
+	info->status |= ONLP_PSU_STATUS_FAILED;
+        return ONLP_STATUS_OK;
+    }
 
-    /* milliamps */
-    ret = onlp_file_read_int(&info->miin, __info_list[local_id].iin);
-    ret = onlp_file_read_int(&info->miout, __info_list[local_id].iout);
+    if (val == PSU_STATUS_FAULT) {
+	info->status |= ONLP_PSU_STATUS_FAILED;
+        return ONLP_STATUS_OK;
+    }
 
-    /* milliwatts */
-    ret = onlp_file_read_int(&info->mpin, __info_list[local_id].pin);
-    ret = onlp_file_read_int(&info->mpout, __info_list[local_id].pout);
+    if (val == PSU_STATUS_UNINSTALLED) {
+	info->status |= ONLP_PSU_STATUS_UNPLUGGED;
+        return ONLP_STATUS_OK;
+    }
 
-    return ret;
-}
-
-int
-onlp_psui_ioctl(onlp_oid_t pid, va_list vargs)
-{
     return ONLP_STATUS_E_UNSUPPORTED;
 }
-

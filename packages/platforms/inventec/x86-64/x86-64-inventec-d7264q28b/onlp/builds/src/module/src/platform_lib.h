@@ -1,26 +1,9 @@
 /************************************************************
- * <bsn.cl fy=2014 v=onl>
+ * platform_lib.h
  *
- *           Copyright 2014 Big Switch Networks, Inc.
- *           Copyright 2014 Accton Technology Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
- * Licensed under the Eclipse Public License, Version 1.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
- *
- *        http://www.eclipse.org/legal/epl-v10.html
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific
- * language governing permissions and limitations under the
- * License.
- *
- * </bsn.cl>
  ************************************************************
- *
- *
  *
  ***********************************************************/
 #ifndef __PLATFORM_LIB_H__
@@ -28,125 +11,79 @@
 
 #include "x86_64_inventec_d7264q28b_log.h"
 
-/* This is definitions for x86-64-inventec-d7264q28b*/
-/* OID map*/
-/*
- *  SYS---------ONLP_THERMAL_CPU_PHY
- *         |----ONLP_THERMAL_CPU_CORE0
- *         |----ONLP_THERMAL_CPU_CORE1
- *         |----ONLP_THERMAL_CPU_CORE2
- *         |----ONLP_THERMAL_CPU_CORE3
- *         |----ONLP_THERMAL_1_ON_MAIN_BROAD
- *         |----ONLP_THERMAL_2_ON_MAIN_BROAD
- *         |----ONLP_THERMAL_3_ON_MAIN_BROAD
- *         |----ONLP_THERMAL_4_ON_MAIN_BROAD
- *         |----ONLP_THERMAL_5_ON_MAIN_BROAD
- *         |----ONLP_FAN_1--------ONLP_FAN_1_WEAK
- *         |                   |--ONLP_LED_FAN1_GREEN
- *         |                   |--ONLP_LED_FAN1_RED
- *         |
- *         |----ONLP_FAN_2--------ONLP_FAN_2_WEAK
- *         |                   |--ONLP_LED_FAN2_GREEN
- *         |                   |--ONLP_LED_FAN2_RED
- *         |
- *         |----ONLP_FAN_3--------ONLP_FAN_3_WEAK
- *         |                   |--ONLP_LED_FAN3_GREEN
- *         |                   |--ONLP_LED_FAN3_RED
- *         |
- *         |----ONLP_FAN_4--------ONLP_FAN_4_WEAK
- *         |                   |--ONLP_LED_FAN4_GREEN
- *         |                   |--ONLP_LED_FAN4_RED
- *         |
- *         |----ONLP_PSU_1--------ONLP_THERMAL_1_ON_PSU1
- *         |                   |--ONLP_THERMAL_2_ON_PSU1
- *         |                   |--ONLP_FAN_PSU_1
- *         |
- *         |----ONLP_PSU_2--------ONLP_THERMAL_1_ON_PSU2
- *         |                   |--ONLP_THERMAL_2_ON_PSU2
- *         |                   |--ONLP_FAN_PSU_2
- *         |
- *         |----ONLP_LED_MGMT_GREEN
- *         |----ONLP_LED_MGMT_RED
- */
+#define D7264Q28B_CORETEMP_HWMON_ID	(0)
+#define D7264Q28B_PSOC_HWMON_ID		(1)
+#define D7264Q28B_CPLD_HWMON_ID		(2)
+#define D7264Q28B_CPLD2_HWMON_ID	(3)
 
-/* Thermal definitions*/
-enum onlp_thermal_id {
-    ONLP_THERMAL_RESERVED = 0,
-    ONLP_THERMAL_CPU_PHY,
-    ONLP_THERMAL_CPU_CORE0,
-    ONLP_THERMAL_CPU_CORE1,
-    ONLP_THERMAL_CPU_CORE2,
-    ONLP_THERMAL_CPU_CORE3,
-    ONLP_THERMAL_1_ON_MAIN_BROAD,
-    ONLP_THERMAL_2_ON_MAIN_BROAD,
-    ONLP_THERMAL_3_ON_MAIN_BROAD,
-    ONLP_THERMAL_4_ON_MAIN_BROAD,
-    ONLP_THERMAL_5_ON_MAIN_BROAD,
-    ONLP_THERMAL_1_ON_PSU1,
-    ONLP_THERMAL_2_ON_PSU1,
-    ONLP_THERMAL_1_ON_PSU2,
-    ONLP_THERMAL_2_ON_PSU2,
-    ONLP_THERMAL_MAX
+#define CHASSIS_LED_COUNT     (5)
+#define CHASSIS_PSU_COUNT     (2)
+#define CHASSIS_FAN_COUNT     (10)
+#define CHASSIS_THERMAL_COUNT (14)
+
+enum onlp_d7264q28b_psu_id
+{
+    PSU_RESERVED = 0,
+    PSU1_ID,
+    PSU2_ID
 };
 
-#define ONLP_THERMAL_COUNT 15 /*include "reserved"*/
+#define INV_CTMP_PREFIX "/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
+#define INV_PSOC_PREFIX "/sys/devices/virtual/hwmon/hwmon1/"
+#define INV_CPLD_PREFIX "/sys/bus/i2c/devices/0-0055/"
+#define INV_EPRM_PREFIX "/sys/bus/i2c/devices/0-0053/"
 
-/* Fan definitions*/
-enum onlp_fan_id {
-    ONLP_FAN_RESERVED = 0,
-    ONLP_FAN_1,
-    ONLP_FAN_1_WEAK,
-    ONLP_FAN_2,
-    ONLP_FAN_2_WEAK,
-    ONLP_FAN_3,
-    ONLP_FAN_3_WEAK,
-    ONLP_FAN_4,
-    ONLP_FAN_4_WEAK,
-    ONLP_FAN_PSU_1,
-    ONLP_FAN_PSU_2,
-    ONLP_FAN_MAX
-};
+#define PSU_HWMON_PSOC_PREFIX	INV_PSOC_PREFIX
+#define PSU_HWMON_CPLD_PREFIX	INV_CPLD_PREFIX
 
-#define ONLP_FAN_COUNT 11 /*include "reserved"*/
+#define PSU1_AC_PMBUS_PREFIX	PSU_HWMON_PSOC_PREFIX
+#define PSU2_AC_PMBUS_PREFIX	PSU_HWMON_PSOC_PREFIX
 
-/* PSU definitions*/
-enum onlp_psu_id {
-    ONLP_PSU_RESERVED,
-    ONLP_PSU_1,
-    ONLP_PSU_2,
-    ONLP_PSU_MAX
-};
+#define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
+#define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
 
-#define ONLP_PSU_COUNT 3 /*include "reserved"*/
+#define PSU1_AC_HWMON_PREFIX	PSU_HWMON_CPLD_PREFIX
+#define PSU2_AC_HWMON_PREFIX	PSU_HWMON_CPLD_PREFIX
 
-/* LED definitions*/
-enum onlp_led_id {
-    ONLP_LED_RESERVED = 0,
-    ONLP_LED_MGMT_GREEN,
-    ONLP_LED_MGMT_RED,
-    ONLP_LED_FAN1_GREEN,
-    ONLP_LED_FAN1_RED,
-    ONLP_LED_FAN2_GREEN,
-    ONLP_LED_FAN2_RED,
-    ONLP_LED_FAN3_GREEN,
-    ONLP_LED_FAN3_RED,
-    ONLP_LED_FAN4_GREEN,
-    ONLP_LED_FAN4_RED,
-    ONLP_LED_MAX
-};
+#define PSU1_AC_HWMON_NODE(node) PSU1_AC_HWMON_PREFIX#node
+#define PSU2_AC_HWMON_NODE(node) PSU2_AC_HWMON_PREFIX#node
 
-#define ONLP_LED_COUNT 11 /*include "reserved"*/
+#define FAN_BOARD_PATH	"/sys/devices/platform/fan/"
+#define FAN_NODE(node)	FAN_BOARD_PATH#node
 
+#define IDPROM_PATH     INV_EPRM_PREFIX"/eeprom"
 
-/* platform functions*/
-#define PLATFORM_PSOC_DIAG_PATH "/sys/class/hwmon/hwmon1/device/diag"
-#define PLATFORM_PSOC_DIAG_LOCK platform_psoc_diag_enable_write(0)
-#define PLATFORM_PSOC_DIAG_UNLOCK platform_psoc_diag_enable_write(1)
-int platform_psoc_diag_enable_read(int *enable);
-int platform_psoc_diag_enable_write(int enable);
+int onlp_file_read_binary(char *filename, char *buffer, int buf_size, int data_len);
+int onlp_file_read_string(char *filename, char *buffer, int buf_size, int data_len);
 
+int psu_pmbus_info_get(int id, char *node, int *value);
+int psu_pmbus_info_set(int id, char *node, int value);
 
+int inv_get_psoc_id(void);
+int inv_get_cpld_id(void);
+int inv_get_cpld2_id(void);
+int inv_get_coretemp_id(void);
 
+typedef enum psu_type {
+    PSU_TYPE_UNKNOWN,
+    PSU_TYPE_AC_F2B,
+    PSU_TYPE_AC_B2F,
+    PSU_TYPE_DC_48V_F2B,
+    PSU_TYPE_DC_48V_B2F,
+    PSU_TYPE_DC_12V_FANLESS,
+    PSU_TYPE_DC_12V_F2B,
+    PSU_TYPE_DC_12V_B2F
+} psu_type_t;
+
+psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
+
+#define DEBUG_MODE 0
+
+#if (DEBUG_MODE == 1)
+    #define DEBUG_PRINT(format, ...)   printf(format, __VA_ARGS__)
+#else
+    #define DEBUG_PRINT(format, ...)
+#endif
 
 #endif  /* __PLATFORM_LIB_H__ */
 

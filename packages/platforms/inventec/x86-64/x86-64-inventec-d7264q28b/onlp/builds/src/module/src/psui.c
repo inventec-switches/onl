@@ -22,6 +22,9 @@
 #define PSU_NODE_MAX_INT_LEN  8
 #define PSU_NODE_MAX_PATH_LEN 64
 
+#define PREFIX_CPLD_PATH        INV_CPLD_PREFIX
+#define PREFIX_PSOC_PATH        INV_PSOC_PREFIX
+
 #define VALIDATE(_id)                           \
     do {                                        \
         if(!ONLP_OID_IS_PSU(_id)) {             \
@@ -32,19 +35,16 @@
 static char* status_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
 {
     "reserved",
-    "/sys/class/hwmon/hwmon%d/device/psu0",
-    "/sys/class/hwmon/hwmon%d/device/psu1",
+    PREFIX_CPLD_PATH"/psu0",
+    PREFIX_CPLD_PATH"/psu1",
 };
 
 static char* module_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
 {
     "reserved",
-    "/sys/class/hwmon/hwmon%d/psoc_psu1_%s",
-    "/sys/class/hwmon/hwmon%d/psoc_psu2_%s",
+    PREFIX_PSOC_PATH"/psoc_psu1_%s",
+    PREFIX_PSOC_PATH"/psoc_psu2_%s",
 };
-
-static int inv_cpld_id = D7264Q28B_CPLD_HWMON_ID;
-static int inv_psoc_id = D7264Q28B_PSOC_HWMON_ID;
 
 static int 
 psu_status_info_get(int id, char *node, int *value)
@@ -56,10 +56,10 @@ psu_status_info_get(int id, char *node, int *value)
     *value = 0;
 
     if (PSU1_ID == id) {
-	sprintf(node_path, status_devfiles__[id], inv_cpld_id);
+	sprintf(node_path, status_devfiles__[id]);
     }
     else if (PSU2_ID == id) {
-	sprintf(node_path, status_devfiles__[id], inv_cpld_id);
+	sprintf(node_path, status_devfiles__[id]);
     }
     
     ret = onlp_file_read_str(vp, node_path);
@@ -91,7 +91,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     int value = 0;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "vout");
+    sprintf(node_path, module_devfiles__[id], "vout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
@@ -101,7 +101,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_VOUT;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "iout");
+    sprintf(node_path, module_devfiles__[id], "iout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
@@ -111,7 +111,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_IOUT;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "pout");
+    sprintf(node_path, module_devfiles__[id], "pout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
@@ -121,7 +121,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_POUT;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "vin");
+    sprintf(node_path, module_devfiles__[id], "vin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
@@ -131,7 +131,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_VIN;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "iin");
+    sprintf(node_path, module_devfiles__[id], "iin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
@@ -141,7 +141,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_IIN;
 
     memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], inv_psoc_id, "pin");
+    sprintf(node_path, module_devfiles__[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);

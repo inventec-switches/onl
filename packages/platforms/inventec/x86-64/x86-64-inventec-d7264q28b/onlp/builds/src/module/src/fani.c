@@ -96,8 +96,6 @@ onlp_fan_info_t linfo[] = {
         }                                       \
     } while(0)
 
-static int inv_psoc_id = D7264Q28B_PSOC_HWMON_ID;
-
 static int
 _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 {
@@ -106,7 +104,7 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 
     memset(vstr, 0, 32);
     /* get fan present status */
-    ret = onlp_file_read_str(vp, FAN_GPI_ON_MAIN_BOARD, inv_psoc_id);
+    ret = onlp_file_read_str(vp, FAN_GPI_ON_MAIN_BOARD);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
@@ -120,7 +118,7 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 
     /* get front fan speed */
     memset(vstr, 0, 32);
-    ret = onlp_file_read_str(vp, devfiles__[fid], inv_psoc_id);
+    ret = onlp_file_read_str(vp, devfiles__[fid]);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
@@ -174,7 +172,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
 
     /* get front fan speed */
     memset(vstr, 0, 32);
-    ret = onlp_file_read_str(vp, devfiles__[fid], inv_psoc_id);
+    ret = onlp_file_read_str(vp, devfiles__[fid]);
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }

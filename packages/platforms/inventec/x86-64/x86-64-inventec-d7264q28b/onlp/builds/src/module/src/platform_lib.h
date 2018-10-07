@@ -11,15 +11,12 @@
 
 #include "x86_64_inventec_d7264q28b_log.h"
 
-#define D7264Q28B_CORETEMP_HWMON_ID	(0)
-#define D7264Q28B_PSOC_HWMON_ID		(1)
-#define D7264Q28B_CPLD_HWMON_ID		(2)
-#define D7264Q28B_CPLD2_HWMON_ID	(3)
+#define D7264Q28B_CPLD_COUNT	(2)
 
-#define CHASSIS_LED_COUNT     (5)
-#define CHASSIS_PSU_COUNT     (2)
-#define CHASSIS_FAN_COUNT     (10)
-#define CHASSIS_THERMAL_COUNT (14)
+#define CHASSIS_LED_COUNT	(5)
+#define CHASSIS_PSU_COUNT	(2)
+#define CHASSIS_FAN_COUNT	(10)
+#define CHASSIS_THERMAL_COUNT	(14)
 
 enum onlp_d7264q28b_psu_id
 {
@@ -28,10 +25,11 @@ enum onlp_d7264q28b_psu_id
     PSU2_ID
 };
 
-#define INV_CTMP_PREFIX "/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
-#define INV_PSOC_PREFIX "/sys/devices/virtual/hwmon/hwmon1/"
-#define INV_CPLD_PREFIX "/sys/bus/i2c/devices/0-0055/"
-#define INV_EPRM_PREFIX "/sys/bus/i2c/devices/0-0053/"
+#define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
+#define INV_PSOC_PREFIX		"/sys/devices/virtual/hwmon/hwmon1/"
+#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/0-0055/"
+#define INV_CPLD2_PREFIX	"/sys/bus/i2c/devices/0-0077/"
+#define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
 
 #define PSU_HWMON_PSOC_PREFIX	INV_PSOC_PREFIX
 #define PSU_HWMON_CPLD_PREFIX	INV_CPLD_PREFIX

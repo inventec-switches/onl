@@ -1,7 +1,7 @@
 /************************************************************
  * sysi.c
  *
- *           Copyright 2018 Inventec Corporation.
+ *           Copyright 2018 Inventec Technology Corporation.
  *
  ************************************************************
  *
@@ -21,19 +21,12 @@
 
 #include "platform_lib.h"
 
-#define NUM_OF_THERMAL_ON_MAIN_BROAD  CHASSIS_THERMAL_COUNT
-#define NUM_OF_FAN_ON_MAIN_BROAD      CHASSIS_FAN_COUNT
-#define NUM_OF_PSU_ON_MAIN_BROAD      2
-#define NUM_OF_LED_ON_MAIN_BROAD      5
+#define NUM_OF_CPLD			INV_CPLD_COUNT
 
-#define PREFIX_PATH_ON_CPLD_DEV          "/sys/bus/i2c/devices/"
-#define NUM_OF_CPLD                      3
-static char arr_cplddev_name[NUM_OF_CPLD][10] =
-{
- "4-0060",
- "5-0062",
- "6-0064"
-};
+#define NUM_OF_THERMAL_ON_MAIN_BROAD	(CHASSIS_THERMAL_COUNT)
+#define NUM_OF_FAN_ON_MAIN_BROAD	(CHASSIS_FAN_COUNT)
+#define NUM_OF_PSU_ON_MAIN_BROAD	(CHASSIS_PSU_COUNT)
+#define NUM_OF_LED_ON_MAIN_BROAD	(CHASSIS_LED_COUNT)
 
 const char*
 onlp_sysi_platform_get(void)
@@ -45,7 +38,7 @@ int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
     uint8_t* rdata = aim_zmalloc(256);
-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
+    if(onlp_file_read(rdata, 256, size, EEPROM_NODE(eeprom)) == ONLP_STATUS_OK) {
         if(*size == 256) {
             *data = rdata;
             return ONLP_STATUS_OK;
@@ -56,27 +49,6 @@ onlp_sysi_onie_data_get(uint8_t** data, int* size)
     *size = 0;
     return ONLP_STATUS_E_INTERNAL;
 }
-
-int
-onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
-{
-    int   i, v[NUM_OF_CPLD]={0};
-    for (i=0; i < NUM_OF_CPLD; i++) {
-        v[i] = 0;
-        if(onlp_file_read_int(v+i, "%s%s/version", PREFIX_PATH_ON_CPLD_DEV, arr_cplddev_name[i]) < 0) {
-            return ONLP_STATUS_E_INTERNAL;
-        }
-    }
-    pi->cpld_versions = aim_fstrdup("%d.%d.%d", v[0], v[1], v[2]);
-    return 0;
-}
-
-void
-onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
-{
-    aim_free(pi->cpld_versions);
-}
-
 
 int
 onlp_sysi_oids_get(onlp_oid_t* table, int max)
@@ -112,6 +84,32 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     return 0;
 }
 
+static char *arr_cplddev_version[NUM_OF_CPLD] =
+{
+	INV_CPLD_PREFIX"/version",
+};
+
+int
+onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
+{
+    int   i, v[NUM_OF_CPLD]={0};
+    for (i=0; i < NUM_OF_CPLD; i++) {
+        v[i] = 0;
+        if(onlp_file_read_int(v+i, arr_cplddev_version[i]) < 0) {
+            return ONLP_STATUS_E_INTERNAL;
+        }
+    }
+    pi->cpld_versions = aim_fstrdup("%d.%d", v[0], v[1]);
+    return 0;
+}
+
+void
+onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
+{
+    aim_free(pi->cpld_versions);
+}
+
+#if 0
 typedef struct fan_ctrl_policy {
    int duty_cycle;
    int temp_down_adjust; /* The boundary temperature to down adjust fan speed */
@@ -176,7 +174,7 @@ onlp_sysi_platform_manage_fans(void)
     {
         onlp_fan_info_t fan_info;
 
-        if (onlp_fan_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
+        if (onlp_fani_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
             AIM_LOG_ERROR("Unable to get fan(%d) status\r\n", i);
             return ONLP_STATUS_E_INTERNAL;
         }
@@ -185,14 +183,14 @@ onlp_sysi_platform_manage_fans(void)
          */
         if (fan_info.status & ONLP_FAN_STATUS_FAILED) {
             AIM_LOG_ERROR("Fan(%d) is not working, set the other fans as full speed\r\n", i);
-            return onlp_fan_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
+            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
         }
 
         /* Decision 1.1: Set fan as full speed if any fan is not present.
          */
         if (!(fan_info.status & ONLP_FAN_STATUS_PRESENT)) {
             AIM_LOG_ERROR("Fan(%d) is not present, set the other fans as full speed\r\n", i);
-            return onlp_fan_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
+            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
         }
 
         /* Get fan direction (Only get the first one since all fan direction are the same)
@@ -237,14 +235,14 @@ onlp_sysi_platform_manage_fans(void)
 	}
 
 	if (i == arr_size) {
-        return onlp_fan_percentage_set(ONLP_FAN_ID_CREATE(1), policy[0].duty_cycle);
+        return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), policy[0].duty_cycle);
 	}
 
     /* Get current temperature
      */
-    if (onlp_thermal_info_get(ONLP_THERMAL_ID_CREATE(2), &thermal_1) != ONLP_STATUS_OK ||
-        onlp_thermal_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_2) != ONLP_STATUS_OK ||
-        onlp_thermal_info_get(ONLP_THERMAL_ID_CREATE(4), &thermal_3) != ONLP_STATUS_OK) {
+    if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(2), &thermal_1) != ONLP_STATUS_OK ||
+        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_2) != ONLP_STATUS_OK ||
+        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(4), &thermal_3) != ONLP_STATUS_OK) {
         AIM_LOG_ERROR("Unable to read thermal status");
         return ONLP_STATUS_E_INTERNAL;
     }
@@ -267,7 +265,7 @@ onlp_sysi_platform_manage_fans(void)
 	    return ONLP_STATUS_OK;
 	}
 
-    return onlp_fan_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
+    return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
 }
 
 int
@@ -275,4 +273,4 @@ onlp_sysi_platform_manage_leds(void)
 {
     return ONLP_STATUS_E_UNSUPPORTED;
 }
-
+#endif

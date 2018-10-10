@@ -14,10 +14,6 @@ class OnlPlatform_x86_64_inventec_d7054q28b_r0(OnlPlatformInventec,
         self.insmod('inv_cpld')
         os.system("echo inv_eeprom 0x53 > /sys/bus/i2c/devices/i2c-0/new_device")
         self.insmod('inv_eeprom')
-        self.insmod('io_expander')
-        self.insmod('transceiver')
-        self.insmod('inv_mux')
-        self.insmod('inv_swps')
-        self.insmod('onie_tlvinfo')
-        self.insmod('inv_vpd')
+        self.insmod('swps')
+        self.insmod('vpd')
         return True

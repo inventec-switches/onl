@@ -26,8 +26,8 @@ enum onlp_thermal_id
 {
     THERMAL_RESERVED = 0,
     THERMAL_CPU_CORE_FIRST,
-    THERMAL_CPU_CORE_2,
     THERMAL_CPU_CORE_3,
+    THERMAL_CPU_CORE_4,
     THERMAL_CPU_CORE_LAST,
     THERMAL_1_ON_MAIN_BROAD,
     THERMAL_2_ON_MAIN_BROAD,
@@ -38,62 +38,41 @@ enum onlp_thermal_id
     THERMAL_1_ON_PSU2,
 };
 
-static char* cpu_coretemp_files[] =
-    {
-	"reserved",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp2_input",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp3_input",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp4_input",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp5_input",
-        NULL,
-    };
-
-static char* cpu_coretemp_lable[] =
-    {
-	"reserved",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp2_label",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp3_label",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp4_label",
-        "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/temp5_label",
-        NULL,
-    };
-
-static char* devfiles__[] =  /* must map with onlp_thermal_id */
+static char* devfiles__[CHASSIS_THERMAL_COUNT+1] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    "reserved",
-    "reserved",
-    "reserved",
-    "reserved",
-    "/sys/bus/i2c/devices/1-0066/temp1_input",
-    "/sys/bus/i2c/devices/1-0066/temp2_input",
-    "/sys/bus/i2c/devices/1-0066/temp3_input",
-    "/sys/bus/i2c/devices/1-0066/temp4_input",
-    "/sys/bus/i2c/devices/1-0066/temp5_input",
-    "/sys/bus/i2c/devices/1-0066/thermal_psu1",
-    "/sys/bus/i2c/devices/1-0066/thermal_psu2",
+    INV_CTMP_PREFIX"/temp2_%s",
+    INV_CTMP_PREFIX"/temp3_%s",
+    INV_CTMP_PREFIX"/temp4_%s",
+    INV_CTMP_PREFIX"/temp5_%s",
+    INV_PSOC_PREFIX"/temp1_input",
+    INV_PSOC_PREFIX"/temp2_input",
+    INV_PSOC_PREFIX"/temp3_input",
+    INV_PSOC_PREFIX"/temp4_input",
+    INV_PSOC_PREFIX"/temp5_input",
+    INV_PSOC_PREFIX"/thermal_psu1",
+    INV_PSOC_PREFIX"/thermal_psu2",
 };
 
 /* Static values */
-static onlp_thermal_info_t linfo[] = {
+static onlp_thermal_info_t linfo[CHASSIS_THERMAL_COUNT+1] = {
 	{ }, /* Not used */
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_FIRST), "CPU Core 2", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_FIRST), "CPU Core 0", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_2), "CPU Core 3", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_3), "CPU Core 1", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_3), "CPU Core 4", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_4), "CPU Core 2", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_LAST), "CPU Core 5", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_LAST), "CPU Core 3", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-
 	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_MAIN_BROAD), "Chassis Thermal Sensor 1", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
@@ -106,11 +85,11 @@ static onlp_thermal_info_t linfo[] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_4_ON_MAIN_BROAD), "Chassis Thermal Sensor 4", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 4", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_5_ON_MAIN_BROAD), "Chassis Thermal Sensor 5", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 5", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
@@ -121,10 +100,8 @@ static onlp_thermal_info_t linfo[] = {
 	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU2), "PSU-2 Thermal Sensor 1", ONLP_PSU_ID_CREATE(PSU2_ID)},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
-        }
+        },
 };
-
-static int coretemp_id = 0;
 
 /*
  * This will be called to intiialize the thermali subsystem.
@@ -132,19 +109,6 @@ static int coretemp_id = 0;
 int
 onlp_thermali_init(void)
 {
-    char coret[32], *ctp = &coret[0];
-
-    if (ctp) {
-	int i, rv;
-	for (i = 0; i < 10; i++) {
-	    rv = onlp_file_read_str(&ctp, "/sys/devices/platform/coretemp.0/hwmon/hwmon%d/name", i);
-            if (rv == 8 && strncmp("coretemp", ctp, rv) == 0) {
-		coretemp_id = i;
-		break;
-	    }
-	}
-    }
-
     return ONLP_STATUS_OK;
 }
 
@@ -161,27 +125,24 @@ onlp_thermali_init(void)
 int
 onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 {
-    char desc[32], *dp = &desc[0];
     int local_id;
     VALIDATE(id);
 
     local_id = ONLP_OID_ID_GET(id);
+
+    /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[local_id];
 
     if(local_id >= THERMAL_CPU_CORE_FIRST && local_id <= THERMAL_CPU_CORE_LAST) {
-	int rv;
-	if (dp) {
-	    rv = onlp_file_read_str(&dp, cpu_coretemp_lable[local_id], coretemp_id);
-	    if (rv > 0) {
-		memset (info->hdr.description, 0, ONLP_OID_DESC_SIZE);
-		strncpy(info->hdr.description, dp, rv);
-	    }
-	}
+	char desc[32], *dp = &desc[0];
+        int rv = onlp_file_read_str(&dp, devfiles__[local_id], "label");
+        if (rv > 0) {
+            memset (info->hdr.description, 0, ONLP_OID_DESC_SIZE);
+            strncpy(info->hdr.description, dp, rv);
+        }
 
-	/* Set the onlp_oid_hdr_t and capabilities */
-        rv = onlp_file_read_int(&info->mcelsius, cpu_coretemp_files[local_id], coretemp_id);
-        return rv;
+        /* Set the onlp_oid_hdr_t and capabilities */
+        return onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
     }
-
     return onlp_file_read_int(&info->mcelsius, devfiles__[local_id]);
 }

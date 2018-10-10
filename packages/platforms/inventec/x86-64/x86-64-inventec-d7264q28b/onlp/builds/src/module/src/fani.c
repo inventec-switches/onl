@@ -15,9 +15,7 @@
 #include <fcntl.h>
 #include "platform_lib.h"
 
-#define PREFIX_PSOC_PATH	INV_PSOC_PREFIX
-
-#define FAN_GPI_ON_MAIN_BOARD	PREFIX_PSOC_PATH"/fan_gpi"
+#define FAN_GPI_ON_MAIN_BOARD	INV_PSOC_PREFIX"/fan_gpi"
 
 #define MAX_FAN_SPEED     18000
 #define MAX_PSU_FAN_SPEED 25500
@@ -42,16 +40,16 @@ enum fan_id {
 static char* devfiles__[CHASSIS_FAN_COUNT+1] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    PREFIX_PSOC_PATH"/fan1_input",
-    PREFIX_PSOC_PATH"/fan2_input",
-    PREFIX_PSOC_PATH"/fan3_input",
-    PREFIX_PSOC_PATH"/fan4_input",
-    PREFIX_PSOC_PATH"/fan5_input",
-    PREFIX_PSOC_PATH"/fan6_input",
-    PREFIX_PSOC_PATH"/fan7_input",
-    PREFIX_PSOC_PATH"/fan8_input",
-    PREFIX_PSOC_PATH"/rpm_psu1",
-    PREFIX_PSOC_PATH"/rpm_psu2",
+    INV_PSOC_PREFIX"/fan1_input",
+    INV_PSOC_PREFIX"/fan2_input",
+    INV_PSOC_PREFIX"/fan3_input",
+    INV_PSOC_PREFIX"/fan4_input",
+    INV_PSOC_PREFIX"/fan5_input",
+    INV_PSOC_PREFIX"/fan6_input",
+    INV_PSOC_PREFIX"/fan7_input",
+    INV_PSOC_PREFIX"/fan8_input",
+    INV_PSOC_PREFIX"/rpm_psu1",
+    INV_PSOC_PREFIX"/rpm_psu2",
 };
 
 #define MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(id) \

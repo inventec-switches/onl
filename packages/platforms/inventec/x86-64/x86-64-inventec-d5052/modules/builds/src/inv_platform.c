@@ -39,6 +39,7 @@ static struct inv_i2c_board_info i2cdev_list[] = {
     {0, ARRAY_SIZE(i2c_device_info0),  i2c_device_info0 },  //smbus 0
 };
 
+#if 0
 static struct 	i2c_gpio_platform_data 	i2c_gpio_platdata = {
 	.scl_pin = 460,//8,
 	.sda_pin = 461,//9,
@@ -55,7 +56,7 @@ static struct 	platform_device 	inventec_device_i2c_gpio = {
 	.id  	= 0, // adapter number
 	.dev.platform_data = &i2c_gpio_platdata,
 };
-
+#else
 static struct   i2c_gpio_platform_data  i2c_gpio_platdata2 = {
         .scl_pin = 464,//12+452,
         .sda_pin = 463,//11+452,
@@ -72,6 +73,7 @@ static struct   platform_device         inventec_device_i2c_gpio2 = {
         .id     = 1, // adapter number
         .dev.platform_data = &i2c_gpio_platdata2,
 };
+#endif
 
 static int __init plat_inventec_init(void)
 {

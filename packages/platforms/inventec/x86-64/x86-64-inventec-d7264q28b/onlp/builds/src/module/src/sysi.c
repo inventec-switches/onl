@@ -21,14 +21,12 @@
 
 #include "platform_lib.h"
 
-#define NUM_OF_CPLD			D7264Q28B_CPLD_COUNT
-#define PREFIX_PATH_ON_CPLD_DEV		INV_CPLD_PREFIX
-#define PREFIX_PATH_ON_CPLD2_DEV	INV_CPLD2_PREFIX
+#define NUM_OF_CPLD			INV_CPLD_COUNT
 
-#define NUM_OF_THERMAL_ON_MAIN_BROAD	CHASSIS_THERMAL_COUNT
-#define NUM_OF_FAN_ON_MAIN_BROAD	CHASSIS_FAN_COUNT
-#define NUM_OF_PSU_ON_MAIN_BROAD	CHASSIS_PSU_COUNT
-#define NUM_OF_LED_ON_MAIN_BROAD	CHASSIS_LED_COUNT
+#define NUM_OF_THERMAL_ON_MAIN_BROAD	(CHASSIS_THERMAL_COUNT)
+#define NUM_OF_FAN_ON_MAIN_BROAD	(CHASSIS_FAN_COUNT)
+#define NUM_OF_PSU_ON_MAIN_BROAD	(CHASSIS_PSU_COUNT)
+#define NUM_OF_LED_ON_MAIN_BROAD	(CHASSIS_LED_COUNT)
 
 const char*
 onlp_sysi_platform_get(void)
@@ -40,7 +38,7 @@ int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
     uint8_t* rdata = aim_zmalloc(256);
-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
+    if(onlp_file_read(rdata, 256, size, EEPROM_NODE(eeprom)) == ONLP_STATUS_OK) {
         if(*size == 256) {
             *data = rdata;
             return ONLP_STATUS_OK;
@@ -88,8 +86,8 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
 
 static char *arr_cplddev_version[NUM_OF_CPLD] =
 {
-	PREFIX_PATH_ON_CPLD_DEV"/version",
-	PREFIX_PATH_ON_CPLD2_DEV"/version",
+	INV_CPLD_PREFIX"/version",
+	INV_CPLD2_PREFIX"/version",
 };
 
 int

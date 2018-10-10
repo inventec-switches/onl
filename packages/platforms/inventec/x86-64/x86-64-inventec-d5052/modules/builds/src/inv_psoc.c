@@ -359,8 +359,6 @@ static ssize_t show_clei(struct device *dev, struct device_attribute *da,
         u8 rxbuf[21] = {0};
         u8 rxbuf1[21] = {0};
         u8 counter = 0;
-        u8 count = 0;
-        u8 index = 0;
 
 	switch (clei_index)
 	{

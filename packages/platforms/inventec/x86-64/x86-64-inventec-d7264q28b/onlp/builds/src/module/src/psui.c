@@ -14,16 +14,10 @@
 #include <ctype.h>
 #include "platform_lib.h"
 
-#define PSU_STATUS_PRESENT	0
-#define PSU_STATUS_UNPOWERED	2
-#define PSU_STATUS_FAULT	4
-#define PSU_STATUS_UNINSTALLED	7
-
-#define PSU_NODE_MAX_INT_LEN  8
-#define PSU_NODE_MAX_PATH_LEN 64
-
-#define PREFIX_CPLD_PATH        INV_CPLD_PREFIX
-#define PREFIX_PSOC_PATH        INV_PSOC_PREFIX
+#define PSU_STATUS_PRESENT	(0)
+#define PSU_STATUS_UNPOWERED	(2)
+#define PSU_STATUS_FAULT	(4)
+#define PSU_STATUS_UNINSTALLED	(7)
 
 #define VALIDATE(_id)                           \
     do {                                        \
@@ -32,25 +26,25 @@
         }                                       \
     } while(0)
 
-static char* status_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
+static char* status_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    PREFIX_CPLD_PATH"/psu0",
-    PREFIX_CPLD_PATH"/psu1",
+    INV_CPLD_PREFIX"/psu0",
+    INV_CPLD_PREFIX"/psu1",
 };
 
-static char* module_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_d7264q28b_psu_id */
+static char* module_devfiles__[CHASSIS_PSU_COUNT+1] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    PREFIX_PSOC_PATH"/psoc_psu1_%s",
-    PREFIX_PSOC_PATH"/psoc_psu2_%s",
+    INV_PSOC_PREFIX"/psoc_psu1_%s",
+    INV_PSOC_PREFIX"/psoc_psu2_%s",
 };
 
 static int 
 psu_status_info_get(int id, char *node, int *value)
 {
     int ret = 0;
-    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+    char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
     char vstr[32], *vstrp = vstr, **vp = &vstrp;
     
     *value = 0;
@@ -87,10 +81,10 @@ static int
 psu_module_info_get(int id, onlp_psu_info_t* info)
 {
     int ret = 0;
-    char node_path[PSU_NODE_MAX_PATH_LEN] = {0};
+    char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
     int value = 0;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "vout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -100,7 +94,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->mvout = value;
     info->caps |= ONLP_PSU_CAPS_VOUT;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "iout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -110,7 +104,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->miout = value;
     info->caps |= ONLP_PSU_CAPS_IOUT;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "pout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -120,7 +114,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->mpout = value;
     info->caps |= ONLP_PSU_CAPS_POUT;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "vin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -130,7 +124,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->mvin = value;
     info->caps |= ONLP_PSU_CAPS_VIN;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "iin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
@@ -140,7 +134,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->miin = value;
     info->caps |= ONLP_PSU_CAPS_IIN;
 
-    memset(node_path, 0, PSU_NODE_MAX_PATH_LEN);
+    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {

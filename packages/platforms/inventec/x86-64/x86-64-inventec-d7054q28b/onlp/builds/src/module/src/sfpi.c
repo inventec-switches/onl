@@ -17,16 +17,18 @@
 #include <onlplib/file.h>
 #include "platform_lib.h"
 
-#define MAX_SFP_PATH 64
-static char sfp_node_path[MAX_SFP_PATH] = {0};
+static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 
-#define MUX_START_INDEX 18
-#define NUM_OF_SFP_PORT 32
+#define MUX_START_INDEX	(18)
+#define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
 static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
  4,  5,  6,  7,  9,  8, 11, 10,
  0,  1,  2,  3, 12, 13, 14, 15,
 16, 17, 18, 19, 28, 29, 30, 31,
-20, 21, 22, 23, 24, 25, 26, 27
+20, 21, 22, 23, 24, 25, 26, 27,
+36, 37, 38, 39, 41, 40, 43, 42,
+28, 29, 30, 31, 42, 45, 46, 47,
+48, 49, 50, 51, 52, 53
 };
 
 #define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
@@ -142,9 +144,8 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-    char* path = sfp_get_port_path(port, "eeprom");
+    char* path;
     int len = 0;
-
     /*
      * Read the SFP eeprom into data[]
      *
@@ -152,7 +153,13 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      * Return OK if eeprom is read
      */
     memset(data, 0, 256);
-    if (onlp_file_read((uint8_t*)data, 256, &len, path) < 0) {
+    path = sfp_get_port_path(port, "eeprom");
+    if (onlp_file_read(&data[0], 128, &len, path) < 0) {
+        AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    path = sfp_get_port_path(port, "uppage");
+    if (onlp_file_read(&data[128], 128, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }

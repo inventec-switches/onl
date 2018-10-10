@@ -17,11 +17,10 @@
 #include <onlplib/file.h>
 #include "platform_lib.h"
 
-#define MAX_SFP_PATH 64
-static char sfp_node_path[MAX_SFP_PATH] = {0};
+static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 
-#define MUX_START_INDEX 18
-#define NUM_OF_SFP_PORT MAX_SFP_PATH
+#define MUX_START_INDEX	(18)
+#define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
 static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
  4,  5,  6,  7,  9,  8, 11, 10,
  0,  1,  2,  3, 12, 13, 14, 15,

@@ -54,7 +54,11 @@ docker_check:
 	@which docker > /dev/null || (echo "*** Docker appears to be missing. Please install docker.io in order to build OpenNetworkLinux." && exit 1)
 
 docker: docker_check
+ifeq ($(http_proxy),)
 	@docker/tools/onlbuilder -$(VERSION) --isolate --hostname onlbuilder$(VERSION) --pull --autobuild --non-interactive
+else
+	@docker/tools/onlbuilder -$(VERSION) --isolate --hostname onlbuilder$(VERSION) --pull --autobuild --non-interactive --proxy $(http_proxy)
+endif
 
 # create an interative docker shell, for debugging builds
 docker-debug: docker_check

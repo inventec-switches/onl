@@ -247,6 +247,8 @@ struct eeprom_map_s {
     int addr_vendor_sn;    int page_vendor_sn;    int offset_vendor_sn;    int length_vendor_sn;
     int addr_voltage;      int page_voltage;      int offset_voltage;      int length_voltage;
     int addr_wavelength;   int page_wavelength;   int offset_wavelength;   int length_wavelength;
+    int addr_eeprom;       int page_eeprom;       int offset_eeprom;       int length_eeprom;
+    int addr_uppage;       int page_uppage;       int offset_uppage;       int length_uppage;
 };
 
 
@@ -660,6 +662,8 @@ struct transvr_obj_s {
      */
     uint8_t extphy_offset;
 
+    uint8_t eeprom[128];
+
     /* ========== Object private property ==========
      */
     struct device       *transvr_dev_p;
@@ -739,6 +743,8 @@ struct transvr_obj_s {
     int  (*set_rx_em)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_offset)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_reg)(struct transvr_obj_s *self, int input_val);
+    int  (*get_eeprom)(struct transvr_obj_s *self);
+    int  (*get_uppage)(struct transvr_obj_s *self);
 
     /* ========== Object private functions ==========
      */

@@ -45,6 +45,8 @@ struct eeprom_map_s eeprom_map_sfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =-1,  .offset_vendor_sn    =68,   .length_vendor_sn    =16,
     .addr_voltage      =0x51,  .page_voltage      =-1,  .offset_voltage      =98,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =-1,  .offset_wavelength   =60,   .length_wavelength   =2,
+    .addr_eeprom       =0x50,  .page_eeprom       =-1,  .offset_eeprom       =0,    .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =-1,  .offset_uppage       =128,  .length_eeprom       =128,
 };
 
 struct eeprom_map_s eeprom_map_qsfp = {
@@ -84,6 +86,8 @@ struct eeprom_map_s eeprom_map_qsfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =256,  .length_eeprom       =128,
 };
 
 struct eeprom_map_s eeprom_map_qsfp28 = {
@@ -123,6 +127,8 @@ struct eeprom_map_s eeprom_map_qsfp28 = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =256,  .length_uppage       =128,
 };
 
 
@@ -567,6 +573,31 @@ _common_update_attr_id(struct transvr_obj_s *self,
                                      show_err);
 }
 
+static int
+_common_update_attr_eeprom(struct transvr_obj_s *self,
+                       int show_err){
+    return _common_update_uint8_attr(self,
+                                     self->eeprom_map_p->addr_eeprom,
+                                     self->eeprom_map_p->page_eeprom,
+                                     self->eeprom_map_p->offset_eeprom,
+                                     self->eeprom_map_p->length_eeprom,
+                                     &(self->eeprom),
+                                     "_common_update_attr_eeprom",
+                                     show_err);
+}
+
+static int
+_common_update_attr_uppage(struct transvr_obj_s *self,
+                       int show_err){
+    return _common_update_uint8_attr(self,
+                                     self->eeprom_map_p->addr_uppage,
+                                     self->eeprom_map_p->page_uppage,
+                                     self->eeprom_map_p->offset_uppage,
+                                     self->eeprom_map_p->length_uppage,
+                                     &(self->eeprom),
+                                     "_common_update_attr_uppage",
+                                     show_err);
+}
 
 static int
 _common_update_attr_extended_id(struct transvr_obj_s *self,
@@ -1404,6 +1435,10 @@ _common_update_attr_all(struct transvr_obj_s *self,
         err_str = "_common_update_attr_wavelength";
         goto err_common_update_attr_all;
     }
+    if (_common_update_attr_eeprom(self, show_err) < 0) {
+        err_str = "_common_update_attr_eeprom";
+        goto err_common_update_attr_all;
+    }
     return 0;
 
 err_common_update_attr_all:
@@ -1661,6 +1696,31 @@ common_get_id(struct transvr_obj_s *self){
     return (int)self->id;
 }
 
+int
+common_get_eeprom(struct transvr_obj_s *self){
+
+    int err_code = _check_by_mode(self,
+                                  &_common_update_attr_eeprom,
+                                  "common_get_eeprom");
+    if (err_code < 0){
+        return err_code;
+    }
+    /* Transform to INT to show error case */
+    return (int)self->eeprom;
+}
+
+int
+common_get_uppage(struct transvr_obj_s *self){
+
+    int err_code = _check_by_mode(self,
+                                  &_common_update_attr_uppage,
+                                  "common_get_uppage");
+    if (err_code < 0){
+        return err_code;
+    }
+    /* Transform to INT to show error case */
+    return (int)self->eeprom;
+}
 
 int
 common_get_ext_id(struct transvr_obj_s *self){
@@ -7826,6 +7886,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
             self->set_rx_em           = sfp_set_rx_em;
             self->set_extphy_offset   = sfp_set_1g_rj45_extphy_offset;
             self->set_extphy_reg      = sfp_set_1g_rj45_extphy_reg;
+            self->get_eeprom          = common_get_eeprom;
+            self->get_uppage          = common_get_uppage;
             return 0;
 
         case TRANSVR_TYPE_QSFP:
@@ -7883,6 +7945,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
             self->set_rx_em           = unsupported_set_func;
             self->set_extphy_offset   = unsupported_set_func;
             self->set_extphy_reg      = unsupported_set_func;
+            self->get_eeprom          = common_get_eeprom;
+            self->get_uppage          = common_get_uppage;
             return 0;
 
         case TRANSVR_TYPE_QSFP_28:
@@ -7939,6 +8003,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
             self->set_rx_em           = qsfp_set_rx_em;
             self->set_extphy_offset   = unsupported_set_func;
             self->set_extphy_reg      = unsupported_set_func;
+            self->get_eeprom          = common_get_eeprom;
+            self->get_uppage          = common_get_uppage;
             return 0;
 
         case TRANSVR_TYPE_FAKE:
@@ -7995,6 +8061,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
             self->set_rx_em           = fake_set_int;
             self->set_extphy_offset   = fake_set_hex;
             self->set_extphy_reg      = fake_set_hex;
+            self->get_eeprom          = fake_get_hex;
+            self->get_uppage          = fake_get_hex;
             return 0;
 
         default:

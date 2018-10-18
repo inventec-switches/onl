@@ -415,6 +415,34 @@ show_attr_id(struct device *dev_p,
                                   buf_p);
 }
 
+static ssize_t
+show_attr_eeprom(struct device *dev_p,
+             struct device_attribute *attr_p,
+             char *buf_p){
+
+    struct transvr_obj_s *tobj_p = dev_get_drvdata(dev_p);
+    if(!tobj_p){
+        return -ENODEV;
+    }
+    return _show_transvr_hex_attr(tobj_p,
+                                  tobj_p->get_eeprom,
+                                  buf_p);
+}
+
+static ssize_t
+show_attr_uppage(struct device *dev_p,
+             struct device_attribute *attr_p,
+             char *buf_p){
+
+    struct transvr_obj_s *tobj_p = dev_get_drvdata(dev_p);
+    if(!tobj_p){
+        return -ENODEV;
+    }
+    return _show_transvr_hex_attr(tobj_p,
+                                  tobj_p->get_uppage,
+                                  buf_p);
+}
+
 
 static ssize_t
 show_attr_ext_id(struct device *dev_p,
@@ -1644,6 +1672,8 @@ static DEVICE_ATTR(soft_tx_disable, S_IRUGO|S_IWUSR, show_attr_soft_tx_disable, 
 static DEVICE_ATTR(auto_tx_disable, S_IRUGO|S_IWUSR, show_attr_auto_tx_disable, store_attr_auto_tx_disable);
 static DEVICE_ATTR(extphy_offset,   S_IRUGO|S_IWUSR, show_attr_extphy_offset,   store_attr_extphy_offset);
 static DEVICE_ATTR(extphy_reg,      S_IRUGO|S_IWUSR, show_attr_extphy_reg,      store_attr_extphy_reg);
+static DEVICE_ATTR(eeprom,          S_IRUGO,         show_attr_eeprom,          NULL);
+static DEVICE_ATTR(uppage,          S_IRUGO,         show_attr_uppage,          NULL);
 
 /* ========== IO Expander attribute: from expander ==========
  */
@@ -2310,6 +2340,14 @@ register_transvr_common_attr(struct device *device_p){
     if (device_create_file(device_p, &dev_attr_wavelength) < 0) {
         err_attr = "dev_attr_wavelength";
         goto err_transvr_comm_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
+          err_attr = "dev_attr_eeprom";
+           goto err_transvr_comm_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_uppage) < 0) {
+          err_attr = "dev_attr_uppage";
+           goto err_transvr_comm_attr;
     }
     return 0;
 

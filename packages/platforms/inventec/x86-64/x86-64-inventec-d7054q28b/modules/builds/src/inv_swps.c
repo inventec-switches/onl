@@ -1024,6 +1024,34 @@ show_attr_auto_tx_disable(struct device *dev_p,
                                   buf_p);
 }
 
+static ssize_t
+show_attr_eeprom(struct device *dev_p,
+                          struct device_attribute *attr_p,
+                          char *buf_p){
+
+    struct transvr_obj_s *tobj_p = dev_get_drvdata(dev_p);
+    if(!tobj_p){
+        return -ENODEV;
+    }
+    return _show_transvr_str_attr(tobj_p,
+                                  tobj_p->get_eeprom,
+                                  buf_p);
+}
+
+static ssize_t
+show_attr_uppage(struct device *dev_p,
+                          struct device_attribute *attr_p,
+                          char *buf_p){
+
+    struct transvr_obj_s *tobj_p = dev_get_drvdata(dev_p);
+    if(!tobj_p){
+        return -ENODEV;
+    }
+    return _show_transvr_str_attr(tobj_p,
+                                  tobj_p->get_uppage,
+                                  buf_p);
+}
+
 
 /* ========== Store functions: transceiver (R/W) attribute ==========
  */
@@ -1570,6 +1598,8 @@ static DEVICE_ATTR(if_lane,         S_IRUGO,         show_attr_if_lane,         
 static DEVICE_ATTR(soft_rx_los,     S_IRUGO,         show_attr_soft_rx_los,     NULL);
 static DEVICE_ATTR(soft_tx_fault,   S_IRUGO,         show_attr_soft_tx_fault,   NULL);
 static DEVICE_ATTR(wavelength,      S_IRUGO,         show_attr_wavelength,      NULL);
+static DEVICE_ATTR(eeprom,          S_IRUGO,         show_attr_eeprom,          NULL);
+static DEVICE_ATTR(uppage,          S_IRUGO,         show_attr_uppage,          NULL);
 static DEVICE_ATTR(tx_eq,           S_IRUGO|S_IWUSR, show_attr_tx_eq,           store_attr_tx_eq);
 static DEVICE_ATTR(rx_am,           S_IRUGO|S_IWUSR, show_attr_rx_am,           store_attr_rx_am);
 static DEVICE_ATTR(rx_em,           S_IRUGO|S_IWUSR, show_attr_rx_em,           store_attr_rx_em);
@@ -1804,6 +1834,7 @@ get_layout_info(void){
                     platform_p->id, platform_p->name);
             return -1;
     }
+    SWPS_INFO("ioexp_total = %d, port_total = %d\n", ioexp_total, port_total);
     SWPS_INFO("Start to initial platform: %d (%s)\n",
               platform_p->id, platform_p->name);
     return 0;
@@ -2279,6 +2310,14 @@ register_transvr_qsfp_attr(struct device *device_p){
     }
     if (device_create_file(device_p, &dev_attr_soft_tx_fault) < 0) {
         err_attr = "soft_tx_fault";
+        goto err_transvr_qsfp_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
+        err_attr = "eeprom";
+        goto err_transvr_qsfp_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_uppage) < 0) {
+        err_attr = "uppage";
         goto err_transvr_qsfp_attr;
     }
     return 0;
@@ -2899,9 +2938,3 @@ MODULE_LICENSE(SWP_LICENSE);
 
 module_init(swp_module_init);
 module_exit(swp_module_exit);
-
-
-
-
-
-

@@ -1067,7 +1067,7 @@ static int thread_fn(void *unused)
     sysfs_fan_path_init();
     sysfs_psu_path_init();
 #endif
-    //sysfs_sensor_path_init();
+    sysfs_sensor_path_init();
 
     /* Default status init */
     status_led_grn("7");
@@ -1092,7 +1092,7 @@ static int thread_fn(void *unused)
             continue;
 	}
 
-	//switch_temp_update();
+	switch_temp_update();
 
 	if (fans_control() > 0) {
 	    psus_control(1);

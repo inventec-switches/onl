@@ -1014,7 +1014,7 @@ void sysfs_sensor_path_init(void)
 void switch_temp_update(void)
 {
     char buf[MIN_ACC_SIZE];
-    ssize_t count = inventec_show_attr(&buf[0], "proc/switch/temp");
+    ssize_t count = inventec_show_attr(&buf[0], "/proc/switch/temp");
     if (count > 0) {
         inventec_store_attr(&buf[0], count, sensor_dev_path_switch_temp);
     }
@@ -1087,7 +1087,7 @@ static int thread_fn(void *unused)
     sysfs_fan_path_init();
     sysfs_psu_path_init();
 #endif
-    //sysfs_sensor_path_init();
+    sysfs_sensor_path_init();
 
     /* Default status init */
     status_led_grn("7");
@@ -1112,7 +1112,7 @@ static int thread_fn(void *unused)
             continue;
 	}
 
-	// switch_temp_update();
+	switch_temp_update();
 
 	if (fans_control() > 0) {
 	    psus_control(1);

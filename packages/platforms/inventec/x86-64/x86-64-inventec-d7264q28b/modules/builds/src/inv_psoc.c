@@ -50,9 +50,6 @@ DEFINE_MUTEX(ipmi_mutex);
 DEFINE_MUTEX(ipmi2_mutex);
 static struct ipmi_result ipmiresult;
 static struct device *hwmon_dev;
-#if 0
-static struct kobject *device_kobj;
-#endif
 static ipmi_user_t ipmi_mh_user = NULL;
 static void msg_handler(struct ipmi_recv_msg *msg,void* handler_data);
 static struct ipmi_user_hndl ipmi_hndlrs = {   .ipmi_recv_hndl = msg_handler,};
@@ -409,7 +406,7 @@ static ssize_t show_switch_tmp(struct device *dev, struct device_attribute *da,
 
     status = psoc_ipmi_read((u8*)&temp, SWITCH_TMP_OFFSET, 2);
 	
-	status = sprintf (buf, "%d\n",  (s8)(temp>>8) * 1000  );
+	status = sprintf (buf, "%d\n",  (s32)(temp) );
 	    
 	return strlen(buf);
 }
@@ -419,9 +416,9 @@ static ssize_t set_switch_tmp(struct device *dev,
 			   const char *buf, size_t count)
 {
 	long temp = simple_strtol(buf, NULL, 10);
-    u16 temp2 =  ( (temp/1000) <<8 ) & 0xFF00 ;
+
+    u16 temp2 =  (u16)temp;
     
-    //printk("set_switch_tmp temp=%d, temp2=0x%x (%x,%x)\n", temp, temp2, ( ( (temp/1000) <<8 ) & 0xFF00 ),  (( (temp%1000) / 10 ) & 0xFF));
 	psoc_ipmi_write((u8*)&temp2, SWITCH_TMP_OFFSET, 2);
 
 	
@@ -735,22 +732,10 @@ static int __init inv_psoc_init(void)
 		goto fail_hwmon_device_register;
 	}	
 	
-#if 0
-	device_kobj = kobject_create_and_add("device", &hwmon_dev->kobj);
-	if(!device_kobj) {
-		goto fail_hwmon_device_register;	
-	}
-	
-	ret = sysfs_create_group(device_kobj, &psoc_group);
-	if (ret) {
-		goto fail_create_group_hwmon;
-	}
-#else
 	ret = sysfs_create_group(&hwmon_dev->kobj, &psoc_group);
 	if (ret) {
 		goto fail_create_group_hwmon;
 	}
-#endif
 
 	printk(" Enable IPMI PSoC protocol.\n");
 	return ret;
@@ -765,11 +750,7 @@ static void __exit inv_psoc_exit(void)
 {
 	if(ipmi_mh_user!=NULL) {ipmi_destroy_user(ipmi_mh_user);}
 	if(hwmon_dev != NULL) hwmon_device_unregister(hwmon_dev);
-#if 0
-	sysfs_remove_group(device_kobj, &psoc_group);
-#else
 	sysfs_remove_group(&hwmon_dev->kobj, &psoc_group);
-#endif
 }
 
 MODULE_AUTHOR("Ting.Jack <ting.jack@inventec>");

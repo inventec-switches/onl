@@ -170,28 +170,6 @@ int inventec_store_input(char *inputp, int count)
         return strlen(inputp);
 }
 
-#if 0
-/*
- * Time stamps for kernel log on yocto
- */
-#include <linux/rtc.h>
-
-void SYSFS_LOG(char *fmt, ...)
-{
-        char buf[80], ts[32];
-	va_list args;
-	int hlen;
-
-	inventec_tmstmp(&ts[0]);
-	hlen = sprintf(buf, "[SYSFS] %s ", ts);	// Do not edit this line
-
-        va_start(args, fmt);
-        vsprintf(&buf[hlen-1], fmt, args);
-        va_end(args);
-        printk(KERN_WARNING "[p_thread] %s\n", buf);
-}
-#endif
-
 ssize_t
 inventec_show_attr(char *buf_p, const char *invdevp)
 {
@@ -1034,7 +1012,6 @@ void switch_temp_update(void)
     char buf[MIN_ACC_SIZE];
     ssize_t count = inventec_show_attr(&buf[0], "/proc/switch/temp");
     if (count > 0) {
-        //printk(KERN_ERR "[p_thread] [STEMP] Switch temperature is out of range: %d\n", stemp);
         inventec_store_attr(&buf[0], count, sensor_dev_path_switch_temp);
     }
 }

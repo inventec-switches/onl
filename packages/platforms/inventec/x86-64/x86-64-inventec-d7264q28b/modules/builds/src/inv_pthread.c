@@ -171,28 +171,6 @@ int inventec_store_input(char *inputp, int count)
         return strlen(inputp);
 }
 
-#if 0
-/*
- * Time stamps for kernel log on yocto
- */
-#include <linux/rtc.h>
-
-void SYSFS_LOG(char *fmt, ...)
-{
-        char buf[80], ts[32];
-	va_list args;
-	int hlen;
-
-	inventec_tmstmp(&ts[0]);
-	hlen = sprintf(buf, "[SYSFS] %s ", ts);	// Do not edit this line
-
-        va_start(args, fmt);
-        vsprintf(&buf[hlen-1], fmt, args);
-        va_end(args);
-        printk(KERN_WARNING "[p_thread] %s\n", buf);
-}
-#endif
-
 ssize_t
 inventec_show_attr(char *buf_p, const char *invdevp)
 {
@@ -581,64 +559,16 @@ typedef struct {
 
 static char psu_dev_path_state[MAX_PATH_SIZE];
 static char psu_dev_path_psu_voltin[MAX_PATH_SIZE];
-#if 0
-static char psu_dev_path_vendor[MAX_PATH_SIZE];
-static char psu_dev_path_version[MAX_PATH_SIZE];
-static char psu_dev_path_sn[MAX_PATH_SIZE];
-static char psu_dev_path_temperature[MAX_PATH_SIZE];
-static char psu_dev_path_fan_speed[MAX_PATH_SIZE];
-static char psu_dev_path_fan_pwm[MAX_PATH_SIZE];
-static char psu_dev_path_fan_faulty[MAX_PATH_SIZE];
-static char psu_dev_path_psu_currentin[MAX_PATH_SIZE];
-static char psu_dev_path_psu_currentout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_powerin[MAX_PATH_SIZE];
-static char psu_dev_path_psu_powerout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_voltout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_pwm[MAX_PATH_SIZE];
-static char psu_dev_path_psu_rpm[MAX_PATH_SIZE];
-#endif
 
 void sysfs_psu_path_init(void)
 {
     sprintf(&psu_dev_path_state[0],		PSU_CPLD_DEV_PATH_TEMPLATE,	get_hwm_cpld(), "\%s" );
     sprintf(&psu_dev_path_psu_voltin[0], 	PSU_PSOC_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-#if 0
-    sprintf(&psu_dev_path_vendor[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_version[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_sn[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_temperature[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_speed[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_pwm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_faulty[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_currentin[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_currentout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_powerin[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_powerout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_voltout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_pwm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_rpm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-#endif
 }
 
 static psu_dev_t psu_dev_name[] = {
 	{ "state",		psu_dev_path_state },	// Using cpld
 	{ "psu_voltin",		psu_dev_path_psu_voltin },
-#if 0
-	{ "vendor",		psu_dev_path_vendor },
-	{ "version",		psu_dev_path_version },
-	{ "sn",			psu_dev_path_sn },
-	{ "temperature",	psu_dev_path_temperature },
-	{ "fan_speed",		psu_dev_path_fan_speed },
-	{ "fan_pwm",		psu_dev_path_fan_pwm },
-	{ "fan_faulty",		psu_dev_path_fan_faulty },
-	{ "psu_currentin",	psu_dev_path_psu_currentin },
-	{ "psu_currentout",	psu_dev_path_psu_currentout },
-	{ "psu_powerin",	psu_dev_path_psu_powerin },
-	{ "psu_powerout",	psu_dev_path_psu_powerout },
-	{ "psu_voltout",	psu_dev_path_psu_voltout },
-	{ "psu_pwm",		psu_dev_path_psu_pwm },
-	{ "psu_rpm",		psu_dev_path_psu_rpm },
-#endif
 };
 #define PSU_DEV_NAME_TOTAL	( sizeof(psu_dev_name) / sizeof(const psu_dev_t) )
 
@@ -831,28 +761,11 @@ psu_device_exit(void)
 #define STATUS_LED_GRN_PATH	"/sys/class/hwmon/hwmon%d/device/grn_led"
 #define STATUS_LED_RED_PATH	"/sys/class/hwmon/hwmon%d/device/red_led"
 
-#define FAN_LED_GRN1_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_grn1"
-#define FAN_LED_GRN2_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_grn2"
-#define FAN_LED_GRN3_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_grn3"
-#define FAN_LED_GRN4_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_grn4"
-#define FAN_LED_RED1_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_red1"
-#define FAN_LED_RED2_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_red2"
-#define FAN_LED_RED3_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_red3"
-#define FAN_LED_RED4_PATH	"/sys/class/hwmon/hwmon%d/device/fan_led_red4"
-
 #define HWMON_DEVICE_DIAG_PATH	"/sys/class/hwmon/hwmon%d/device/diag"
 #define HWMON_DEVICE_CTRL_PATH	"/sys/class/hwmon/hwmon%d/device/ctl"
 
 static char status_led_grn_path[MAX_PATH_SIZE];
 static char status_led_red_path[MAX_PATH_SIZE];
-static char fan_led_grn1_path[MAX_PATH_SIZE];
-static char fan_led_grn2_path[MAX_PATH_SIZE];
-static char fan_led_grn3_path[MAX_PATH_SIZE];
-static char fan_led_grn4_path[MAX_PATH_SIZE];
-static char fan_led_red1_path[MAX_PATH_SIZE];
-static char fan_led_red2_path[MAX_PATH_SIZE];
-static char fan_led_red3_path[MAX_PATH_SIZE];
-static char fan_led_red4_path[MAX_PATH_SIZE];
 static char hwmon_device_diag_path[MAX_PATH_SIZE];
 static char hwmon_device_ctrl_path[MAX_PATH_SIZE];
 
@@ -860,14 +773,6 @@ void sysfs_led_path_init(void)
 {
     sprintf(&status_led_grn_path[0], STATUS_LED_GRN_PATH, get_hwm_cpld());
     sprintf(&status_led_red_path[0], STATUS_LED_RED_PATH, get_hwm_cpld());
-    sprintf(&fan_led_grn1_path[0], FAN_LED_GRN1_PATH, get_hwm_psoc());
-    sprintf(&fan_led_grn2_path[0], FAN_LED_GRN2_PATH, get_hwm_psoc());
-    sprintf(&fan_led_grn3_path[0], FAN_LED_GRN3_PATH, get_hwm_psoc());
-    sprintf(&fan_led_grn4_path[0], FAN_LED_GRN4_PATH, get_hwm_psoc());
-    sprintf(&fan_led_red1_path[0], FAN_LED_RED1_PATH, get_hwm_psoc());
-    sprintf(&fan_led_red2_path[0], FAN_LED_RED2_PATH, get_hwm_psoc());
-    sprintf(&fan_led_red3_path[0], FAN_LED_RED3_PATH, get_hwm_psoc());
-    sprintf(&fan_led_red4_path[0], FAN_LED_RED4_PATH, get_hwm_psoc());
     sprintf(&hwmon_device_diag_path[0], HWMON_DEVICE_DIAG_PATH, get_hwm_psoc());
     sprintf(&hwmon_device_ctrl_path[0], HWMON_DEVICE_CTRL_PATH, get_hwm_cpld());
 }
@@ -1087,7 +992,7 @@ led_device_exit(void)
 }
 
 /* sensor device **********************************/
-#define SENSOR_DEV_PATH_SWITCH_TEMP	"/sys/class/hwmon/hwmon%d/device/switch_tmp"
+#define SENSOR_DEV_PATH_SWITCH_TEMP     "/sys/class/hwmon/hwmon%d/switch_tmp"
 
 static char sensor_dev_path_switch_temp[MAX_PATH_SIZE];
 
@@ -1099,9 +1004,8 @@ void sysfs_sensor_path_init(void)
 void switch_temp_update(void)
 {
     char buf[MIN_ACC_SIZE];
-    ssize_t count = inventec_show_attr(&buf[0], "proc/switch/temp");
+    ssize_t count = inventec_show_attr(&buf[0], "/proc/switch/temp");
     if (count > 0) {
-        //printk(KERN_ERR "[p_thread] [STEMP] Switch temperature is out of range: %d\n", stemp);
         inventec_store_attr(&buf[0], count, sensor_dev_path_switch_temp);
     }
 }
@@ -1157,7 +1061,7 @@ static int thread_fn(void *unused)
     sysfs_fan_path_init();
     sysfs_psu_path_init();
 #endif
-    //sysfs_sensor_path_init();
+    sysfs_sensor_path_init();
 
     /* Default status init */
     status_led_grn("7");
@@ -1182,7 +1086,7 @@ static int thread_fn(void *unused)
             continue;
 	}
 
-	//switch_temp_update();
+	switch_temp_update();
 
 	if (fans_control() > 0) {
 	    psus_control(1);
@@ -1210,7 +1114,7 @@ err_inv_pthread_fn_1:
 static ssize_t s_show(struct kobject *kobj, struct attribute *attr, char *buf)
 {
     int fan_absence;
-    size_t count;
+    size_t count = 0;
 
     fan_absence = fans_control();
     count += sprintf(&buf[count], "%d\n", fan_absence);

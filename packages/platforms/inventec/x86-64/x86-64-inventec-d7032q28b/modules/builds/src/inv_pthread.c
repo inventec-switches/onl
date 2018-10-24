@@ -170,28 +170,6 @@ int inventec_store_input(char *inputp, int count)
         return strlen(inputp);
 }
 
-#if 0
-/*
- * Time stamps for kernel log on yocto
- */
-#include <linux/rtc.h>
-
-void SYSFS_LOG(char *fmt, ...)
-{
-        char buf[80], ts[32];
-	va_list args;
-	int hlen;
-
-	inventec_tmstmp(&ts[0]);
-	hlen = sprintf(buf, "[SYSFS] %s ", ts);	// Do not edit this line
-
-        va_start(args, fmt);
-        vsprintf(&buf[hlen-1], fmt, args);
-        va_end(args);
-        printk(KERN_WARNING "[p_thread] %s\n", buf);
-}
-#endif
-
 ssize_t
 inventec_show_attr(char *buf_p, const char *invdevp)
 {
@@ -573,64 +551,16 @@ typedef struct {
 
 static char psu_dev_path_state[MAX_PATH_SIZE];
 static char psu_dev_path_psu_voltin[MAX_PATH_SIZE];
-#if 0
-static char psu_dev_path_vendor[MAX_PATH_SIZE];
-static char psu_dev_path_version[MAX_PATH_SIZE];
-static char psu_dev_path_sn[MAX_PATH_SIZE];
-static char psu_dev_path_temperature[MAX_PATH_SIZE];
-static char psu_dev_path_fan_speed[MAX_PATH_SIZE];
-static char psu_dev_path_fan_pwm[MAX_PATH_SIZE];
-static char psu_dev_path_fan_faulty[MAX_PATH_SIZE];
-static char psu_dev_path_psu_currentin[MAX_PATH_SIZE];
-static char psu_dev_path_psu_currentout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_powerin[MAX_PATH_SIZE];
-static char psu_dev_path_psu_powerout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_voltout[MAX_PATH_SIZE];
-static char psu_dev_path_psu_pwm[MAX_PATH_SIZE];
-static char psu_dev_path_psu_rpm[MAX_PATH_SIZE];
-#endif
 
 void sysfs_psu_path_init(void)
 {
     sprintf(&psu_dev_path_state[0],		PSU_DEV_PATH_TEMPLATE,	get_hwm_cpld(), "\%s" );
     sprintf(&psu_dev_path_psu_voltin[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-#if 0
-    sprintf(&psu_dev_path_vendor[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_version[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_sn[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_temperature[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_speed[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_pwm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_fan_faulty[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_currentin[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_currentout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_powerin[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_powerout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_voltout[0], 	PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_pwm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-    sprintf(&psu_dev_path_psu_rpm[0], 		PSU_DEV_PATH_TEMPLATE,	get_hwm_psoc(), "\%s" );
-#endif
 }
 
 static psu_dev_t psu_dev_name[] = {
 	{ "state",		psu_dev_path_state },	// Using cpld
 	{ "psu_voltin",		psu_dev_path_psu_voltin },
-#if 0
-	{ "vendor",		psu_dev_path_vendor },
-	{ "version",		psu_dev_path_version },
-	{ "sn",			psu_dev_path_sn },
-	{ "temperature",	psu_dev_path_temperature },
-	{ "fan_speed",		psu_dev_path_fan_speed },
-	{ "fan_pwm",		psu_dev_path_fan_pwm },
-	{ "fan_faulty",		psu_dev_path_fan_faulty },
-	{ "psu_currentin",	psu_dev_path_psu_currentin },
-	{ "psu_currentout",	psu_dev_path_psu_currentout },
-	{ "psu_powerin",	psu_dev_path_psu_powerin },
-	{ "psu_powerout",	psu_dev_path_psu_powerout },
-	{ "psu_voltout",	psu_dev_path_psu_voltout },
-	{ "psu_pwm",		psu_dev_path_psu_pwm },
-	{ "psu_rpm",		psu_dev_path_psu_rpm },
-#endif
 };
 #define PSU_DEV_NAME_TOTAL	( sizeof(psu_dev_name) / sizeof(const psu_dev_t) )
 
@@ -1086,7 +1016,6 @@ void switch_temp_update(void)
     char buf[MIN_ACC_SIZE];
     ssize_t count = inventec_show_attr(&buf[0], "proc/switch/temp");
     if (count > 0) {
-        //printk(KERN_ERR "[p_thread] [STEMP] Switch temperature is out of range: %d\n", stemp);
         inventec_store_attr(&buf[0], count, sensor_dev_path_switch_temp);
     }
 }

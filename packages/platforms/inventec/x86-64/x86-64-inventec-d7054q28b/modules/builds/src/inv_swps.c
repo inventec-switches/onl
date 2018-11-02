@@ -1,3 +1,19 @@
+/*************************************************************************
+ * 
+ *  inv_swps.c
+ *
+ *  2018 Inventec Corporation
+ *  All Rights Reserved.
+ * 
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Inventec Corp. and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Inventec Corporation and its suppliers 
+ * and may be covered by U.S. and Foreign Patents, patents in process, 
+ * and are protected by trade secret or copyright law.
+ *
+ ************************************************************************/
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -1052,7 +1068,6 @@ show_attr_uppage(struct device *dev_p,
                                   buf_p);
 }
 
-
 /* ========== Store functions: transceiver (R/W) attribute ==========
  */
 static ssize_t
@@ -1834,7 +1849,6 @@ get_layout_info(void){
                     platform_p->id, platform_p->name);
             return -1;
     }
-    SWPS_INFO("ioexp_total = %d, port_total = %d\n", ioexp_total, port_total);
     SWPS_INFO("Start to initial platform: %d (%s)\n",
               platform_p->id, platform_p->name);
     return 0;
@@ -2271,6 +2285,14 @@ register_transvr_sfp_attr(struct device *device_p){
         err_attr = "dev_attr_soft_rs1";
         goto err_transvr_sfp_attr;
     }
+    if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
+        err_attr = "dev_attr_eeprom";
+        goto err_transvr_sfp_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_uppage) < 0) {
+        err_attr = "dev_attr_uppage";
+        goto err_transvr_sfp_attr;
+    }
     return 0;
 
 err_transvr_sfp_attr:
@@ -2313,11 +2335,11 @@ register_transvr_qsfp_attr(struct device *device_p){
         goto err_transvr_qsfp_attr;
     }
     if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
-        err_attr = "eeprom";
+        err_attr = "dev_attr_eeprom";
         goto err_transvr_qsfp_attr;
     }
     if (device_create_file(device_p, &dev_attr_uppage) < 0) {
-        err_attr = "uppage";
+        err_attr = "dev_attr_uppage";
         goto err_transvr_qsfp_attr;
     }
     return 0;
@@ -2938,3 +2960,9 @@ MODULE_LICENSE(SWP_LICENSE);
 
 module_init(swp_module_init);
 module_exit(swp_module_exit);
+
+
+
+
+
+

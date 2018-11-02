@@ -1,3 +1,19 @@
+/*************************************************************************
+ * 
+ *  inv_swps.h
+ *
+ *  2018 Inventec Corporation
+ *  All Rights Reserved.
+ * 
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Inventec Corp. and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Inventec Corporation and its suppliers 
+ * and may be covered by U.S. and Foreign Patents, patents in process, 
+ * and are protected by trade secret or copyright law.
+ *
+ ************************************************************************/
+
 #ifndef INV_SWPS_H
 #define INV_SWPS_H
 
@@ -19,6 +35,8 @@
 #define SWP_DESC              "Inventec port and transceiver driver"
 #define SWP_VERSION           "4.2.3"
 #define SWP_LICENSE           "GPL"
+
+#define SWPS_KERN_VER_AF_3_10 (1)
 
 /* Module status define */
 #define SWP_STATE_NORMAL      (0)

@@ -1,3 +1,19 @@
+/*************************************************************************
+ * 
+ *  transceiver.c
+ *
+ *  2018 Inventec Corporation
+ *  All Rights Reserved.
+ * 
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Inventec Corp. and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Inventec Corporation and its suppliers 
+ * and may be covered by U.S. and Foreign Patents, patents in process, 
+ * and are protected by trade secret or copyright law.
+ *
+ ************************************************************************/
+
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
@@ -47,8 +63,8 @@ struct eeprom_map_s eeprom_map_sfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =-1,  .offset_vendor_sn    =68,   .length_vendor_sn    =16,
     .addr_voltage      =0x51,  .page_voltage      =-1,  .offset_voltage      =98,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =-1,  .offset_wavelength   =60,   .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =-1,  .offset_eeprom       =0,    .length_eeprom       =128,
-    .addr_uppage       =0x50,  .page_uppage       =-1,  .offset_uppage       =128,  .length_uppage       =128,
+    .addr_eeprom       =0x50,  .page_eeprom       =-1,  .offset_eeprom       =128,  .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =-1,  .offset_uppage       =256,  .length_uppage       =128,
 };
 
 struct eeprom_map_s eeprom_map_qsfp = {
@@ -88,8 +104,8 @@ struct eeprom_map_s eeprom_map_qsfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =128,
-    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =256,  .length_uppage       =128,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =0,    .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =128,  .length_uppage       =128,
 };
 
 struct eeprom_map_s eeprom_map_qsfp28 = {
@@ -129,8 +145,8 @@ struct eeprom_map_s eeprom_map_qsfp28 = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =128,
-    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =256,  .length_uppage       =128,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =0,    .length_eeprom       =128,
+    .addr_uppage       =0x50,  .page_uppage       =0,   .offset_uppage       =128,  .length_uppage       =128,
 };
 
 
@@ -154,7 +170,6 @@ alarm_msg_2_user(struct transvr_obj_s *self,
     SWPS_ERR("%s on %s.\n", emsg, self->swp_name);
 }
 EXPORT_SYMBOL(alarm_msg_2_user);
-
 
 /* ========== Private functions ==========
  */
@@ -185,7 +200,6 @@ lock_transvr_obj(struct transvr_obj_s *self) {
 }
 EXPORT_SYMBOL(lock_transvr_obj);
 
-
 void
 unlock_transvr_obj(struct transvr_obj_s *self) {
 
@@ -193,7 +207,6 @@ unlock_transvr_obj(struct transvr_obj_s *self) {
     mutex_unlock(&self->lock);
 }
 EXPORT_SYMBOL(unlock_transvr_obj);
-
 
 static int
 _check_by_mode(struct transvr_obj_s *self,
@@ -659,7 +672,6 @@ _common_update_attr_uppage(struct transvr_obj_s *self,
                                      "_common_update_attr_uppage",
                                      show_err);
 }
-
 
 static int
 _common_update_attr_vendor_name(struct transvr_obj_s *self,
@@ -1369,14 +1381,6 @@ _common_update_attr_all(struct transvr_obj_s *self,
         err_str = "_common_update_attr_id";
         goto err_common_update_attr_all;
     }
-    if (_common_update_attr_eeprom(self, show_err) < 0) {
-	err_str = "_common_update_attr_eeprom";
-	goto err_common_update_attr_all;
-    }
-    if (_common_update_attr_uppage(self, show_err) < 0) {
-	err_str = "_common_update_attr_uppage";
-	goto err_common_update_attr_all;
-    }
     if (_common_update_attr_extended_id(self, show_err) < 0) {
         err_str = "_common_update_attr_extended_id";
         goto err_common_update_attr_all;
@@ -1447,6 +1451,14 @@ _common_update_attr_all(struct transvr_obj_s *self,
     }
     if (_common_update_attr_wavelength(self, show_err) < 0) {
         err_str = "_common_update_attr_wavelength";
+        goto err_common_update_attr_all;
+    }
+    if (_common_update_attr_eeprom(self, show_err) < 0) {
+        err_str = "_sfp_update_attr_eeprom";
+        goto err_common_update_attr_all;
+    }
+    if (_common_update_attr_uppage(self, show_err) < 0) {
+        err_str = "_sfp_update_attr_uppage";
         goto err_common_update_attr_all;
     }
     return 0;
@@ -7717,6 +7729,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
     switch (transvr_type){
         case TRANSVR_TYPE_SFP:
             self->get_id              = common_get_id;
+            self->get_eeprom          = common_get_eeprom;
+            self->get_uppage          = common_get_uppage;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -7878,6 +7892,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_FAKE:
             self->get_id              = fake_get_hex;
+            self->get_eeprom          = fake_get_str;
+            self->get_uppage          = fake_get_str;
             self->get_ext_id          = fake_get_hex;
             self->get_connector       = fake_get_hex;
             self->get_vendor_name     = fake_get_str;
@@ -8183,7 +8199,6 @@ err_create_transvr_fail:
 }
 EXPORT_SYMBOL(create_transvr_obj);
 
-
 static int
 _reload_transvr_obj(struct transvr_obj_s *self,
                     int new_type){
@@ -8266,7 +8281,6 @@ isolate_transvr_obj(struct transvr_obj_s *self) {
 }
 EXPORT_SYMBOL(isolate_transvr_obj);
 
-
 int
 resync_channel_tier_2(struct transvr_obj_s *self) {
 
@@ -8284,7 +8298,6 @@ resync_channel_tier_2(struct transvr_obj_s *self) {
     return 0;
 }
 EXPORT_SYMBOL(resync_channel_tier_2);
-
 
 /* -----------------------------------------
  *   ToDo List
@@ -8310,4 +8323,3 @@ EXPORT_SYMBOL(resync_channel_tier_2);
 
 
 MODULE_LICENSE("GPL");
-

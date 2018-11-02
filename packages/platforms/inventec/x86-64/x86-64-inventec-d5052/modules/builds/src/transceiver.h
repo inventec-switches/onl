@@ -662,7 +662,7 @@ struct transvr_obj_s {
      */
     uint8_t extphy_offset;
 
-    uint8_t eeprom[128];
+    uint8_t eeprom[130];
 
     /* ========== Object private property ==========
      */
@@ -743,8 +743,8 @@ struct transvr_obj_s {
     int  (*set_rx_em)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_offset)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_reg)(struct transvr_obj_s *self, int input_val);
-    int  (*get_eeprom)(struct transvr_obj_s *self);
-    int  (*get_uppage)(struct transvr_obj_s *self);
+    int  (*get_eeprom)(struct transvr_obj_s *self, char *buf_p);
+    int  (*get_uppage)(struct transvr_obj_s *self, char *buf_p);
 
     /* ========== Object private functions ==========
      */

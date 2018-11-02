@@ -424,7 +424,7 @@ show_attr_eeprom(struct device *dev_p,
     if(!tobj_p){
         return -ENODEV;
     }
-    return _show_transvr_hex_attr(tobj_p,
+    return _show_transvr_str_attr(tobj_p,
                                   tobj_p->get_eeprom,
                                   buf_p);
 }
@@ -438,7 +438,7 @@ show_attr_uppage(struct device *dev_p,
     if(!tobj_p){
         return -ENODEV;
     }
-    return _show_transvr_hex_attr(tobj_p,
+    return _show_transvr_str_attr(tobj_p,
                                   tobj_p->get_uppage,
                                   buf_p);
 }

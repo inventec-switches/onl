@@ -17,7 +17,11 @@
 #define CHASSIS_PSU_COUNT	(2)
 #define CHASSIS_LED_COUNT	(1)
 #define CHASSIS_FAN_COUNT	(10)
+#if 1
 #define CHASSIS_SFP_COUNT	(4)
+#else
+#define CHASSIS_SFP_COUNT	(52)
+#endif
 #define CHASSIS_THERMAL_COUNT	(11)
 
 #define INV_CPLD_COUNT		(1)

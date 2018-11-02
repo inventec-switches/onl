@@ -1697,30 +1697,53 @@ common_get_id(struct transvr_obj_s *self){
 }
 
 int
-common_get_eeprom(struct transvr_obj_s *self){
+common_get_eeprom(struct transvr_obj_s *self, char *buf){
 
-    int err_code = _check_by_mode(self,
-                                  &_common_update_attr_eeprom,
-                                  "common_get_eeprom");
-    if (err_code < 0){
-        return err_code;
+    int err = DEBUG_TRANSVR_INT_VAL;
+
+    if (self->state == STATE_TRANSVR_CONNECTED &&
+        self->mode == TRANSVR_MODE_POLLING &&
+        TRANSVR_INFO_CACHE_ENABLE) {
+	memset(buf, 0, self->eeprom_map_p->length_eeprom+1);
+	memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
+	*(buf+self->eeprom_map_p->length_eeprom) = '\n';
+	return self->eeprom_map_p->length_eeprom+1;
     }
-    /* Transform to INT to show error case */
-    return (int)self->eeprom;
+    err = _check_by_mode(self, &_common_update_attr_eeprom,
+                         "common_get_eeprom");
+    if (err < 0){
+        return snprintf(buf, LEN_TRANSVR_M_STR, "%d\n", err);
+    }
+    memset(buf, 0, self->eeprom_map_p->length_eeprom+1);
+    memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
+    *(buf+self->eeprom_map_p->length_eeprom) = '\n';
+    return self->eeprom_map_p->length_eeprom+1;
 }
 
 int
-common_get_uppage(struct transvr_obj_s *self){
+common_get_uppage(struct transvr_obj_s *self, char *buf){
 
-    int err_code = _check_by_mode(self,
-                                  &_common_update_attr_uppage,
-                                  "common_get_uppage");
-    if (err_code < 0){
-        return err_code;
+    int err = DEBUG_TRANSVR_INT_VAL;
+
+    if (self->state == STATE_TRANSVR_CONNECTED &&
+        self->mode == TRANSVR_MODE_POLLING &&
+        TRANSVR_INFO_CACHE_ENABLE) {
+	memset(buf, 0, self->eeprom_map_p->length_uppage+1);
+	memcpy(buf, self->eeprom, self->eeprom_map_p->length_uppage);
+	*(buf+self->eeprom_map_p->length_uppage) = '\n';
+	return self->eeprom_map_p->length_uppage+1;
     }
-    /* Transform to INT to show error case */
-    return (int)self->eeprom;
+    err = _check_by_mode(self, &_common_update_attr_uppage,
+                         "common_get_uppage");
+    if (err < 0){
+        return snprintf(buf, LEN_TRANSVR_M_STR, "%d\n", err);
+    }
+    memset(buf, 0, self->eeprom_map_p->length_uppage+1);
+    memcpy(buf, self->eeprom, self->eeprom_map_p->length_uppage);
+    *(buf+self->eeprom_map_p->length_uppage) = '\n';
+    return self->eeprom_map_p->length_uppage+1;
 }
+
 
 int
 common_get_ext_id(struct transvr_obj_s *self){
@@ -8061,8 +8084,8 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
             self->set_rx_em           = fake_set_int;
             self->set_extphy_offset   = fake_set_hex;
             self->set_extphy_reg      = fake_set_hex;
-            self->get_eeprom          = fake_get_hex;
-            self->get_uppage          = fake_get_hex;
+            self->get_eeprom          = fake_get_str;
+            self->get_uppage          = fake_get_str;
             return 0;
 
         default:

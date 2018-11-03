@@ -1,4 +1,5 @@
-obj-m += gpio-ich.o
+#obj-m += gpio-ich.o
+obj-m += i2c-gpio.o
 obj-m += inv_cpld.o
 obj-m += inv_platform.o
 obj-m += inv_psoc.o

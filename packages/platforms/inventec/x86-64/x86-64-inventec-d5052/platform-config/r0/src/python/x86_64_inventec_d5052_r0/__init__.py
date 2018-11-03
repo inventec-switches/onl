@@ -9,6 +9,7 @@ class OnlPlatform_x86_64_inventec_d5052_r0(OnlPlatformInventec,
 
     def baseconfig(self):
         os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko")
+        self.insmod('i2c-gpio')
         self.insmod('inv_platform')
         self.insmod('inv_psoc')
         self.insmod('inv_cpld')

@@ -2,7 +2,7 @@ from onl.platform.base import *
 from onl.platform.inventec import *
 
 class OnlPlatform_x86_64_inventec_d5264q28b_r0(OnlPlatformInventec,
-                                              OnlPlatformPortConfig_32x100):
+                                              OnlPlatformPortConfig_64x100):
     PLATFORM='x86-64-inventec-d5264q28b-r0'
     MODEL="D5264Q28B"
     SYS_OBJECT_ID=".1.32"

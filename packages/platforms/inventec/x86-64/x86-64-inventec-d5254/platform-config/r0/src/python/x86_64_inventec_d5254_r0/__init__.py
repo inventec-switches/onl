@@ -2,7 +2,7 @@ from onl.platform.base import *
 from onl.platform.inventec import *
 
 class OnlPlatform_x86_64_inventec_d5254_r0(OnlPlatformInventec,
-                                              OnlPlatformPortConfig_32x100):
+                                              OnlPlatformPortConfig_48x25_6x100):
     PLATFORM='x86-64-inventec-d5254-r0'
     MODEL="D5254"
     SYS_OBJECT_ID=".1.32"

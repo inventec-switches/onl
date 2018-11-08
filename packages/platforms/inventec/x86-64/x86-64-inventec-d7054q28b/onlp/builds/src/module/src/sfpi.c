@@ -22,13 +22,33 @@ static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 #define MUX_START_INDEX	(0)
 #define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
 static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
- 0,  1,  2,  3,  4,  5,  6,  7,
- 8,  9, 10, 11, 12, 13, 14, 15,
-16, 17, 18, 19, 20, 21, 22, 23,
-24, 25, 26, 27, 28, 29, 30, 31,
-32, 33, 34, 35, 36, 37, 38, 39,
-40, 41, 42, 43, 44, 45, 46, 47,
-48, 49, 50, 51, 52, 53
+#ifdef SWPS_CYPRESS_GA1
+10, 11, 12, 13, 14, 15, 16, 17,
+18, 19, 20, 21, 22, 23, 24, 25,
+26, 27, 28, 29, 30, 31, 32, 33,
+34, 35, 36, 37, 38, 39, 40, 41,
+42, 43, 44, 45, 46, 47, 48, 49,
+50, 51, 52, 53, 54, 55, 56, 57,
+58, 59, 60, 61, 62, 63
+#endif
+#ifdef SWPS_CYPRESS_GA2
+11, 10, 13, 12, 15, 14, 17, 16,
+19, 18, 21, 20, 23, 22, 25, 24,
+27, 26, 29, 28, 31, 30, 33, 32,
+35, 34, 37, 36, 39, 38, 41, 40,
+43, 42, 45, 44, 47, 46, 49, 48,
+51, 50, 53, 52, 55, 54, 57, 56,
+59, 58, 61, 60, 63, 62
+#endif
+#ifdef SWPS_CYPRESS_BAI
+11, 10, 13, 12, 15, 14, 17, 16,
+19, 18, 21, 20, 23, 22, 25, 24,
+27, 26, 29, 28, 31, 30, 33, 32,
+35, 34, 37, 36, 39, 38, 41, 40,
+43, 42, 45, 44, 47, 46, 49, 48,
+51, 50, 53, 52, 55, 54, 57, 56,
+59, 58, 61, 60, 63, 62
+#endif
 };
 
 #define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
@@ -154,12 +174,7 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      */
     memset(data, 0, 256);
     path = sfp_get_port_path(port, "eeprom");
-    if (onlp_file_read(&data[0], 128, &len, path) < 0) {
-        AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    path = sfp_get_port_path(port, "uppage");
-    if (onlp_file_read(&data[128], 128, &len, path) < 0) {
+    if (onlp_file_read(&data[0], 256, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }

@@ -19,7 +19,6 @@
 
 static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 
-#define MUX_START_INDEX	(0)
 #define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
 static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
 #ifdef SWPS_CYPRESS_GA1
@@ -51,7 +50,7 @@ static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
 #endif
 };
 
-#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
+#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port])
 
 static int
 sfp_node_read_int(char *node_path, int *value, int data_len)
@@ -136,27 +135,34 @@ onlp_sfpi_is_present(int port)
 int
 onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 {
-    uint32_t presence_all = 0 ;
-    int port, ret;
+    uint32_t presence_all[2] = {0};
+    int port, ret, index;
 
-    for (port = 0; port < NUM_OF_SFP_PORT; port++) {
+    for (port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+	if (port == 32) {
+	    index = 1;
+	}
+
 	ret = onlp_sfpi_is_present(port);
 	if (ret == 1) {
-	    presence_all |= (1<<port);
+	    presence_all[index] |= (1<<port);
 	}
 	else
 	if (ret == 0) {
-	    presence_all &= ~(1<<port);
+	    presence_all[index] &= ~(1<<port);
 	}
 	else {
             AIM_LOG_ERROR("Unable to read present status of port(%d).", port);
 	}
     }
-
     /* Populate bitmap */
-    for(port = 0; presence_all; port++) {
-        AIM_BITMAP_MOD(dst, port, (presence_all & 1));
-        presence_all >>= 1;
+    for(port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+	if (port == 32) {
+	    index = 1;
+	}
+
+        AIM_BITMAP_MOD(dst, port, (presence_all[index] & 1));
+        presence_all[index] >>= 1;
     }
     return ONLP_STATUS_OK;
 }

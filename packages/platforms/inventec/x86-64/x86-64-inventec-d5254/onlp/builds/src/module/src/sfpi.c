@@ -161,12 +161,15 @@ int
 onlp_sfpi_is_rx_los(int port)
 {
     if(port <= NUM_OF_SFP_PORT){
-        int rxlos = onlp_sfpi_get_file_byte(port, "rxlos");
-        if(rxlos < 0){
-            AIM_LOG_ERROR("Unable to read rxlos from port(%d)\r\n", port);
-            return ONLP_STATUS_E_INTERNAL;
+        if (onlp_sfpi_is_present(port) == 1){
+            int rxlos = onlp_sfpi_get_file_byte(port, "rxlos");
+            if(rxlos < 0){
+                AIM_LOG_ERROR("Unable to read rxlos from port(%d)\r\n", port);
+                return ONLP_STATUS_E_INTERNAL;
+            }
+            return rxlos;
         }
-        return rxlos;
+        return 0;
     }
     else if(port > NUM_OF_SFP_PORT){
         return 0;
@@ -288,9 +291,8 @@ onlp_sfpi_control_supported(int port, onlp_sfp_control_t control, int* rv)
 int
 onlp_sfpi_control_set(int port, onlp_sfp_control_t control, int value)
 {
-    uint8_t ret_val = 0;
+    int ret_val = 0;
     int err = 0;
-    
     switch (control) {
         case ONLP_SFP_CONTROL_RESET_STATE:
             err = onlp_sfpi_set_file_byte(port, "reset", value);
@@ -329,7 +331,7 @@ onlp_sfpi_control_set(int port, onlp_sfp_control_t control, int value)
 int
 onlp_sfpi_control_get(int port, onlp_sfp_control_t control, int* value)
 {
-    uint8_t ret_val = 0;
+    int ret_val = 0;
     int err = 0;
     
     switch (control) {

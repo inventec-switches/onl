@@ -182,6 +182,10 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
     info->rpm = value;
     info->percentage = (info->rpm * 100) / MAX_PSU_FAN_SPEED;
     info->status |= (value == 0) ? ONLP_FAN_STATUS_FAILED : 0;
+
+    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "NA");
+    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "NA");
+
     return ONLP_STATUS_OK;
 }
 

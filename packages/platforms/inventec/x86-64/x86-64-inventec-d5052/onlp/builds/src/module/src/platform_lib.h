@@ -14,21 +14,13 @@
 #define ONLP_NODE_MAX_INT_LEN	(8)
 #define ONLP_NODE_MAX_PATH_LEN	(64)
 
-#define CHASSIS_PSU_COUNT	(2)
-#define CHASSIS_LED_COUNT	(1)
-#define CHASSIS_FAN_COUNT	(10)
-#if 1
-#define CHASSIS_SFP_COUNT	(4)
-#else
-#define CHASSIS_SFP_COUNT	(52)
-#endif
-#define CHASSIS_THERMAL_COUNT	(11)
-
 #define INV_CPLD_COUNT		(1)
 #define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/1-0055/"
 #define INV_PSOC_PREFIX		"/sys/bus/i2c/devices/1-0066/"
 #define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
+
+#define CHASSIS_SFP_COUNT	(4)
 
 /*
  * Definitions of Chassis EEPROM
@@ -36,14 +28,66 @@
 #define EEPROM_NODE(node)	INV_EPRM_PREFIX#node
 
 /*
- * Definitions of PSU device
+ * Definitions of D5052 device
  */
+enum onlp_thermal_id {
+    THERMAL_RESERVED = 0,
+    THERMAL_CPU_CORE_FIRST,
+    THERMAL_CPU_CORE_2,
+    THERMAL_CPU_CORE_3,
+    THERMAL_CPU_CORE_LAST,
+    THERMAL_1_ON_MAIN_BROAD,
+    THERMAL_2_ON_MAIN_BROAD,
+    THERMAL_3_ON_MAIN_BROAD,
+    THERMAL_4_ON_MAIN_BROAD,
+    THERMAL_5_ON_MAIN_BROAD,
+    THERMAL_1_ON_PSU1,
+    THERMAL_1_ON_PSU2,
+    THERMAL_MAX
+};
+#define TOTAL_TMP_COUNT		(THERMAL_MAX-1)
+#define CHASSIS_THERMAL_COUNT	(9)
+
+
+enum onlp_fan_id {
+    FAN_RESERVED = 0,
+    FAN_1_ON_MAIN_BOARD,
+    FAN_2_ON_MAIN_BOARD,
+    FAN_3_ON_MAIN_BOARD,
+    FAN_4_ON_MAIN_BOARD,
+    FAN_5_ON_MAIN_BOARD,
+    FAN_6_ON_MAIN_BOARD,
+    FAN_7_ON_MAIN_BOARD,
+    FAN_8_ON_MAIN_BOARD,
+    FAN_1_ON_PSU1,
+    FAN_1_ON_PSU2,
+    FAN_MAX
+};
+#define TOTAL_FAN_COUNT		(FAN_MAX-1)
+#define CHASSIS_FAN_COUNT	(8)
+
+enum onlp_led_id
+{
+    LED_RESERVED = 0,
+    LED_SYS,
+    LED_FAN1,
+    LED_FAN2,
+    LED_FAN3,
+    LED_FAN4,
+    LED_MAX
+};
+#define TOTAL_LED_COUNT		(LED_MAX-1)
+#define CHASSIS_LED_COUNT	(1)
+
 enum onlp_psu_id
 {
     PSU_RESERVED = 0,
     PSU1_ID,
-    PSU2_ID
+    PSU2_ID,
+    PSU_MAX
 };
+#define TOTAL_PSU_COUNT		(PSU_MAX-1)
+#define CHASSIS_PSU_COUNT	(2)
 
 #define PSU1_AC_PMBUS_PREFIX	INV_PSOC_PREFIX
 #define PSU2_AC_PMBUS_PREFIX	INV_PSOC_PREFIX
@@ -51,8 +95,8 @@ enum onlp_psu_id
 #define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
 #define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
 
-#define PSU1_AC_HWMON_PREFIX	INV_CPLD_PREFIX
-#define PSU2_AC_HWMON_PREFIX	INV_CPLD_PREFIX
+#define PSU1_AC_HWMON_PREFIX	INV_PSOC_PREFIX
+#define PSU2_AC_HWMON_PREFIX	INV_PSOC_PREFIX
 
 typedef enum psu_type {
     PSU_TYPE_UNKNOWN,

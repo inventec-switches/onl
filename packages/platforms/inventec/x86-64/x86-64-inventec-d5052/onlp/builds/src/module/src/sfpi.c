@@ -19,23 +19,12 @@
 
 static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 
-#define MUX_START_INDEX (0)
 #define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
 static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
-#if 1
- 0,  1,  2,  3
-#else
- 0,  1,  2,  3,  4,  5,  6,  7,
- 8,  9, 10, 11, 12, 13, 14, 15,
-16, 17, 18, 19, 20, 21, 22, 23,
-24, 25, 26, 27, 28, 29, 30, 31,
-32, 33, 34, 35, 36, 37, 38, 39,
-40, 41, 42, 43, 44, 45, 46, 47,
-48, 49, 50, 51
-#endif
+ 2,  3,  4,  5
 };
 
-#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
+#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port])
 
 static int
 sfp_node_read_int(char *node_path, int *value, int data_len)
@@ -77,7 +66,7 @@ int
 onlp_sfpi_bitmap_get(onlp_sfp_bitmap_t* bmap)
 {
     /*
-     * Ports {0, 32}
+     * Ports {0, 52}
      */
     int p;
     AIM_BITMAP_CLR_ALL(bmap);
@@ -120,27 +109,34 @@ onlp_sfpi_is_present(int port)
 int
 onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 {
-    uint32_t presence_all = 0 ;
-    int port, ret;
+    uint32_t presence_all[2] = {0};
+    int port, ret, index;
 
-    for (port = 0; port < NUM_OF_SFP_PORT; port++) {
+    for (port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+	if (port == 32) {
+	    index = 1;
+	}
+
 	ret = onlp_sfpi_is_present(port);
 	if (ret == 1) {
-	    presence_all |= (1<<port);
+	    presence_all[index] |= (1<<port);
 	}
 	else
 	if (ret == 0) {
-	    presence_all &= ~(1<<port);
+	    presence_all[index] &= ~(1<<port);
 	}
 	else {
             AIM_LOG_ERROR("Unable to read present status of port(%d).", port);
 	}
     }
-
     /* Populate bitmap */
-    for(port = 0; presence_all; port++) {
-        AIM_BITMAP_MOD(dst, port, (presence_all & 1));
-        presence_all >>= 1;
+    for(port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+	if (port == 32) {
+	    index = 1;
+	}
+
+        AIM_BITMAP_MOD(dst, port, (presence_all[index] & 1));
+        presence_all[index] >>= 1;
     }
     return ONLP_STATUS_OK;
 }
@@ -158,16 +154,17 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      */
     memset(data, 0, 256);
     path = sfp_get_port_path(port, "eeprom");
-    if (onlp_file_read(&data[0], 128, &len, path) < 0) {
-        AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    path = sfp_get_port_path(port, "uppage");
-    if (onlp_file_read(&data[128], 128, &len, path) < 0) {
+    if (onlp_file_read(&data[0], 256, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }
     return ONLP_STATUS_OK;
+}
+
+int
+onlp_sfpi_dom_read(int port, uint8_t data[256])
+{
+    return onlp_sfpi_eeprom_read( port, data);
 }
 
 int

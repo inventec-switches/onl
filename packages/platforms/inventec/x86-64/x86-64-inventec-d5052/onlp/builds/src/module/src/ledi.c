@@ -25,17 +25,14 @@
         }                                       \
     } while(0)
 
-/* LED related data */
-enum onlp_led_id
-{
-    LED_RESERVED = 0,
-    LED_SYS
-};
-        
-static char* devfiles__[CHASSIS_LED_COUNT+1] =  /* must map with onlp_thermal_id */
+static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"/%s_led"
+    INV_CPLD_PREFIX"/%s_led",
+    INV_PSOC_PREFIX"/fan1_led_%s1",
+    INV_PSOC_PREFIX"/fan2_led_%s2",
+    INV_PSOC_PREFIX"/fan3_led_%s3",
+    INV_PSOC_PREFIX"/fan4_led_%s4",
 };
 
 enum led_light_mode {
@@ -63,6 +60,10 @@ led_light_mode_map_t led_map[] = {
 	{LED_SYS, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
 	{LED_SYS, LED_MODE_AMBER, ONLP_LED_MODE_ORANGE},
 	{LED_SYS, LED_MODE_RED,   ONLP_LED_MODE_RED},
+	{LED_FAN1,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
+	{LED_FAN2,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
+	{LED_FAN3,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
+	{LED_FAN4,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
 };
 
 static char last_path[][10] =  /* must map with onlp_led_id */
@@ -78,13 +79,38 @@ static char last_path[][10] =  /* must map with onlp_led_id */
 /*
  * Get the information for the given LED OID.
  */
-static onlp_led_info_t linfo[] =
+static onlp_led_info_t linfo[TOTAL_LED_COUNT+1] =
 {
     { }, /* Not used */
     {
         { ONLP_LED_ID_CREATE(LED_SYS), "Chassis LED (SYSTEM LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
         ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN1), "Fan LED 1 (FAN1 LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN2), "Fan LED 2 (FAN2 LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN3), "Fan LED 3 (FAN3 LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN4), "Fan LED 4 (FAN4 LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
+	ONLP_LED_MODE_ON, '0',
     },
 };
 
@@ -163,15 +189,34 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    if (buf[0] == '1' || buf[0] == '2' || buf[0] == '3' || buf[0] == '7') {
 		rvalue = 1;
 	    }
-
 	    if (gret < 0 && rret < 0) {
 		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
-		return ONLP_STATUS_E_INTERNAL;
+		gvalue = -1;
+		rvalue = -1;
+	    }
+	    break;
+	case LED_FAN1:
+	case LED_FAN2:
+	case LED_FAN3:
+	case LED_FAN4:
+            sprintf(fullpath_grn, devfiles__[local_id], "grn");
+            sprintf(fullpath_red, devfiles__[local_id], "red");
+
+	    /* Set LED mode */
+	    if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {
+		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+		gvalue = 0;
+	    }
+	    if (onlp_file_read_int(&rvalue, fullpath_red) != 0) {
+		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+		rvalue = 0;
 	    }
 	    break;
 	default:
 	    DEBUG_PRINT("%s(%d) Invalid led id %d\r\n", __FUNCTION__, __LINE__, local_id);
-	    return ONLP_STATUS_E_INTERNAL;
+	    gvalue = -1;
+	    rvalue = -1;
+	    break;
     }
 		
     /* Set the onlp_oid_hdr_t and capabilities */
@@ -179,26 +224,26 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 
     if (gvalue == 1 && rvalue == 0) {
 	info->mode = ONLP_LED_MODE_GREEN;
+	info->status |= ONLP_LED_STATUS_ON;
     }
     else
     if (gvalue == 0 && rvalue == 1) {
 	info->mode = ONLP_LED_MODE_RED;
+	info->status |= ONLP_LED_STATUS_ON;
     }
     else
     if (gvalue == 1 && rvalue == 1) {
 	info->mode = ONLP_LED_MODE_ORANGE;
+	info->status |= ONLP_LED_STATUS_ON;
     }
     else
     if (gvalue == 0 && rvalue == 0) {
 	info->mode = ONLP_LED_MODE_OFF;
+	info->status |= ONLP_LED_STATUS_ON;
     }
     else {
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    /* Set the on/off status */
-    if (info->mode != ONLP_LED_MODE_OFF) {
-        info->status |= ONLP_LED_STATUS_ON;
+	info->mode = ONLP_LED_MODE_OFF;
+	info->status |= ONLP_LED_STATUS_FAILED;
     }
     return ONLP_STATUS_OK;
 }
@@ -242,6 +287,12 @@ onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
     switch (local_id) {
 	case LED_SYS:
 	    sprintf(fullpath, "%s%s/%s", INV_CPLD_PREFIX, last_path[local_id], filename);	
+	    break;
+	case LED_FAN1:
+	case LED_FAN2:
+	case LED_FAN3:
+	case LED_FAN4:
+	    sprintf(fullpath, "%s%s/%s", INV_PSOC_PREFIX, last_path[local_id], filename);	
 	    break;
 	default:
 	    DEBUG_PRINT("%s(%d) Invalid led id %d\r\n", __FUNCTION__, __LINE__, local_id);

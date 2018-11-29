@@ -257,6 +257,10 @@ onlp_fani_percentage_set(onlp_oid_t id, int p)
         case FAN_2_ON_MAIN_BOARD:
         case FAN_3_ON_MAIN_BOARD:
         case FAN_4_ON_MAIN_BOARD:
+        case FAN_5_ON_MAIN_BOARD:
+        case FAN_6_ON_MAIN_BOARD:
+        case FAN_7_ON_MAIN_BOARD:
+        case FAN_8_ON_MAIN_BOARD:
                         path = FAN_NODE(fan_duty_cycle_percentage);
                         break;
         default:

@@ -29,10 +29,10 @@ static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
     INV_CPLD_PREFIX"/%s_led",
-    INV_PSOC_PREFIX"/fan1_led_%s1",
-    INV_PSOC_PREFIX"/fan2_led_%s2",
-    INV_PSOC_PREFIX"/fan3_led_%s3",
-    INV_PSOC_PREFIX"/fan4_led_%s4",
+    INV_PSOC_PREFIX"/fan1_led_%s",
+    INV_PSOC_PREFIX"/fan2_led_%s",
+    INV_PSOC_PREFIX"/fan3_led_%s",
+    INV_PSOC_PREFIX"/fan4_led_%s",
 };
 
 enum led_light_mode {
@@ -79,7 +79,7 @@ static char last_path[][10] =  /* must map with onlp_led_id */
 /*
  * Get the information for the given LED OID.
  */
-static onlp_led_info_t linfo[TOTAL_LED_COUNT+1] =
+static onlp_led_info_t linfo[LED_MAX] =
 {
     { }, /* Not used */
     {

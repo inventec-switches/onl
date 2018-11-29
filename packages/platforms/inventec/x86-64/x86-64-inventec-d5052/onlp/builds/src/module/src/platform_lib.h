@@ -45,7 +45,6 @@ enum onlp_thermal_id {
     THERMAL_1_ON_PSU2,
     THERMAL_MAX
 };
-#define TOTAL_TMP_COUNT		(THERMAL_MAX-1)
 #define CHASSIS_THERMAL_COUNT	(9)
 
 
@@ -63,7 +62,6 @@ enum onlp_fan_id {
     FAN_1_ON_PSU2,
     FAN_MAX
 };
-#define TOTAL_FAN_COUNT		(FAN_MAX-1)
 #define CHASSIS_FAN_COUNT	(8)
 
 enum onlp_led_id
@@ -76,7 +74,6 @@ enum onlp_led_id
     LED_FAN4,
     LED_MAX
 };
-#define TOTAL_LED_COUNT		(LED_MAX-1)
 #define CHASSIS_LED_COUNT	(1)
 
 enum onlp_psu_id
@@ -86,7 +83,6 @@ enum onlp_psu_id
     PSU2_ID,
     PSU_MAX
 };
-#define TOTAL_PSU_COUNT		(PSU_MAX-1)
 #define CHASSIS_PSU_COUNT	(2)
 
 #define PSU1_AC_PMBUS_PREFIX	INV_PSOC_PREFIX

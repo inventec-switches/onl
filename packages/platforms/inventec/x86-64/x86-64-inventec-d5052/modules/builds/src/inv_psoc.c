@@ -796,9 +796,9 @@ static ssize_t show_psu_psoc(struct device *dev, struct device_attribute *da,
               count++;
            }
 	   if(len == count)
-           return sprintf(buf, "%s \n","ERROR");
+           return sprintf(buf, "%s \n","NA");
            if(status ==0)
-           return sprintf(buf,"%s \n", "ERROR");
+           return sprintf(buf,"%s \n", "NA");
            else if((strlen(rxbuf)==0))
            return sprintf(buf, "%s \n", "N/A");
            else

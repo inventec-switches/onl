@@ -153,6 +153,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
     char  vstr[32], *vstrp = vstr, **vp = &vstrp;
 
     info->status |= ONLP_FAN_STATUS_PRESENT;
+    info->status |= ONLP_FAN_STATUS_F2B;
 
     /* get fan direction */
     info->status |= _onlp_get_fan_direction_on_psu();

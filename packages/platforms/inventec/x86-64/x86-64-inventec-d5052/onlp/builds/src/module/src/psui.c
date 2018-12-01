@@ -92,27 +92,29 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "vout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
-        return ONLP_STATUS_E_INTERNAL;
+        AIM_LOG_ERROR("Unable to read vout from file(%s)\r\n", node_path);
     }
-    info->mvout = value;
-    info->caps |= ONLP_PSU_CAPS_VOUT;
+    else {
+	info->mvout = value;
+	info->caps |= ONLP_PSU_CAPS_VOUT;
+    }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "iout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
-        return ONLP_STATUS_E_INTERNAL;
+        AIM_LOG_ERROR("Unable to read iout from file(%s)\r\n", node_path);
     }
-    info->miout = value;
-    info->caps |= ONLP_PSU_CAPS_IOUT;
+    else {
+	info->miout = value;
+	info->caps |= ONLP_PSU_CAPS_IOUT;
+    }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "pout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        AIM_LOG_ERROR("Unable to read pout from file(%s)\r\n", node_path);
     }
     else {
 	info->mpout = value;
@@ -123,7 +125,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "vin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        AIM_LOG_ERROR("Unable to read vin from file(%s)\r\n", node_path);
     }
     else {
 	info->mvin = value;
@@ -134,7 +136,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "iin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        AIM_LOG_ERROR("Unable to read iin from file(%s)\r\n", node_path);
     }
     else {
 	info->miin = value;
@@ -145,7 +147,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+        AIM_LOG_ERROR("Unable to read pin from file(%s)\r\n", node_path);
     }
     else {
 	info->mpin = value;

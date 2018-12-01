@@ -29,10 +29,10 @@ static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
     INV_CPLD_PREFIX"/%s_led",
-    INV_PSOC_PREFIX"/fan1_led_%s",
-    INV_PSOC_PREFIX"/fan2_led_%s",
-    INV_PSOC_PREFIX"/fan3_led_%s",
-    INV_PSOC_PREFIX"/fan4_led_%s",
+    INV_PSOC_PREFIX"/fan_led_%s1",
+    INV_PSOC_PREFIX"/fan_led_%s2",
+    INV_PSOC_PREFIX"/fan_led_%s3",
+    INV_PSOC_PREFIX"/fan_led_%s4",
 };
 
 enum led_light_mode {

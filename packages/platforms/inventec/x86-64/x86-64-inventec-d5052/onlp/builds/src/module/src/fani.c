@@ -53,7 +53,7 @@ static char* devfiles__[FAN_MAX] =  /* must map with onlp_thermal_id */
     { \
         { ONLP_FAN_ID_CREATE(FAN_##fan_id##_ON_PSU##psu_id), "Chassis PSU-"#psu_id " Fan "#fan_id, 0 }, \
         0x0, \
-        (ONLP_PSU_CAPS_AC | ONLP_FAN_CAPS_F2B | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE), \
+        (ONLP_FAN_CAPS_F2B | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE), \
         0, \
         0, \
         ONLP_FAN_MODE_INVALID, \
@@ -154,7 +154,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
     char  vstr[32], *vstrp = vstr, **vp = &vstrp;
 
     info->status |= ONLP_FAN_STATUS_PRESENT;
-    info->caps |= ONLP_PSU_CAPS_AC;
+    info->status |= ONLP_FAN_STATUS_F2B;
 
     /* get fan direction */
     info->status |= _onlp_get_fan_direction_on_psu();

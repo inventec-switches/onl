@@ -93,10 +93,11 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read vout from file(%s)\r\n", node_path);
-        return ONLP_STATUS_E_INTERNAL;
     }
-    info->mvout = value;
-    info->caps |= ONLP_PSU_CAPS_VOUT;
+    else {
+	info->mvout = value;
+	info->caps |= ONLP_PSU_CAPS_VOUT;
+    }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "iout");

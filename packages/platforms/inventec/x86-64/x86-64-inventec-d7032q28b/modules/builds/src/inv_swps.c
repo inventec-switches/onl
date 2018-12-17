@@ -301,7 +301,7 @@ show_attr_eeprom_update(struct device *dev_p,
                       struct device_attribute *attr_p,
                       char *buf_p){
 
-    return snprintf(buf_p, 8, "%u\n", eeprom_update);
+    return snprintf(buf_p, 10, "%08x\n", eeprom_update);
 }
 
 

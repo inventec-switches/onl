@@ -171,10 +171,39 @@ onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
 }
 
 int
+onlp_inv_file_vwrite_uint(int value, const char* fmt, va_list vargs)
+{
+    int rv;
+    char* s = aim_fstrdup("%u", value);
+    rv = onlp_file_vwrite_str(s, fmt, vargs);
+    aim_free(s);
+    return rv;
+}
+
+int
+onlp_inv_file_write_uint(unsigned int value, const char* fmt, ...)
+{
+    int rv;
+    va_list vargs;
+    va_start(vargs, fmt);
+    rv = onlp_inv_file_vwrite_uint(value, fmt, vargs);
+    va_end(vargs);
+    return rv;
+}
+
+int
 onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
 {
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
-    return onlp_i2c_writeb(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+    int ret = onlp_i2c_writeb(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+
+    if (ret == 0)  {
+	if (onlp_inv_file_write_uint((1 << port), INV_SFP_EEPROM_UPDATE) == 0) {
+	    return ONLP_STATUS_OK;
+	}
+    }
+    AIM_LOG_ERROR("Unable to read eeprom_update from port(%d)\r\n", port);
+    return ret;
 }
 
 int
@@ -188,7 +217,15 @@ int
 onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
 {
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
-    return onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+    int ret = onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+
+    if (ret == 0)  {
+	if (onlp_inv_file_write_uint((1 << port), INV_SFP_EEPROM_UPDATE) == 0) {
+	    return ONLP_STATUS_OK;
+	}
+    }
+    AIM_LOG_ERROR("Unable to read eeprom_update from port(%d)\r\n", port);
+    return ret;
 }
 
 int

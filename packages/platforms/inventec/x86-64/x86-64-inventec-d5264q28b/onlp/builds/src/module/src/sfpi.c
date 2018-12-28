@@ -23,8 +23,8 @@
  *
  *
  ***********************************************************/
-#include <onlp/platformi/sfpi.h>
 
+#include <onlp/platformi/sfpi.h>
 #include <fcntl.h> /* For O_RDWR && open */
 #include <stdio.h>
 #include <string.h>
@@ -32,47 +32,18 @@
 #include <sys/ioctl.h>
 #include <onlplib/i2c.h>
 #include "platform_lib.h"
+#include <dirent.h>
+#include <onlplib/file.h>
 
-#define MAX_SFP_PATH 64
-static char sfp_node_path[MAX_SFP_PATH] = {0};
+#define MAX_SFP_PATH 128
 
-#define MUX_START_INDEX 18
-#define NUM_OF_SFP_PORT 32
-static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
- 4,  5,  6,  7,  9,  8, 11, 10,
- 0,  1,  2,  3, 12, 13, 14, 15,
-16, 17, 18, 19, 28, 29, 30, 31,
-20, 21, 22, 23, 24, 25, 26, 27
-};
+#define MUX_START_INDEX 17
+#define QSFP_DEV_ADDR 0x50
+#define NUM_OF_QSFP_PORT 64
+#define NUM_OF_ALL_PORT (NUM_OF_QSFP_PORT)
 
-#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port]+MUX_START_INDEX)
-
-static int
-as7512_32x_sfp_node_read_int(char *node_path, int *value, int data_len)
-{
-    int ret = 0;
-    char buf[8];
-    *value = 0;
-
-    ret = deviceNodeReadString(node_path, buf, sizeof(buf), data_len);
-
-    if (ret == 0) {
-        *value = atoi(buf);
-    }
-
-    return ret;
-}
-
-static char*
-as7512_32x_sfp_get_port_path(int port, char *node_name)
-{
-    sprintf(sfp_node_path, "/sys/bus/i2c/devices/%d-0050/%s",
-                           FRONT_PORT_TO_MUX_INDEX(port),
-                           node_name);
-
-    return sfp_node_path;
-}
-
+#define FRONT_PORT_TO_MUX_INDEX(port) (port+MUX_START_INDEX)
+#define VALIDATE_PORT(p) { if ((p < 0) || (p >= NUM_OF_ALL_PORT)) return ONLP_STATUS_E_PARAM; }
 /************************************************************
  *
  * SFPI Entry Points
@@ -85,16 +56,23 @@ onlp_sfpi_init(void)
     return ONLP_STATUS_OK;
 }
 
+int onlp_sfpi_port_map(int port, int* rport)
+{
+    VALIDATE_PORT(port);
+    *rport = port;
+    return ONLP_STATUS_OK;
+}
+
 int
 onlp_sfpi_bitmap_get(onlp_sfp_bitmap_t* bmap)
 {
     /*
-     * Ports {0, 32}
+     * Ports {0, 63}
      */
     int p;
     AIM_BITMAP_CLR_ALL(bmap);
 
-    for(p = 0; p < NUM_OF_SFP_PORT; p++) {
+    for(p = 0; p < NUM_OF_ALL_PORT; p++) {
         AIM_BITMAP_SET(bmap, p);
     }
 
@@ -109,66 +87,108 @@ onlp_sfpi_is_present(int port)
      * Return 0 if not present.
      * Return < 0 if error.
      */
+    VALIDATE_PORT(port);
     int present;
-    char* path = as7512_32x_sfp_get_port_path(port, "sfp_is_present");
-
-    if (as7512_32x_sfp_node_read_int(path, &present, 0) != 0) {
-        AIM_LOG_ERROR("Unable to read present status from port(%d)\r\n", port);
+    int rv;
+    if(onlp_file_read_int(&present, INV_SFP_PREFIX"port%d/present", port) != ONLP_STATUS_OK){
         return ONLP_STATUS_E_INTERNAL;
     }
-
-    return present;
+    if(present == 0){
+        rv = 1;
+    } else if (present == 1){
+        rv = 0;
+    }
+    else {
+        AIM_LOG_ERROR("Unvalid present status %d from port(%d)\r\n",present,port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    return rv;
 }
 
 int
 onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 {
-    uint32_t bytes[4];
-    char* path;
-    FILE* fp;
-
-    path = as7512_32x_sfp_get_port_path(0, "sfp_is_present_all");
-    fp = fopen(path, "r");
-
-    if(fp == NULL) {
-        AIM_LOG_ERROR("Unable to open the sfp_is_present_all device file.");
-        return ONLP_STATUS_E_INTERNAL;
+    AIM_BITMAP_CLR_ALL(dst);
+    int port;
+    for(port = 0; port < NUM_OF_ALL_PORT; port++){
+        if(onlp_sfpi_is_present(port) == 1){
+            AIM_BITMAP_MOD(dst, port, 1);
+        }else if(onlp_sfpi_is_present(port) == 0){
+            AIM_BITMAP_MOD(dst, port, 0);
+        }else{
+            return ONLP_STATUS_E_INTERNAL;
+        }
     }
-    int count = fscanf(fp, "%x %x %x %x",
-                       bytes+0,
-                       bytes+1,
-                       bytes+2,
-                       bytes+3
-                       );
-    fclose(fp);
-    if(count != AIM_ARRAYSIZE(bytes)) {
-        /* Likely a CPLD read timeout. */
-        AIM_LOG_ERROR("Unable to read all fields from the sfp_is_present_all device file.");
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    /* Convert to 64 bit integer in port order */
-    int i = 0;
-    uint32_t presence_all = 0 ;
-    for(i = AIM_ARRAYSIZE(bytes)-1; i >= 0; i--) {
-        presence_all <<= 8;
-        presence_all |= bytes[i];
-    }
-
-    /* Populate bitmap */
-    for(i = 0; presence_all; i++) {
-        AIM_BITMAP_MOD(dst, i, (presence_all & 1));
-        presence_all >>= 1;
-    }
-
     return ONLP_STATUS_OK;
+}
+
+int
+onlp_sfpi_is_rx_los(int port)
+{
+    int rxlos;
+    int rv;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+    if(port > NUM_OF_ALL_PORT){
+        return ONLP_STATUS_E_INVALID;
+    }
+    if(onlp_sfpi_is_present(port) == 0){
+        return ONLP_STATUS_E_INVALID;
+    }
+    if(onlp_file_read((uint8_t*)buf, ONLP_CONFIG_INFO_STR_MAX, &len, INV_SFP_PREFIX"port%d/soft_rx_los", port) != ONLP_STATUS_OK){
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    if(sscanf( buf, "0x%x\n", &rxlos) != 1){
+        AIM_LOG_ERROR("Unable to read rxlos from port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL; 
+    }
+    if(rxlos < 0 || rxlos > 0x0f){
+        AIM_LOG_ERROR("Unable to read rxlos from port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL;
+    }else if(rxlos == 0){
+        rv = 1;
+    }else{
+        rv = 0;
+    }
+    return rv;
+}
+
+int
+onlp_sfpi_rx_los_bitmap_get(onlp_sfp_bitmap_t* dst)
+{   
+    AIM_BITMAP_CLR_ALL(dst);
+    int port;
+    int isrxlos;
+    for(port = 0; port < NUM_OF_ALL_PORT; port++){
+        if(onlp_sfpi_is_present(port) == 1){
+            isrxlos = onlp_sfpi_is_rx_los(port); 
+            if(isrxlos == 1){
+                AIM_BITMAP_MOD(dst, port, 1);
+            }else if(isrxlos == 0){    
+                AIM_BITMAP_MOD(dst, port, 0); 
+            }else{
+                return ONLP_STATUS_E_INTERNAL; 
+            }
+        }
+    }
+    return ONLP_STATUS_OK;
+}
+
+int
+onlp_sfpi_dom_read(int port, uint8_t data[256])
+{
+    return ONLP_STATUS_E_UNSUPPORTED;
+}
+
+int
+onlp_sfpi_post_insert(int port, sff_info_t* info)
+{
+    return ONLP_STATUS_E_UNSUPPORTED;
 }
 
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-    char* path = as7512_32x_sfp_get_port_path(port, "sfp_eeprom");
-
     /*
      * Read the SFP eeprom into data[]
      *
@@ -176,18 +196,22 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      * Return OK if eeprom is read
      */
     memset(data, 0, 256);
-
-    if (deviceNodeReadBinary(path, (char*)data, 256, 256) != 0) {
+    
+    VALIDATE_PORT(port);
+    int sts;
+    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    sts = onlp_i2c_read(bus, QSFP_DEV_ADDR, 0, 256, data, ONLP_I2C_F_FORCE);
+    if(sts < 0){
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
-        return ONLP_STATUS_E_INTERNAL;
+        return ONLP_STATUS_E_MISSING;
     }
-
     return ONLP_STATUS_OK;
 }
 
 int
 onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
 {
+    VALIDATE_PORT(port);
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
     return onlp_i2c_readb(bus, devaddr, addr, ONLP_I2C_F_FORCE);
 }
@@ -195,6 +219,7 @@ onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
 int
 onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
 {
+    VALIDATE_PORT(port);
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
     return onlp_i2c_writeb(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
 }
@@ -202,6 +227,7 @@ onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
 int
 onlp_sfpi_dev_readw(int port, uint8_t devaddr, uint8_t addr)
 {
+    VALIDATE_PORT(port);
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
     return onlp_i2c_readw(bus, devaddr, addr, ONLP_I2C_F_FORCE);
 }
@@ -209,8 +235,64 @@ onlp_sfpi_dev_readw(int port, uint8_t devaddr, uint8_t addr)
 int
 onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
 {
+    VALIDATE_PORT(port);
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
     return onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+}
+
+int
+onlp_sfpi_control_supported(int port, onlp_sfp_control_t control, int* rv)
+{
+    *rv = 0;
+    if(port >= 0 && port < NUM_OF_QSFP_PORT){
+        switch (control) {
+            case ONLP_SFP_CONTROL_RESET_STATE:
+            case ONLP_SFP_CONTROL_LP_MODE:
+                *rv = 1;
+                break;
+            default:
+                break;
+        }
+    }
+    return ONLP_STATUS_OK;
+}
+
+int
+onlp_sfpi_control_set(int port, onlp_sfp_control_t control, int value)
+{
+    int ret = ONLP_STATUS_E_UNSUPPORTED;
+    if(port >= 0 && port < NUM_OF_QSFP_PORT){
+        switch (control) {
+            case ONLP_SFP_CONTROL_RESET_STATE:
+                ret = onlp_file_write_int(value, INV_SFP_PREFIX"port%d/reset", port); 
+                break;
+            case ONLP_SFP_CONTROL_LP_MODE:
+                ret = onlp_file_write_int(value, INV_SFP_PREFIX"port%d/lpmod", port);
+                break;
+            default:
+                break;
+        }
+    }
+    return ret;
+}
+
+int
+onlp_sfpi_control_get(int port, onlp_sfp_control_t control, int* value)
+{
+    int ret = ONLP_STATUS_E_UNSUPPORTED;
+    if(port >= 0 && port < NUM_OF_QSFP_PORT){    
+        switch (control) {
+            case ONLP_SFP_CONTROL_RESET_STATE:
+                ret = onlp_file_read_int(value, INV_SFP_PREFIX"port%d/reset", port); 
+                break;
+            case ONLP_SFP_CONTROL_LP_MODE:
+                ret = onlp_file_read_int(value, INV_SFP_PREFIX"port%d/lpmod", port); 
+                break;
+            default:
+                break;
+        }
+    }
+    return ret;
 }
 
 int
@@ -219,3 +301,14 @@ onlp_sfpi_denit(void)
     return ONLP_STATUS_OK;
 }
 
+void
+onlp_sfpi_debug(int port, aim_pvs_t* pvs)
+{
+    aim_printf(pvs, "Debug data for port %d goes here.", port);
+}
+
+int
+onlp_sfpi_ioctl(int port, va_list vargs)
+{
+    return ONLP_STATUS_E_UNSUPPORTED;
+}

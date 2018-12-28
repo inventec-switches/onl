@@ -28,50 +28,111 @@
 
 #include "x86_64_inventec_d5264q28b_log.h"
 
-#define CHASSIS_FAN_COUNT     6
-#define CHASSIS_THERMAL_COUNT 5
+/* This is definitions for x86-64-inventec-d5264q28b*/
+/* OID map*/
+/*
+ *  SYS---------ONLP_THERMAL_CPU_PHY
+ *         |----ONLP_THERMAL_CPU_CORE0
+ *         |----ONLP_THERMAL_CPU_CORE1
+ *         |----ONLP_THERMAL_CPU_CORE2
+ *         |----ONLP_THERMAL_CPU_CORE3
+ *         |----ONLP_THERMAL_1_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_2_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_3_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_4_ON_MAIN_BROAD
+ *         |----ONLP_THERMAL_5_ON_MAIN_BROAD
+ *         |----ONLP_FAN_1--------ONLP_LED_FAN1
+ *         |
+ *         |----ONLP_FAN_2--------ONLP_LED_FAN2
+ *         |
+ *         |----ONLP_FAN_3--------ONLP_LED_FAN3
+ *         |
+ *         |----ONLP_FAN_4--------ONLP_LED_FAN4
+ *         |
+ *         |----ONLP_PSU_1--------ONLP_THERMAL_1_ON_PSU1
+ *         |                   |--ONLP_THERMAL_2_ON_PSU1
+ *         |                   |--ONLP_FAN_PSU_1
+ *         |
+ *         |----ONLP_PSU_2--------ONLP_THERMAL_1_ON_PSU2
+ *         |                   |--ONLP_THERMAL_2_ON_PSU2
+ *         |                   |--ONLP_FAN_PSU_2
+ *         |
+ *         |----ONLP_LED_MGMT
+ */
 
-#define PSU1_ID 1
-#define PSU2_ID 2
+#define INV_SYSLED_PREFIX	"/sys/class/hwmon/hwmon2/device/"
+#define INV_HWMON_PREFIX	"/sys/class/hwmon/hwmon1/device/"
+#define INV_CTMP_PREFIX		"/sys/class/hwmon/hwmon0/"
+#define INV_SFP_PREFIX		"/sys/class/swps/"
+#define INV_SYS_PREFIX		"/sys/class/eeprom/vpd/"
 
-#define PSU1_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/11-005b/"
-#define PSU2_AC_PMBUS_PREFIX "/sys/bus/i2c/devices/10-0058/"
+#define OID_MAP_TO_INFO_IDX(oid)  ONLP_OID_ID_GET(oid)-1
+#define LOCAL_ID_TO_INFO_IDX(id)  (id-1)
 
-#define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
-#define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
+/* Thermal definitions*/
+enum onlp_thermal_id {
+    ONLP_THERMAL_CPU_PHY = 1,
+    ONLP_THERMAL_CPU_CORE0,
+    ONLP_THERMAL_CPU_CORE1,
+    ONLP_THERMAL_CPU_CORE2,
+    ONLP_THERMAL_CPU_CORE3,
+    ONLP_THERMAL_1_ON_MAIN_BROAD,
+    ONLP_THERMAL_2_ON_MAIN_BROAD,
+    ONLP_THERMAL_3_ON_MAIN_BROAD,
+    ONLP_THERMAL_4_ON_MAIN_BROAD,
+    ONLP_THERMAL_5_ON_MAIN_BROAD,
+    ONLP_THERMAL_1_ON_PSU1,
+    ONLP_THERMAL_2_ON_PSU1,
+    ONLP_THERMAL_1_ON_PSU2,
+    ONLP_THERMAL_2_ON_PSU2,
+    ONLP_THERMAL_MAX
+};
 
-#define PSU1_AC_HWMON_PREFIX "/sys/bus/i2c/devices/11-0053/"
-#define PSU2_AC_HWMON_PREFIX "/sys/bus/i2c/devices/10-0050/"
+#define ONLP_THERMAL_COUNT 14 /*include "reserved"*/
 
-#define PSU1_AC_HWMON_NODE(node) PSU1_AC_HWMON_PREFIX#node
-#define PSU2_AC_HWMON_NODE(node) PSU2_AC_HWMON_PREFIX#node
+/* Fan definitions*/
+enum onlp_fan_id {
+    ONLP_FAN_1 = 1,
+    ONLP_FAN_2,
+    ONLP_FAN_3,
+    ONLP_FAN_4,
+    ONLP_FAN_PSU_1,
+    ONLP_FAN_PSU_2,
+    ONLP_FAN_MAX
+};
 
-#define IDPROM_PATH "/sys/class/i2c-adapter/i2c-1/1-0057/eeprom"
+#define ONLP_FAN_COUNT 6 /*include "reserved"*/
 
-int deviceNodeWriteInt(char *filename, int value, int data_len);
-int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len);
-int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len);
+/* PSU definitions*/
+enum onlp_psu_id {
+    ONLP_PSU_1 = 1,
+    ONLP_PSU_2,
+    ONLP_PSU_MAX
+};
 
-typedef enum psu_type {
-    PSU_TYPE_UNKNOWN,
-    PSU_TYPE_AC_F2B,
-    PSU_TYPE_AC_B2F,
-    PSU_TYPE_DC_48V_F2B,
-    PSU_TYPE_DC_48V_B2F,
-    PSU_TYPE_DC_12V_FANLESS,
-    PSU_TYPE_DC_12V_F2B,
-    PSU_TYPE_DC_12V_B2F
-} psu_type_t;
+#define ONLP_PSU_COUNT 2 /*include "reserved"*/
 
-psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
+/* LED definitions*/
+enum onlp_led_id {
+    ONLP_LED_MGMT = 1,
+    ONLP_LED_FAN1,
+    ONLP_LED_FAN2,
+    ONLP_LED_FAN3,
+    ONLP_LED_FAN4,
+    ONLP_LED_MAX
+};
 
-#define DEBUG_MODE 0
+#define ONLP_LED_COUNT 5 /*include "reserved"*/
 
-#if (DEBUG_MODE == 1)
-    #define DEBUG_PRINT(format, ...)   printf(format, __VA_ARGS__)
-#else
-    #define DEBUG_PRINT(format, ...)
-#endif
+
+/* platform functions*/
+#define PLATFORM_HWMON_DIAG_LOCK platform_hwmon_diag_enable_write(0)
+#define PLATFORM_HWMON_DIAG_UNLOCK platform_hwmon_diag_enable_write(1)
+int platform_hwmon_diag_enable_read(int *enable);
+int platform_hwmon_diag_enable_write(int enable);
+
+
+
 
 #endif  /* __PLATFORM_LIB_H__ */
 

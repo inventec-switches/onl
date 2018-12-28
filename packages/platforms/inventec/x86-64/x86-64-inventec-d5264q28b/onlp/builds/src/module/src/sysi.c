@@ -25,8 +25,11 @@
  ***********************************************************/
 #include <unistd.h>
 #include <fcntl.h>
+#include <linux/i2c-dev.h>
 
 #include <onlplib/file.h>
+#include <onlplib/i2c.h>
+#include <onlplib/onie.h>
 #include <onlp/platformi/sysi.h>
 #include <onlp/platformi/ledi.h>
 #include <onlp/platformi/thermali.h>
@@ -38,19 +41,209 @@
 
 #include "platform_lib.h"
 
-#define NUM_OF_THERMAL_ON_MAIN_BROAD  CHASSIS_THERMAL_COUNT
-#define NUM_OF_FAN_ON_MAIN_BROAD      CHASSIS_FAN_COUNT
-#define NUM_OF_PSU_ON_MAIN_BROAD      2
-#define NUM_OF_LED_ON_MAIN_BROAD      5
+#define SYSI_ONIE_TYPE_SUPPORT_NUM        17
+#define SYSI_PLATFORM_INFO_TYPE_STR_MAX   10
+#define SYSI_PLATFORM_INFO_NUM             2
 
-#define PREFIX_PATH_ON_CPLD_DEV          "/sys/bus/i2c/devices/"
-#define NUM_OF_CPLD                      3
-static char arr_cplddev_name[NUM_OF_CPLD][10] =
-{
- "4-0060",
- "5-0062",
- "6-0064"
+/**
+ *  The TLV Types.
+ */
+#define TLV_CODE_PRODUCT_NAME   0x21
+#define TLV_CODE_PART_NUMBER    0x22
+#define TLV_CODE_SERIAL_NUMBER  0x23
+#define TLV_CODE_MAC_BASE       0x24
+#define TLV_CODE_MANUF_DATE     0x25
+#define TLV_CODE_DEVICE_VERSION 0x26
+#define TLV_CODE_LABEL_REVISION 0x27
+#define TLV_CODE_PLATFORM_NAME  0x28
+#define TLV_CODE_ONIE_VERSION   0x29
+#define TLV_CODE_MAC_SIZE       0x2A
+#define TLV_CODE_MANUF_NAME     0x2B
+#define TLV_CODE_MANUF_COUNTRY  0x2C
+#define TLV_CODE_VENDOR_NAME    0x2D
+#define TLV_CODE_DIAG_VERSION   0x2E
+#define TLV_CODE_SERVICE_TAG    0x2F
+#define TLV_CODE_VENDOR_EXT     0xFD
+#define TLV_CODE_CRC_32         0xFE
+
+static uint8_t __tlv_code_list[SYSI_ONIE_TYPE_SUPPORT_NUM] = {
+    TLV_CODE_PRODUCT_NAME,
+    TLV_CODE_PART_NUMBER,
+    TLV_CODE_SERIAL_NUMBER,
+    TLV_CODE_MAC_BASE,
+    TLV_CODE_MANUF_DATE,
+    TLV_CODE_DEVICE_VERSION,
+    TLV_CODE_LABEL_REVISION,
+    TLV_CODE_PLATFORM_NAME,
+    TLV_CODE_ONIE_VERSION,
+    TLV_CODE_MAC_SIZE,
+    TLV_CODE_MANUF_NAME,
+    TLV_CODE_MANUF_COUNTRY,
+    TLV_CODE_VENDOR_NAME,
+    TLV_CODE_DIAG_VERSION,
+    TLV_CODE_SERVICE_TAG,
+    TLV_CODE_VENDOR_EXT,
+    TLV_CODE_CRC_32
 };
+
+
+static int _sysi_version_parsing(char* file_str, char* str_buf, char* version);
+static void _case_tlv_code_string(onlp_onie_info_t* info, char** member, char* path);
+static int _parse_tlv(onlp_onie_info_t* info, uint8_t type);
+
+static int _sysi_version_parsing(char* file_str, char* str_buf, char* version)
+{
+    int rv = ONLP_STATUS_OK;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX*4];
+    char *temp;
+
+    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX*4, &len, file_str);
+    if( rv != ONLP_STATUS_OK ) { return rv; }
+
+    temp = strstr(buf, str_buf);
+    if(temp) {
+        temp += strlen(str_buf);
+        snprintf(version,ONLP_CONFIG_INFO_STR_MAX, temp);
+        /*remove '\n'*/
+        version[strlen(version)-1] = '\0';
+    } else {
+        rv = ONLP_STATUS_E_MISSING;
+    }
+    return rv;
+}
+
+static void _case_tlv_code_string(onlp_onie_info_t* info, char** member, char* path)
+{
+    int rv = ONLP_STATUS_OK;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+    rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
+    if( rv == ONLP_STATUS_OK ) {
+        info->_hdr_length += 2;
+        buf[strlen(buf)-1] = '\0';
+        *member = aim_fstrdup("%s",buf);
+        info->_hdr_length += strlen(*member);
+    } else {
+        *member = aim_zmalloc(1);
+        rv = ONLP_STATUS_OK;
+    }
+    return;
+}
+ 
+
+static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
+{
+    int rv = ONLP_STATUS_OK;
+    int len;
+    char buf[ONLP_CONFIG_INFO_STR_MAX];
+    switch(type)
+       {
+           case TLV_CODE_PRODUCT_NAME:
+               _case_tlv_code_string(info, &(info->product_name), INV_SYS_PREFIX"product_name");
+               break;
+           case TLV_CODE_PART_NUMBER:
+               _case_tlv_code_string(info, &(info->part_number), INV_SYS_PREFIX"pn");
+               break;
+           case TLV_CODE_SERIAL_NUMBER:
+               _case_tlv_code_string(info, &(info->serial_number), INV_SYS_PREFIX"sn");
+               break;
+           case TLV_CODE_MANUF_DATE:
+               _case_tlv_code_string(info, &(info->manufacture_date), INV_SYS_PREFIX"man_date");
+               break;
+           case TLV_CODE_LABEL_REVISION:
+               _case_tlv_code_string(info, &(info->label_revision), INV_SYS_PREFIX"label_rev");
+               break;
+           case TLV_CODE_PLATFORM_NAME:
+               _case_tlv_code_string(info, &(info->platform_name), INV_SYS_PREFIX"plat_name");
+               break;
+           case TLV_CODE_ONIE_VERSION:
+               _case_tlv_code_string(info, &(info->onie_version), INV_SYS_PREFIX"ldr_ver");
+               break;
+           case TLV_CODE_MANUF_NAME:
+               _case_tlv_code_string(info, &(info->manufacturer), INV_SYS_PREFIX"manufacturer");
+               break;
+           case TLV_CODE_MANUF_COUNTRY:
+               _case_tlv_code_string(info, &(info->country_code), INV_SYS_PREFIX"country_code");
+               break;
+           case TLV_CODE_VENDOR_NAME:
+               _case_tlv_code_string(info, &(info->vendor), INV_SYS_PREFIX"vendor_name");
+               break;
+           case TLV_CODE_SERVICE_TAG:
+               _case_tlv_code_string(info, &(info->service_tag), INV_SYS_PREFIX"service_tag");
+               break;
+           case TLV_CODE_DIAG_VERSION:
+               _case_tlv_code_string(info, &(info->diag_version), INV_SYS_PREFIX"diag_ver");
+               break;
+
+           case TLV_CODE_MAC_BASE:
+               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"base_mac_addr" );
+               if( rv == ONLP_STATUS_OK ) {
+                   if(sscanf( buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\n",                               
+                        &info->mac[0], &info->mac[1], &info->mac[2],
+                        &info->mac[3], &info->mac[4], &info->mac[5]) == 6) {
+                        info->_hdr_length += 2;
+                        info->_hdr_length += 6;
+                   } else {
+                       /*parsing fail*/
+                       memset(info->mac, 0, 6);
+                   }
+               } else {
+                   memset(info->mac, 0, 6);
+                   rv = ONLP_STATUS_OK;
+               }
+               break;
+
+           case TLV_CODE_DEVICE_VERSION:
+               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"dev_ver");
+               if( rv == ONLP_STATUS_OK ) {
+                   info->_hdr_length += 2;
+                   info->device_version= (uint8_t)strtoul(buf, NULL, 0);
+                   info->_hdr_length += 1;
+               }else{
+                   info->device_version = 0;
+                   rv = ONLP_STATUS_OK;
+               }
+               break;
+           case TLV_CODE_MAC_SIZE:
+               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"mac_addr");
+               if( rv == ONLP_STATUS_OK ) {
+                   info->_hdr_length += 2;
+                   info->mac_range = (uint16_t)strtoul(buf, NULL, 0);
+                   info->_hdr_length += 2;
+               }else{
+                   info->mac_range = 0;
+                   rv = ONLP_STATUS_OK;
+               }
+               break;
+
+           case TLV_CODE_VENDOR_EXT:
+               list_init(&info->vx_list);
+               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"vendor_ext");
+               if( rv == ONLP_STATUS_OK ) {
+                   /*TODO*/
+               }
+               rv = ONLP_STATUS_OK;
+               break;
+
+           case TLV_CODE_CRC_32:
+               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"crc32");
+               if( rv == ONLP_STATUS_OK ) {
+                   info->_hdr_length += 2;
+                   info->crc = (uint32_t)strtoul(buf, NULL, 0);
+                   info->_hdr_length += 4;
+               }else{
+                   info->crc = 0;
+                   rv = ONLP_STATUS_OK;
+               }
+               break;
+
+           default:
+               break;
+       }
+    return rv;
+}
+
 
 const char*
 onlp_sysi_platform_get(void)
@@ -58,40 +251,138 @@ onlp_sysi_platform_get(void)
     return "x86-64-inventec-d5264q28b-r0";
 }
 
+
+/*
+ * This function is called to return the physical base address
+ * of the ONIE boot rom.
+ *
+ * The ONLP framework will mmap() and parse the ONIE TLV structure
+ * from the given data.
+ *
+ * If you platform does not support a mappable address for the ONIE
+ * eeprom then you should not provide this function at all.
+ *
+ * For the purposes of this example we will provide it but
+ * return UNSUPPORTED (which is all the default implementation does).
+ *
+ */
+int
+onlp_sysi_onie_data_phys_addr_get(void** pa)
+{
+    return ONLP_STATUS_E_UNSUPPORTED;
+}
+
+
+/*
+ * If you cannot provide a base address you must provide the ONLP
+ * framework the raw ONIE data through whatever means necessary.
+ *
+ * This function will be called as a backup in the event that
+ * onlp_sysi_onie_data_phys_addr_get() fails.
+ */
 int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
-    uint8_t* rdata = aim_zmalloc(256);
-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
-        if(*size == 256) {
-            *data = rdata;
-            return ONLP_STATUS_OK;
-        }
-    }
+#if 0
+    int rv;
+    int i;
 
-    aim_free(rdata);
-    *size = 0;
-    return ONLP_STATUS_E_INTERNAL;
+    /*
+     * This represents the example ONIE data.
+     */
+    static uint8_t onie_data[] = {
+        'T', 'l', 'v','I','n','f','o', 0,
+        0x1, 0x0, 0x0,
+        0x21, 0x8, 'O', 'N', 'L', 'P', 'I', 'E', 0, 0,
+        0x22, 0x3, 'O', 'N', 'L',
+        0xFE, 0x4, 0x4b, 0x1b, 0x1d, 0xde,
+    };
+
+
+    memcpy(*data, onie_data, ONLPLIB_CONFIG_I2C_BLOCK_SIZE);
+    return 0;
+#endif
+    return ONLP_STATUS_E_UNSUPPORTED;
 }
+
+/*
+ * IF the ONLP frame calles onlp_sysi_onie_data_get(),
+ * if will call this function to free the data when it
+ * is finished with it.
+ *
+ * This function is optional, and depends on the data
+ * you return in onlp_sysi_onie_data_get().
+ */
+void
+onlp_sysi_onie_data_free(uint8_t* data)
+{
+    /*
+     * We returned a static array in onlp_sysi_onie_data_get()
+     * so no free operation is required.
+     */
+    if(data) {
+        aim_free(data);
+    }
+}
+
+
+int
+onlp_sysi_onie_info_get (onlp_onie_info_t *onie)
+{
+    int rv = ONLP_STATUS_OK;
+    int i;
+    onie->_hdr_length = 0;
+    for(i = 0; i < SYSI_ONIE_TYPE_SUPPORT_NUM; i++)
+    {
+       if( rv != ONLP_STATUS_OK ) { return rv; }
+       rv = _parse_tlv(onie, (__tlv_code_list[i]));
+
+    } 
+
+    onie->_hdr_id_string = aim_fstrdup("TlvInfo");
+    onie->_hdr_version = 0x1;
+    return rv;
+}
+
 
 int
 onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
 {
-    int   i, v[NUM_OF_CPLD]={0};
-    for (i=0; i < NUM_OF_CPLD; i++) {
-        v[i] = 0;
-        if(onlp_file_read_int(v+i, "%s%s/version", PREFIX_PATH_ON_CPLD_DEV, arr_cplddev_name[i]) < 0) {
-            return ONLP_STATUS_E_INTERNAL;
-        }
+    int rv = ONLP_STATUS_OK;
+    char cpld_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
+    char other_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
+    char version[ONLP_CONFIG_INFO_STR_MAX];
+
+    rv = _sysi_version_parsing(INV_SYSLED_PREFIX"info", "The CPLD version is ", version);
+    if( rv != ONLP_STATUS_OK ) { return rv; }
+    snprintf(cpld_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s ", cpld_str, version);
+    rv = _sysi_version_parsing(INV_HWMON_PREFIX"version", "ver: ", version);
+    if( rv != ONLP_STATUS_OK ) { return rv; }
+    snprintf(other_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s.%s "
+                     ,other_str, "psoc", version);
+
+    /*cpld version*/
+    if(strlen(cpld_str) > 0) {
+        pi->cpld_versions = aim_fstrdup("%s",cpld_str);
     }
-    pi->cpld_versions = aim_fstrdup("%d.%d.%d", v[0], v[1], v[2]);
-    return 0;
+
+    /*other version*/
+    if(strlen(other_str) > 0) {
+        pi->other_versions = aim_fstrdup("%s",other_str);
+    }
+    return rv;
 }
 
 void
 onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
 {
-    aim_free(pi->cpld_versions);
+    if(pi->cpld_versions) {
+        aim_free(pi->cpld_versions);
+    }
+    if(pi->other_versions) {
+        aim_free(pi->other_versions);
+    }
+    return;
 }
 
 
@@ -102,194 +393,34 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     onlp_oid_t* e = table;
     memset(table, 0, max*sizeof(onlp_oid_t));
 
-    /* 4 Thermal sensors on the chassis */
-    for (i = 1; i <= NUM_OF_THERMAL_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_THERMAL_ID_CREATE(i);
+    for(i=1; i<ONLP_THERMAL_MAX; i++){
+        *e++ = ONLP_THERMAL_ID_CREATE(i); 
     }
-
-    /* 5 LEDs on the chassis */
-    for (i = 1; i <= NUM_OF_LED_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_LED_ID_CREATE(i);
+    for(i=1; i<ONLP_FAN_MAX; i++){
+        *e++ = ONLP_FAN_ID_CREATE(i); 
     }
-
-    /* 2 PSUs on the chassis */
-    for (i = 1; i <= NUM_OF_PSU_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_PSU_ID_CREATE(i);
+    for(i=1; i<ONLP_PSU_MAX; i++){
+        *e++ = ONLP_PSU_ID_CREATE(i); 
     }
-
-    /* 4 Fans on the chassis */
-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
-    {
-        *e++ = ONLP_FAN_ID_CREATE(i);
+    for(i=1; i<ONLP_LED_MAX; i++){
+        *e++ = ONLP_LED_ID_CREATE(i); 
     }
-
-    return 0;
+    return ONLP_STATUS_OK;
 }
 
-typedef struct fan_ctrl_policy {
-   int duty_cycle;
-   int temp_down_adjust; /* The boundary temperature to down adjust fan speed */
-   int temp_up_adjust;   /* The boundary temperature to up adjust fan speed */
-} fan_ctrl_policy_t;
-
-fan_ctrl_policy_t  fan_ctrl_policy_f2b[] = {
-{32,      0, 174000},
-{38, 170000, 182000},
-{50, 178000, 190000},
-{63, 186000,      0}
-};
-
-fan_ctrl_policy_t  fan_ctrl_policy_b2f[] = {
-{32,     0,  140000},
-{38, 135000, 150000},
-{50, 145000, 160000},
-{69, 155000,      0}
-};
-
-#define FAN_DUTY_CYCLE_MAX  100
-#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/2-0066/fan_duty_cycle_percentage"
-
-/*
- * For AC power Front to Back :
- *	* If any fan fail, please fan speed register to 15
- *	* The max value of Fan speed register is 9
- *		[LM75(48) + LM75(49) + LM75(4A)] > 174  => set Fan speed value from 4 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] > 182  => set Fan speed value from 5 to 7
- *		[LM75(48) + LM75(49) + LM75(4A)] > 190  => set Fan speed value from 7 to 9
- *
- *		[LM75(48) + LM75(49) + LM75(4A)] < 170  => set Fan speed value from 5 to 4
- *		[LM75(48) + LM75(49) + LM75(4A)] < 178  => set Fan speed value from 7 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] < 186  => set Fan speed value from 9 to 7
- *
- *
- * For  AC power Back to Front :
- *	* If any fan fail, please fan speed register to 15
- *	* The max value of Fan speed register is 10
- *		[LM75(48) + LM75(49) + LM75(4A)] > 140  => set Fan speed value from 4 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] > 150  => set Fan speed value from 5 to 7
- *		[LM75(48) + LM75(49) + LM75(4A)] > 160  => set Fan speed value from 7 to 10
- *
- *		[LM75(48) + LM75(49) + LM75(4A)] < 135  => set Fan speed value from 5 to 4
- *		[LM75(48) + LM75(49) + LM75(4A)] < 145  => set Fan speed value from 7 to 5
- *		[LM75(48) + LM75(49) + LM75(4A)] < 155  => set Fan speed value from 10 to 7
- */
 int
 onlp_sysi_platform_manage_fans(void)
 {
-    int i = 0, arr_size, temp;
-    fan_ctrl_policy_t *policy;
-    int cur_duty_cycle, new_duty_cycle;
-    onlp_thermal_info_t thermal_1, thermal_2, thermal_3;
-
-    int  fd, len;
-    char  buf[10] = {0};
-
-    /* Get each fan status
-     */
-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
-    {
-        onlp_fan_info_t fan_info;
-
-        if (onlp_fani_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
-            AIM_LOG_ERROR("Unable to get fan(%d) status\r\n", i);
-            return ONLP_STATUS_E_INTERNAL;
-        }
-
-        /* Decision 1: Set fan as full speed if any fan is failed.
-         */
-        if (fan_info.status & ONLP_FAN_STATUS_FAILED) {
-            AIM_LOG_ERROR("Fan(%d) is not working, set the other fans as full speed\r\n", i);
-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-        }
-
-        /* Decision 1.1: Set fan as full speed if any fan is not present.
-         */
-        if (!(fan_info.status & ONLP_FAN_STATUS_PRESENT)) {
-            AIM_LOG_ERROR("Fan(%d) is not present, set the other fans as full speed\r\n", i);
-            return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-        }
-
-        /* Get fan direction (Only get the first one since all fan direction are the same)
-         */
-        if (i == 1) {
-            if (fan_info.status & ONLP_FAN_STATUS_F2B) {
-                policy   = fan_ctrl_policy_f2b;
-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_f2b);
-            }
-            else {
-                policy   = fan_ctrl_policy_b2f;
-                arr_size = AIM_ARRAYSIZE(fan_ctrl_policy_b2f);
-            }
-        }
-    }
-
-    /* Get current fan speed
-     */
-    fd = open(FAN_SPEED_CTRL_PATH, O_RDONLY);
-    if (fd == -1){
-        AIM_LOG_ERROR("Unable to open fan speed control node (%s)", FAN_SPEED_CTRL_PATH);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    len = read(fd, buf, sizeof(buf));
-    close(fd);
-    if (len <= 0) {
-        AIM_LOG_ERROR("Unable to read fan speed from (%s)", FAN_SPEED_CTRL_PATH);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    cur_duty_cycle = atoi(buf);
-
-
-    /* Decision 2: If no matched fan speed is found from the policy,
-     *             use FAN_DUTY_CYCLE_MIN as default speed
-     */
-	for (i = 0; i < arr_size; i++) {
-	    if (policy[i].duty_cycle != cur_duty_cycle)
-		    continue;
-
-		break;
-	}
-
-	if (i == arr_size) {
-        return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), policy[0].duty_cycle);
-	}
-
-    /* Get current temperature
-     */
-    if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(2), &thermal_1) != ONLP_STATUS_OK ||
-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_2) != ONLP_STATUS_OK ||
-        onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(4), &thermal_3) != ONLP_STATUS_OK) {
-        AIM_LOG_ERROR("Unable to read thermal status");
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    temp = thermal_1.mcelsius + thermal_2.mcelsius + thermal_3.mcelsius;
-
-
-    /* Decision 3: Decide new fan speed depend on fan direction/current fan speed/temperature
-     */
-    new_duty_cycle = cur_duty_cycle;
-
-    if ((temp >= policy[i].temp_up_adjust) && (i != (arr_size-1))) {
-	    new_duty_cycle = policy[i+1].duty_cycle;
-	}
-	else if ((temp <= policy[i].temp_down_adjust) && (i != 0)) {
-	    new_duty_cycle = policy[i-1].duty_cycle;
-	}
-
-	if (new_duty_cycle == cur_duty_cycle) {
-        /* Duty cycle does not change, just return */
-	    return ONLP_STATUS_OK;
-	}
-
-    return onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
+    /*Ensure switch manager is working*/
+    PLATFORM_HWMON_DIAG_LOCK;
+    return ONLP_STATUS_OK;
 }
 
 int
 onlp_sysi_platform_manage_leds(void)
 {
-    return ONLP_STATUS_E_UNSUPPORTED;
+    /*Ensure switch manager is working*/
+    PLATFORM_HWMON_DIAG_LOCK;
+    return ONLP_STATUS_OK;
 }
 

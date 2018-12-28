@@ -1140,7 +1140,7 @@ err_inv_pthread_fn_1:
 static ssize_t s_show(struct kobject *kobj, struct attribute *attr, char *buf)
 {
     int fan_absence;
-    size_t count;
+    size_t count = 0;
 
     fan_absence = fans_control();
     count += sprintf(&buf[count], "%d\n", fan_absence);

@@ -16,5 +16,5 @@ class OnlPlatform_x86_64_inventec_d7054q28b_r0(OnlPlatformInventec,
         self.insmod('inv_eeprom')
         self.insmod('swps')
         self.insmod('vpd')
-        self.insmod('inv_pthread')
+        #self.insmod('inv_pthread')
         return True

@@ -153,7 +153,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
     info->status |= _onlp_get_fan_direction_on_psu();
 
     if (info->status & ONLP_FAN_STATUS_FAILED) {
-        return ONLP_STATUS_OK;
+	return ONLP_STATUS_OK;
     }
 
     index = ONLP_OID_ID_GET(info->hdr.id);
@@ -173,7 +173,6 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
 
     return ONLP_STATUS_OK;
 }
-
 
 /*
  * This function will be called prior to all of onlp_fani_* functions.
@@ -197,22 +196,22 @@ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
     switch (local_id)
     {
 	case FAN_1_ON_PSU1:
-        case FAN_1_ON_PSU2:
-            rc = _onlp_fani_info_get_fan_on_psu(local_id, info);
-            break;
-        case FAN_1_ON_MAIN_BOARD:
-        case FAN_2_ON_MAIN_BOARD:
-        case FAN_3_ON_MAIN_BOARD:
-        case FAN_4_ON_MAIN_BOARD:
-        case FAN_5_ON_MAIN_BOARD:
-        case FAN_6_ON_MAIN_BOARD:
-        case FAN_7_ON_MAIN_BOARD:
-        case FAN_8_ON_MAIN_BOARD:
-            rc = _onlp_fani_info_get_fan(local_id, info);
-            break;
-        default:
-            rc = ONLP_STATUS_E_INVALID;
-            break;
+	case FAN_1_ON_PSU2:
+	    rc = _onlp_fani_info_get_fan_on_psu(local_id, info);
+	    break;
+	case FAN_1_ON_MAIN_BOARD:
+	case FAN_2_ON_MAIN_BOARD:
+	case FAN_3_ON_MAIN_BOARD:
+	case FAN_4_ON_MAIN_BOARD:
+	case FAN_5_ON_MAIN_BOARD:
+	case FAN_6_ON_MAIN_BOARD:
+	case FAN_7_ON_MAIN_BOARD:
+	case FAN_8_ON_MAIN_BOARD:
+	    rc = _onlp_fani_info_get_fan(local_id, info);
+	    break;
+	default:
+	    rc = ONLP_STATUS_E_INVALID;
+	    break;
     }
 
     return rc;
@@ -238,33 +237,33 @@ onlp_fani_percentage_set(onlp_oid_t id, int p)
 
     /* reject p=0 (p=0, stop fan) */
     if (p == 0){
-        return ONLP_STATUS_E_INVALID;
+	return ONLP_STATUS_E_INVALID;
     }
 
     switch (fid)
-        {
-        case FAN_1_ON_PSU1:
-                        return psu_pmbus_info_set(PSU1_ID, "rpm_psu1", p);
-        case FAN_1_ON_PSU2:
-                        return psu_pmbus_info_set(PSU2_ID, "rpm_psu2", p);
-        case FAN_1_ON_MAIN_BOARD:
-        case FAN_2_ON_MAIN_BOARD:
-        case FAN_3_ON_MAIN_BOARD:
-        case FAN_4_ON_MAIN_BOARD:
-        case FAN_5_ON_MAIN_BOARD:
-        case FAN_6_ON_MAIN_BOARD:
-        case FAN_7_ON_MAIN_BOARD:
-        case FAN_8_ON_MAIN_BOARD:
-                        path = FAN_NODE(fan_duty_cycle_percentage);
-                        break;
-        default:
-            return ONLP_STATUS_E_INVALID;
+    {
+	case FAN_1_ON_PSU1:
+	    return psu_pmbus_info_set(PSU1_ID, "rpm_psu1", p);
+	case FAN_1_ON_PSU2:
+	    return psu_pmbus_info_set(PSU2_ID, "rpm_psu2", p);
+	case FAN_1_ON_MAIN_BOARD:
+	case FAN_2_ON_MAIN_BOARD:
+	case FAN_3_ON_MAIN_BOARD:
+	case FAN_4_ON_MAIN_BOARD:
+	case FAN_5_ON_MAIN_BOARD:
+	case FAN_6_ON_MAIN_BOARD:
+	case FAN_7_ON_MAIN_BOARD:
+	case FAN_8_ON_MAIN_BOARD:
+	    path = FAN_NODE(fan_duty_cycle_percentage);
+	    break;
+	default:
+	    return ONLP_STATUS_E_INVALID;
     }
 
     if (onlp_file_write_int(p, path, NULL) != 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
+	AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
+	return ONLP_STATUS_E_INTERNAL;
     }
 
-        return ONLP_STATUS_OK;
+    return ONLP_STATUS_OK;
 }

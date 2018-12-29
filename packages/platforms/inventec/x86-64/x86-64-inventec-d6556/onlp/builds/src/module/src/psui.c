@@ -1,7 +1,7 @@
 /************************************************************
  * psui.c
  *
- *           Copyright 2018 Inventec Technology Corporation.
+ *	   Copyright 2018 Inventec Technology Corporation.
  *
  ************************************************************
  *
@@ -20,11 +20,11 @@
 #define PSU_STATUS_FAULT	(4)
 #define PSU_STATUS_UNINSTALLED	(7)
 
-#define VALIDATE(_id)                           \
-    do {                                        \
-        if(!ONLP_OID_IS_PSU(_id)) {             \
-            return ONLP_STATUS_E_INVALID;       \
-        }                                       \
+#define VALIDATE(_id)			   \
+    do {					\
+	if(!ONLP_OID_IS_PSU(_id)) {	     \
+	    return ONLP_STATUS_E_INVALID;       \
+	}				       \
     } while(0)
 
 static char* status_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
@@ -58,8 +58,8 @@ psu_status_info_get(int id, char *node, int *value)
     ret = onlp_file_read_int(value, node_path);
 
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
-        return ONLP_STATUS_E_INTERNAL;
+	AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+	return ONLP_STATUS_E_INTERNAL;
     }
 
     return ONLP_STATUS_OK;
@@ -86,13 +86,13 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "model");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
-        /*remove the '\n'*/
-        temp[strlen((char*)temp)-1] = 0;
-        snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
+	/*remove the '\n'*/
+	temp[strlen((char*)temp)-1] = 0;
+	snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
     }
     else {
-        AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
-        strncpy(info->model, "N/A", 3);
+	AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
+	strncpy(info->model, "N/A", 3);
     }
 #endif
 
@@ -100,13 +100,13 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "serial");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
-        /*remove the '\n'*/
-        temp[strlen((char*)temp)-1] = 0;
-        snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
+	/*remove the '\n'*/
+	temp[strlen((char*)temp)-1] = 0;
+	snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
     }
     else {
-        AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
-        strncpy(info->serial, "N/A", 3);
+	AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
+	strncpy(info->serial, "N/A", 3);
     }
 }
 
@@ -123,7 +123,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "vout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read vout from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read vout from file(%s)\r\n", node_path);
     }
     else {
 	info->mvout = value;
@@ -134,7 +134,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "iout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read iout from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read iout from file(%s)\r\n", node_path);
     }
     else {
 	info->miout = value;
@@ -145,7 +145,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "pout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read pout from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read pout from file(%s)\r\n", node_path);
     }
     else {
 	info->mpout = value;
@@ -156,7 +156,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "vin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read vin from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read vin from file(%s)\r\n", node_path);
     }
     else {
 	info->mvin = value;
@@ -167,7 +167,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "iin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read iin from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read iin from file(%s)\r\n", node_path);
     }
     else {
 	info->miin = value;
@@ -178,7 +178,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     sprintf(node_path, module_devfiles__[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
-        AIM_LOG_ERROR("Unable to read pin from file(%s)\r\n", node_path);
+	AIM_LOG_ERROR("Unable to read pin from file(%s)\r\n", node_path);
     }
     else {
 	info->mpin = value;
@@ -196,7 +196,7 @@ static onlp_psu_info_t pinfo[] =
 {
     { }, /* Not used */
     {
-        {
+	{
 	    ONLP_PSU_ID_CREATE(PSU1_ID), "PSU-1", 0,
 	    {
 		ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU1),
@@ -206,7 +206,7 @@ static onlp_psu_info_t pinfo[] =
 	},
     },
     {
-        {
+	{
 	    ONLP_PSU_ID_CREATE(PSU2_ID), "PSU-2", 0,
 	    {
 		ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU2),
@@ -231,7 +231,7 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 
     /* Get the present state */
     if ((ret = psu_status_info_get(index, "psu", &val)) == ONLP_STATUS_E_INTERNAL) {
-        printf("Unable to read PSU(%d) node(psu)\r\n", index);
+	printf("Unable to read PSU(%d) node(psu)\r\n", index);
 	return ret;
     }
 

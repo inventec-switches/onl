@@ -30,7 +30,7 @@
 
 
 /*
- * Definitions of D7264Q28B device
+ * Definitions of D6556 device
  */
 enum onlp_thermal_id {
     THERMAL_RESERVED = 0,

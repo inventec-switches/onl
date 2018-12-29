@@ -150,7 +150,7 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-#if 1
+#if 0
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
 
     memset(data, 0, 256);

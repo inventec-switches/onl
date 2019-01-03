@@ -22,6 +22,7 @@
 #define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
 
+#define INV_SFP_EEPROM_UPDATE	"/sys/class/swps/module/eeprom_update"
 #define CHASSIS_SFP_COUNT	(54)
 
 /*
@@ -136,4 +137,3 @@ int psu_pmbus_info_set(int id, char *node, int value);
 #endif
 
 #endif  /* __PLATFORM_LIB_H__ */
-

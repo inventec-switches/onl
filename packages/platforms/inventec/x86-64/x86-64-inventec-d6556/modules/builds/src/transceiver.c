@@ -1713,29 +1713,9 @@ int
 common_get_eeprom(struct transvr_obj_s *self, char *buf){
 
     int err = DEBUG_TRANSVR_INT_VAL;
+    unsigned char *eeprom_update = get_eeprom_update();
 
-#if 1
-    if (self->state == STATE_TRANSVR_CONNECTED &&
-        self->mode == TRANSVR_MODE_POLLING &&
-        TRANSVR_INFO_CACHE_ENABLE) {
-        memset(buf, 0, self->eeprom_map_p->length_eeprom);
-        memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
-        *(buf+self->eeprom_map_p->length_eeprom) = '\n';
-        return self->eeprom_map_p->length_eeprom;
-    }
-    err = _check_by_mode(self, &_common_update_attr_eeprom,
-                         "common_get_eeprom");
-    if (err < 0){
-        return snprintf(buf, LEN_TRANSVR_M_STR, "%d\n", err);
-    }
-    memset(buf, 0, self->eeprom_map_p->length_eeprom);
-    memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
-    *(buf+self->eeprom_map_p->length_eeprom) = '\n';
-    return self->eeprom_map_p->length_eeprom;
-#else
-    unsigned int eeprom_update = get_eeprom_update();
-
-    if (!(eeprom_update & (1 << self->port_no)) &&
+    if (!(eeprom_update[self->port_no/8] & (1 << self->port_no%8)) &&
 	(self->state == STATE_TRANSVR_CONNECTED &&
         self->mode == TRANSVR_MODE_POLLING &&
         TRANSVR_INFO_CACHE_ENABLE)) {
@@ -1752,10 +1732,9 @@ common_get_eeprom(struct transvr_obj_s *self, char *buf){
     memset(buf, 0, self->eeprom_map_p->length_eeprom);
     memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
     *(buf+self->eeprom_map_p->length_eeprom) = '\n';
-    eeprom_update &= ~(1 << self->port_no);
+    eeprom_update[self->port_no/8] &= ~(1 << self->port_no%8);
     set_eeprom_update(eeprom_update);
     return self->eeprom_map_p->length_eeprom;
-#endif
 }
 
 

@@ -663,6 +663,8 @@ struct transvr_obj_s {
     uint8_t extphy_offset;
 
     uint8_t eeprom[256];
+    uint8_t eeprom_update[8];
+    int port_no;
 
     /* ========== Object private property ==========
      */
@@ -803,10 +805,7 @@ int resync_channel_tier_2(struct transvr_obj_s *self);
 
 void alarm_msg_2_user(struct transvr_obj_s *self, char *emsg);
 
+unsigned char *get_eeprom_update(void);
+void set_eeprom_update(unsigned char value[8]);
+
 #endif /* TRANSCEIVER_H */
-
-
-
-
-
-

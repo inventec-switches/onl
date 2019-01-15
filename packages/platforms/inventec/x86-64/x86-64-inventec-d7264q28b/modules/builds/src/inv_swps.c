@@ -35,7 +35,12 @@ static union {
 } ueu_64;
 
 static int
-__swp_match(struct device *dev, const void *data){
+__swp_match(struct device *dev,
+#ifdef SWPS_KERN_VER_AF_3_10
+		const void *data){
+#else
+		void *data){
+#endif
 
     char *name = (char *)data;
     if (strcmp(dev_name(dev), name) == 0)
@@ -136,7 +141,6 @@ sscanf_2_binary(const char *buf) {
     }
     return -EBFONT;
 }
-
 
 static int
 _get_polling_period(void) {
@@ -258,7 +262,6 @@ set_eeprom_update(unsigned char value[8])
 {
     memcpy(ueu_64.eeprom_update_8, value, 8);
 }
-
 
 /* ========== R/W Functions module control attribute ==========
  */
@@ -446,7 +449,6 @@ store_attr_eeprom_update(struct device *dev_p,
     }
     return count;
 }
-
 
 /* ========== Show functions: For transceiver attribute ==========
  */

@@ -227,15 +227,22 @@ static u8 psoc_read8(struct i2c_client *client, u8 offset)
 #define PMBUS_MFR_DATE                  (0x9D)
 #define PMBUS_MFR_SERIAL                (0x9E)
 
+static unsigned char psu1_data_model[32], psu2_data_model[32];
+static unsigned char psu1_data_sn[32], psu2_data_sn[32];
+static struct mutex  psu_data_lock;
+
 static int psoc_i2c_bridge_read(struct i2c_client *client,
                                 unsigned char bus, 
                                 unsigned char chip, 
-                                char *addr,          int alen, 
-                                unsigned char *data, int len )
+                                unsigned char *addr,
+				int alen, 
+                                unsigned char *data,
+				int len )
 {
     unsigned char txdata[28], rxdata[28];
     int index, timeout;
-    
+    unsigned char *inv_data;
+
 	txdata[PSOC_I2C_STATUS] = 0;		/* the status */
 	txdata[PSOC_I2C_CNTRL] = ((alen & 3) << 5) | (len & 0x1f);	/* the sizes */
 	txdata[PSOC_I2C_ADDR] = (chip << 1) | PSOC_I2C_READ;		/* read address */
@@ -280,11 +287,49 @@ static int psoc_i2c_bridge_read(struct i2c_client *client,
  	}
     
     //---------------------------------------------------------------------
-    
     for(index=0; index < len; index++) {
         data[index] = rxdata[PSOC_I2C_DATA + alen + index];
     }
-    
+
+    if (*addr == PMBUS_MFR_MODEL) {
+	if (chip == 0x58) {
+	    inv_data = &psu1_data_model[0];
+	}
+	else
+	if (chip == 0x59) {
+	    inv_data = &psu2_data_model[0];
+	}
+	else {
+	    inv_data = NULL;
+	}
+    }
+    else
+    if (*addr == PMBUS_MFR_SERIAL) {
+	if (chip == 0x58) {
+	    inv_data = &psu1_data_sn[0];
+	}
+	else
+	if (chip == 0x59) {
+	    inv_data = &psu2_data_sn[0];
+	}
+	else {
+	    inv_data = NULL;
+	}
+    }
+    else {
+	inv_data = NULL;
+    }
+
+    if (inv_data) {
+	mutex_lock(&psu_data_lock);
+	memset(inv_data, 0, 32);
+	for(index=0; index < len; index++) {
+	    inv_data[index] = data[index];
+	}
+	inv_data[index] = '\0';
+	mutex_unlock(&psu_data_lock);
+    }
+
     return 0;
 }
 
@@ -669,6 +714,51 @@ static ssize_t show_psu(struct device *dev, struct device_attribute *da,
 	}
 }
 
+
+static ssize_t show_psu1_model(struct device *dev, struct device_attribute *da,
+			 char *buf)
+{
+	ssize_t ret;
+
+	mutex_lock(&psu_data_lock);
+	ret = sprintf(buf, "%s\n", psu1_data_model);
+	mutex_unlock(&psu_data_lock);
+	return ret;
+}
+
+static ssize_t show_psu1_sn(struct device *dev, struct device_attribute *da,
+			 char *buf)
+{
+	ssize_t ret;
+
+	mutex_lock(&psu_data_lock);
+	ret = sprintf(buf, "%s\n", psu1_data_sn);
+	mutex_unlock(&psu_data_lock);
+	return ret;
+}
+
+static ssize_t show_psu2_model(struct device *dev, struct device_attribute *da,
+			 char *buf)
+{
+	ssize_t ret;
+
+	mutex_lock(&psu_data_lock);
+	ret = sprintf(buf, "%s\n", psu2_data_model);
+	mutex_unlock(&psu_data_lock);
+	return ret;
+}
+
+static ssize_t show_psu2_sn(struct device *dev, struct device_attribute *da,
+			 char *buf)
+{
+	ssize_t ret;
+
+	mutex_lock(&psu_data_lock);
+	ret = sprintf(buf, "%s\n", psu2_data_sn);
+	mutex_unlock(&psu_data_lock);
+	return ret;
+}
+
 static ssize_t show_psu_psoc(struct device *dev, struct device_attribute *da,
 			 char *buf)
 {
@@ -760,6 +850,11 @@ static SENSOR_DEVICE_ATTR(psu2_model,    S_IRUGO,			        show_psu,  0,       
 static SENSOR_DEVICE_ATTR(psu2_version,  S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_REVISION);
 static SENSOR_DEVICE_ATTR(psu2_date,     S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_DATE);
 static SENSOR_DEVICE_ATTR(psu2_sn,       S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_SERIAL);
+
+static SENSOR_DEVICE_ATTR(psu1_model2,   S_IRUGO,			        show_psu1_model, 0,     (1<<16) | (0<<8) | PMBUS_MFR_MODEL);
+static SENSOR_DEVICE_ATTR(psu1_sn2,      S_IRUGO,			        show_psu1_sn,    0,     (1<<16) | (0<<8) | PMBUS_MFR_SERIAL);
+static SENSOR_DEVICE_ATTR(psu2_model2,   S_IRUGO,			        show_psu2_model, 0,     (1<<16) | (0<<8) | PMBUS_MFR_MODEL);
+static SENSOR_DEVICE_ATTR(psu2_sn2,      S_IRUGO,			        show_psu2_sn,    0,     (1<<16) | (0<<8) | PMBUS_MFR_SERIAL);
 		
 static SENSOR_DEVICE_ATTR(psoc_psu1_vin,      S_IRUGO,			        show_psu_psoc,  0,           PSOC_PSU_OFF(psu1_vin));
 static SENSOR_DEVICE_ATTR(psoc_psu1_vout,     S_IRUGO,			        show_psu_psoc,  0,           PSOC_PSU_OFF(psu1_vout));
@@ -862,6 +957,11 @@ static struct attribute *psoc_attributes[] = {
 	&sensor_dev_attr_psu2_date.dev_attr.attr,
 	&sensor_dev_attr_psu2_sn.dev_attr.attr,
 
+	&sensor_dev_attr_psu1_model2.dev_attr.attr,
+	&sensor_dev_attr_psu1_sn2.dev_attr.attr,
+	&sensor_dev_attr_psu2_model2.dev_attr.attr,
+	&sensor_dev_attr_psu2_sn2.dev_attr.attr,
+
 	&sensor_dev_attr_psu0.dev_attr.attr,
 	&sensor_dev_attr_psu1.dev_attr.attr,
 
@@ -907,7 +1007,9 @@ psoc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	i2c_set_clientdata(client, data);
 	mutex_init(&data->update_lock);
 	data->diag    = 0;
-	
+
+	mutex_init(&psu_data_lock);
+
 	/* Register sysfs hooks */
 	status = sysfs_create_group(&client->dev.kobj, &psoc_group);
 	if (status)

@@ -72,14 +72,6 @@ onlp_psui_init(void)
     return ONLP_STATUS_OK;
 }
 
-#if 1
-static void
-psu_module_name_get(int id, onlp_psu_info_t* info)
-{
-    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", "N/A");
-    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", "N/A");
-}
-#else
 static char* module2_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
@@ -95,7 +87,7 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     int ret, len;
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module2_devfiles__[id], "model");
+    sprintf(node_path, module2_devfiles__[id], "model2");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
 	/*remove the '\n'*/
@@ -108,7 +100,7 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module2_devfiles__[id], "sn");
+    sprintf(node_path, module2_devfiles__[id], "sn2");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
 	/*remove the '\n'*/
@@ -120,7 +112,6 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
         strncpy(info->serial, "N/A", 3);
     }
 }
-#endif
 
 static int
 psu_module_info_get(int id, onlp_psu_info_t* info)

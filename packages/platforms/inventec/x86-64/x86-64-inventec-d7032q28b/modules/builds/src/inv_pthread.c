@@ -660,8 +660,32 @@ void psu_get_voltin(void)
     SYSFS_LOG("[p_thread] PSU voltin = %u\n", psu_voltin);
 }
 
+#define PSU_MODEL_PATH_TEMPLATE	"/sys/class/hwmon/hwmon%d/device/psu%d_model"
+#define PSU_SN_PATH_TEMPLATE	"/sys/class/hwmon/hwmon%d/device/psu%d_sn"
+
+static void psu_minfo_update(int idx)
+{
+    char psu_minfo_path[MAX_PATH_SIZE], minfo[MIN_ACC_SIZE];
+
+    sprintf(&psu_minfo_path[0], PSU_MODEL_PATH_TEMPLATE, get_hwm_psoc(), idx );
+    inventec_show_attr(minfo, psu_minfo_path);
+
+    sprintf(&psu_minfo_path[0], PSU_SN_PATH_TEMPLATE, get_hwm_psoc(), idx );
+    inventec_show_attr(minfo, psu_minfo_path);
+}
+
 #define PSU_ATTR_STATE		("state")
 #define PSU_ATTR_STATE_LEN	(5)
+
+static char psu_minfo_state[PSU_DEV_GROUP_TOTAL][MIN_ACC_SIZE];
+
+static void psu_minfo_state_init(void)
+{
+    int i;
+    for (i = 0; i < PSU_DEV_GROUP_TOTAL; i++) {
+	memset(&psu_minfo_state[i][0], 0, MIN_ACC_SIZE);
+    }
+}
 
 /* psus_control() by inv_thread */
 int psus_control(int log_only)
@@ -670,7 +694,7 @@ int psus_control(int log_only)
     psu_dev_t *devnamep = NULL;
     char *invwirep = NULL;
     char *psu_statep = NULL;
-    int i, j, flag = 0;
+    int i, j, len, flag = 0;
 
     for (i = 0; i < PSU_DEV_GROUP_TOTAL; i++) {
 	devnamep = psu_dev_group[i].psu_dev_namep;
@@ -683,7 +707,12 @@ int psus_control(int log_only)
 		}
 		sprintf(acc_path, devnamep->inv_dev_pathp, invwirep);
 		//printk(KERN_INFO "[p_thread] RYU: %s/%d: acc_path = %s\n",__func__,__LINE__,acc_path);
-		if (inventec_show_attr(state, acc_path) <= 0) {
+		len = inventec_show_attr(state, acc_path);
+		if (strncmp(psu_minfo_state[i], state, len) != 0) {
+		    psu_minfo_update(i);
+		    strncpy(psu_minfo_state[i], state, len);
+		}
+		if (len <= 0) {
 		    printk(KERN_DEBUG "[p_thread] Read %s failed\n", acc_path);
 		    if (strncmp(psu_statep, PSU_STATE_ERROR, strlen(PSU_STATE_ERROR)) != 0) {
 			strcpy(psu_statep, PSU_STATE_ERROR);
@@ -1088,6 +1117,8 @@ static int thread_fn(void *unused)
     sysfs_psu_path_init();
 #endif
     sysfs_sensor_path_init();
+
+    psu_minfo_state_init();
 
     /* Default status init */
     status_led_grn("7");

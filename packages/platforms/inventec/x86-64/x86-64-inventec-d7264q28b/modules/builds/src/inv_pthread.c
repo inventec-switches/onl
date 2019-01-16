@@ -761,8 +761,10 @@ psu_device_exit(void)
 #define STATUS_LED_GRN_PATH	"/sys/class/hwmon/hwmon%d/device/grn_led"
 #define STATUS_LED_RED_PATH	"/sys/class/hwmon/hwmon%d/device/red_led"
 
-#define HWMON_DEVICE_DIAG_PATH	"/sys/class/hwmon/hwmon%d/device/diag"
-#define HWMON_DEVICE_CTRL_PATH	"/sys/class/hwmon/hwmon%d/device/ctl"
+#define HWMON_PSOC_DIAG_PATH	"/sys/class/hwmon/hwmon%d/diag"
+#define HWMON_CPLD_CTRL_PATH	"/sys/class/hwmon/hwmon%d/device/ctl"
+#define HWMON_DEVICE_DIAG_PATH	HWMON_PSOC_DIAG_PATH
+#define HWMON_DEVICE_CTRL_PATH	HWMON_CPLD_CTRL_PATH
 
 static char status_led_grn_path[MAX_PATH_SIZE];
 static char status_led_red_path[MAX_PATH_SIZE];

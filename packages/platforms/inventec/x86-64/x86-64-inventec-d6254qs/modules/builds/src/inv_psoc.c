@@ -15,8 +15,13 @@
 #include <linux/err.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
-
+#include <linux/kthread.h>
 //#include "I2CHostCommunication.h"
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <asm/uaccess.h>
+#define SWITCH_TEMPERATURE_SOCK     "/proc/switch/temp"
 
 #define USE_SMBUS    1
 
@@ -49,6 +54,19 @@ struct __attribute__ ((__packed__))  psoc_psu_layout {
     u8  psu2_date[6];
     u8  psu1_sn[20];
     u8  psu2_sn[20];
+};
+
+struct clei{
+    u8 issue_number[3];
+    u8 abbreviation_number[9];
+    u8 fc_number[10];
+    u8 clei_code[10];
+    u8 product_year_and_month[5];
+    u8 label_location_code[2];
+    u8 serial_number[5];
+    u8 pcb_revision[5];
+    u8 vendor_name[10];
+    u8 reserved[5];
 };
 
 struct __attribute__ ((__packed__))  psoc_layout {
@@ -93,7 +111,10 @@ struct __attribute__ ((__packed__))  psoc_layout {
     
     u8  reserve2[4];        //offset: 56
     struct psoc_psu_layout psu_info;      //offset: 5a
-};        
+    u8 reserved[0xff-0xfd];
+
+    struct clei clei[6];   //FAN:0~3   PSU:4~5;
+};
 
 /* definition */
 /* definition */
@@ -111,23 +132,43 @@ struct __attribute__ ((__packed__))  psoc_layout {
 #define VERSION_OFFSET          PSOC_OFF(version)
 #define PSU_INFO_OFFSET         PSOC_OFF(psu_info)
 
+#define CLEI_OFF(m)    offsetof(struct clei, m)
+#define FAN1_CLEI_INDEX		0
+#define FAN2_CLEI_INDEX		1
+#define FAN3_CLEI_INDEX		2
+#define FAN4_CLEI_INDEX		3
+#define PSU1_CLEI_INDEX		4
+#define PSU2_CLEI_INDEX		5
+#define CLEIALL_INDEX           0
+#define ISSUENUMBER_INDEX	1
+#define ABBREVIATION_INDEX	2
+#define FCNUMBER_INDEX		3
+#define CLEICODE_INDEX		4
+#define PRODUCTDATE_INDEX	5
+#define LABELLOCATION_INDX	6
+#define SERIALNUMBER_INDEX	7
+#define PCBREVISION_INDEX	8
+#define VENDORNAME_INDEX        9
+
 /* Each client has this additional data */
 struct psoc_data {
 	struct device		*hwmon_dev;
 	struct mutex		update_lock;
 	u32                 diag;
+    struct task_struct  *auto_update;
 };
 
 /*-----------------------------------------------------------------------*/
 
-static ssize_t psoc_i2c_read(struct i2c_client *client, u8 *buf, u8 offset, size_t count)
+static ssize_t psoc_i2c_read(struct i2c_client *client, u8 *buf, u16 offset, size_t count)
 {
 #if USE_SMBUS    
-	int i;
-	
+	int i;	
     for(i=0; i<count; i++) {
-        buf[i] = i2c_smbus_read_byte_data(client, offset+i);
+        i2c_smbus_write_byte_data(client, ((offset+i) >> 8), ((offset+i) & 0xff));
+        buf[i] = i2c_smbus_read_byte(client);
     }	
+
     return count;
 #else
 	struct i2c_msg msg[2];
@@ -136,11 +177,12 @@ static ssize_t psoc_i2c_read(struct i2c_client *client, u8 *buf, u8 offset, size
 
 	memset(msg, 0, sizeof(msg));
 	
-	msgbuf[0] = offset;
+	msgbuf[0] = offset >> 8 ;
+	msgbuf[1] = offset & 0xff;
 	
 	msg[0].addr = client->addr;
 	msg[0].buf = msgbuf;
-	msg[0].len = 1;
+	msg[0].len = 2;
 
 	msg[1].addr = client->addr;
 	msg[1].flags = I2C_M_RD;
@@ -156,13 +198,13 @@ static ssize_t psoc_i2c_read(struct i2c_client *client, u8 *buf, u8 offset, size
 #endif	
 }
 
-static ssize_t psoc_i2c_write(struct i2c_client *client, char *buf, unsigned offset, size_t count)
+static ssize_t psoc_i2c_write(struct i2c_client *client, char *buf, u16  offset, size_t count)
 {
 #if USE_SMBUS    
 	int i;
 	
     for(i=0; i<count; i++) {
-        i2c_smbus_write_byte_data(client, offset+i, buf[i]);
+	 i2c_smbus_write_word_data(client, ((offset+i) >> 8), ((offset+i) & 0xff) | (buf[i] << 8));
     }	
     return count;
 #else
@@ -178,7 +220,8 @@ static ssize_t psoc_i2c_write(struct i2c_client *client, char *buf, unsigned off
 	/* msg.buf is u8 and casts will mask the values */
 	msg.buf = writebuf;
 	
-	msg.buf[i++] = offset;
+	msg.buf[i++] = offset >> 8;
+	msg.buf[i++] = offset & 0xff;
 	memcpy(&msg.buf[i], buf, count);
 	msg.len = i + count;
 	
@@ -203,7 +246,7 @@ static u32 psoc_read32(struct i2c_client *client, u8 offset)
 }
 #endif
 
-static u16 psoc_read16(struct i2c_client *client, u8 offset)
+static u16 psoc_read16(struct i2c_client *client, u16 offset)
 {
 	u16 value = 0;
 	u8 buf[2];
@@ -214,7 +257,7 @@ static u16 psoc_read16(struct i2c_client *client, u8 offset)
 	return value;
 }
 
-static u8 psoc_read8(struct i2c_client *client, u8 offset)
+static u8 psoc_read8(struct i2c_client *client, u16 offset)
 {
 	u8 value = 0;
 	u8 buf = 0;
@@ -245,13 +288,7 @@ static u8 psoc_read8(struct i2c_client *client, u8 offset)
 #define PMBUS_READ_IOUT                 (0x8C)
 #define PMBUS_READ_POUT                 (0x96)
 #define PMBUS_READ_PIN                  (0x97)
-
-#define PMBUS_MFR_ID					(0x99)
-#define PMBUS_MFR_MODEL					(0x9A)
-#define PMBUS_MFR_REVISION				(0x9B)
-#define PMBUS_MFR_DATE					(0x9D)
-#define PMBUS_MFR_SERIAL				(0x9E)
-
+#if 0
 static int psoc_i2c_bridge_read(struct i2c_client *client,
                                 unsigned char bus, 
                                 unsigned char chip, 
@@ -310,6 +347,103 @@ static int psoc_i2c_bridge_read(struct i2c_client *client,
     
     return 0;
 }
+#endif
+static ssize_t show_clei(struct device *dev, struct device_attribute *da,
+                         char *buf)
+{
+        u16 status;
+        struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+        struct i2c_client *client = to_i2c_client(dev);
+        struct psoc_data *data = i2c_get_clientdata(client);
+	u8 device_index = attr->index & 0xFF;
+        u8 clei_index   = (attr->index >> 8) & 0xFF;
+	u16 offset = PSOC_OFF(clei) + sizeof(struct clei)* device_index;
+	u8 len;
+        u8 rxbuf[sizeof(struct clei)] = {0};
+	u8 clei_ch = '\n';
+//        u8 rxbuf1[21] = {0};
+//        u8 counter = 0;
+//        u8 count = 0;
+//        u8 index = 0;
+
+	switch (clei_index)
+	{
+		case CLEIALL_INDEX:
+			offset += 0;
+			len = sizeof(struct clei);
+			break;
+		case ISSUENUMBER_INDEX:
+			offset += CLEI_OFF(issue_number);
+			len = sizeof((struct clei){0}.issue_number);
+			break;
+		case ABBREVIATION_INDEX:
+                        offset += CLEI_OFF(abbreviation_number);
+                        len = sizeof((struct clei){0}.abbreviation_number);
+                        break;
+		case FCNUMBER_INDEX:
+                        offset += CLEI_OFF(fc_number);
+                        len = sizeof((struct clei){0}.fc_number);
+                        break;
+                case CLEICODE_INDEX:
+                        offset += CLEI_OFF(clei_code);
+                        len = sizeof((struct clei){0}.clei_code);
+                        break;
+                case PRODUCTDATE_INDEX:
+                        offset += CLEI_OFF(product_year_and_month);
+                        len = sizeof((struct clei){0}.product_year_and_month);
+                        break;
+                case LABELLOCATION_INDX:
+                        offset += CLEI_OFF(label_location_code);
+                        len = sizeof((struct clei){0}.label_location_code);
+                        break;
+                case SERIALNUMBER_INDEX:
+                        offset += CLEI_OFF(serial_number);
+                        len = sizeof((struct clei){0}.serial_number);
+                        break;
+                case PCBREVISION_INDEX:
+                        offset += CLEI_OFF(pcb_revision);
+                        len = sizeof((struct clei){0}.pcb_revision);
+                        break;
+                case VENDORNAME_INDEX:
+                        offset += CLEI_OFF(vendor_name);
+                        len = sizeof((struct clei){0}.vendor_name);
+                        break;
+		default:
+			return 0;
+	}
+
+        mutex_lock(&data->update_lock);
+        status = psoc_i2c_read(client,rxbuf,offset,len);
+        mutex_unlock(&data->update_lock);
+
+	if ((strncmp(da->attr.name, "psu1_clei2", 10) == 0) ||
+	    (strncmp(da->attr.name, "psu2_clei2", 10) == 0) ||
+	    (strncmp(da->attr.name, "fan1_clei2", 10) == 0) ||
+	    (strncmp(da->attr.name, "fan2_clei2", 10) == 0) ||
+	    (strncmp(da->attr.name, "fan3_clei2", 10) == 0) ||
+	    (strncmp(da->attr.name, "fan4_clei2", 10) == 0)) {
+		clei_ch = '+';
+	}
+
+	if(clei_index==CLEIALL_INDEX)
+	{
+		status = sprintf (buf, "Issue Number: %.3s%c", &rxbuf[CLEI_OFF(issue_number)],clei_ch);
+		status = sprintf (buf, "%sAbbreviation Number: %.9s%c", buf,  &rxbuf[CLEI_OFF(abbreviation_number)],clei_ch);
+		status = sprintf (buf, "%sFC Number: %.10s%c", buf,  &rxbuf[CLEI_OFF(fc_number)],clei_ch);
+		status = sprintf (buf, "%sCLEI Code: %.10s%c", buf,  &rxbuf[CLEI_OFF(clei_code)],clei_ch);
+		status = sprintf (buf, "%sProduct Year and Month: %.5s%c", buf,  &rxbuf[CLEI_OFF(product_year_and_month)],clei_ch);
+                status = sprintf (buf, "%s2D Label Location Code: %.2s%c", buf,  &rxbuf[CLEI_OFF(label_location_code)],clei_ch);
+                status = sprintf (buf, "%sSerial Number: %.5s%c", buf,  &rxbuf[CLEI_OFF(serial_number)],clei_ch);
+                status = sprintf (buf, "%sPCB Revision: %.5s%c", buf,  &rxbuf[CLEI_OFF(pcb_revision)],clei_ch);
+                status = sprintf (buf, "%sVendor Name: %.10s\n", buf,  &rxbuf[CLEI_OFF(vendor_name)]);
+		return strlen(buf);
+	}
+	else
+	{
+         if(rxbuf[0]==0x00 || rxbuf[0]==0xFF) return sprintf(buf, "NONE\n");
+	 return sprintf(buf, "%s \n",rxbuf);
+	}
+}
 
 
 /*
@@ -323,6 +457,7 @@ CPLD report the PSU0 status
 ----------------------
     | psu1  |  psu0
 */
+#if 0
 static char* psu_str[] = {
     "normal",           //000
     "NA",               //001
@@ -354,6 +489,7 @@ static ssize_t show_psu_st(struct device *dev, struct device_attribute *da,
 	    
 	return strlen(buf);
 }
+#endif
 
 /*-----------------------------------------------------------------------*/
 
@@ -366,7 +502,7 @@ static ssize_t show_thermal(struct device *dev, struct device_attribute *da,
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
 	struct i2c_client *client = to_i2c_client(dev);
 	struct psoc_data *data = i2c_get_clientdata(client);
-	u8 offset = attr->index * 2 + THERMAL_OFFSET;
+	u16 offset = attr->index * 2 + THERMAL_OFFSET;
     
 	mutex_lock(&data->update_lock);
 	
@@ -625,6 +761,7 @@ static long pmbus_reg2data_linear(int data, int linear16)
     return val;
 }
 
+#if 0
 static ssize_t show_psu(struct device *dev, struct device_attribute *da,
 			 char *buf)
 {
@@ -632,39 +769,21 @@ static ssize_t show_psu(struct device *dev, struct device_attribute *da,
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
 	struct i2c_client *client = to_i2c_client(dev);
 	struct psoc_data *data = i2c_get_clientdata(client);
-	u8 reg  = attr->index & 0xFF;
-    u8 len  = ((attr->index & 0xFF00) >> 8);
+	u8 reg =  attr->index & 0xFF;
 	u8 chip = (attr->index >> 16)? 0x59:0x58;
 	u8 bus  = 1;
 	unsigned char value[2] = {0,0};;    
-
-	if (len == 2)
-	{
-		mutex_lock(&data->update_lock);
-		psoc_i2c_bridge_read(client, bus, chip, &reg, 1, value, 2);
-		mutex_unlock(&data->update_lock);
+    
+	mutex_lock(&data->update_lock);
+	psoc_i2c_bridge_read(client, bus, chip, &reg, 1, value, 2);
+	mutex_unlock(&data->update_lock);
 	
-		status =  value[1]<<8 | value[0];
-		//status1 =  value[1]<<8 | value[0];
+	status =  value[1]<<8 | value[0];
+	//status1 =  value[1]<<8 | value[0];
 	
-		return sprintf(buf, "%ld\n", pmbus_reg2data_linear(status, (reg==PMBUS_READ_VOUT)?1:0) );
-	}
-	else
-	{	//len is not defined.
-        u8 tmpbuf[32];
-		mutex_lock(&data->update_lock);
-        //length of block read
-		psoc_i2c_bridge_read(client, bus, chip, &reg, 1, &len, 1);
-        //data included length
-		psoc_i2c_bridge_read(client, bus, chip, &reg, 1, tmpbuf, len+1); 
-		mutex_unlock(&data->update_lock);
-
-		memcpy(buf, tmpbuf+1, len);	
-		buf[len]='\n';
-
-		return len+1;
-	}
+	return sprintf(buf, "%ld\n", pmbus_reg2data_linear(status, (reg==PMBUS_READ_VOUT)?1:0) );
 }
+#endif
 
 static ssize_t show_psu_psoc(struct device *dev, struct device_attribute *da,
 			 char *buf)
@@ -674,24 +793,179 @@ static ssize_t show_psu_psoc(struct device *dev, struct device_attribute *da,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct psoc_data *data = i2c_get_clientdata(client);
 	u8 offset = (attr->index & 0xFF) + PSU_INFO_OFFSET;
-	u8 len = (attr->index >> 8)& 0xFF;
-	u8 rxbuf[21] = {0};
-	if (len == 2)
-	{
-		mutex_lock(&data->update_lock);
-		status = psoc_read16(client, offset);
-		mutex_unlock(&data->update_lock);
+        u8 len = (attr->index >> 8)& 0xFF;
+        u8 rxbuf[21] = {0};
+        u8 rxbuf1[21] = {0};
+        u8 counter = 0;
+        u8 count = 0;
+        u8 index = 0;
+        if (len == 2)
+        {
+       	   mutex_lock(&data->update_lock);
+	   status = psoc_read16(client, offset);
+ 	   mutex_unlock(&data->update_lock);
 	
-		return sprintf(buf, "%ld \n", pmbus_reg2data_linear(status, strstr(attr->dev_attr.attr.name, "vout")? 1:0 ));
-	}
-	else
-	{
-		mutex_lock(&data->update_lock);
-		status = psoc_i2c_read(client,rxbuf,offset,len);
-		mutex_unlock(&data->update_lock);
-		return sprintf(buf, "%s \n",rxbuf);
-	}
+	   return sprintf(buf, "%ld \n", pmbus_reg2data_linear(status, strstr(attr->dev_attr.attr.name, "vout")? 1:0 ));
+        }
+        else
+        {
+           do 
+           {
+           mutex_lock(&data->update_lock);
+           status = psoc_i2c_read(client,rxbuf,offset,len);
+           mutex_unlock(&data->update_lock);
+           mutex_lock(&data->update_lock);
+           status = psoc_i2c_read(client,rxbuf1,offset,len);
+           mutex_unlock(&data->update_lock);
+           counter++;
+           }while((strcmp(rxbuf,rxbuf1)!=0) || ((strlen(rxbuf)==0) && (counter <5)));
+           for(index = 0; index < len; index++)
+           {
+              if(rxbuf[index] == 0xFF)
+              count++;
+           }
+	   if(len == count)
+           return sprintf(buf, "%s \n","ERROR");
+           if(status ==0)
+           return sprintf(buf,"%s \n", "ERROR");
+           else if((strlen(rxbuf)==0))
+           return sprintf(buf, "%s \n", "N/A");
+           else
+           return sprintf(buf, "%s \n",rxbuf);
+        }
 }
+
+#define PSOC_POLLING_PERIOD 1000
+#define PSU_NOT_INSTALLED   7
+#define PSOC_WARNING(fmt, args...) printk( KERN_WARNING "[PSOC]" fmt, ##args)
+static u8 psu_info[PSU_NUM];
+static u8 fan_info[FAN_NUM];
+static void get_init_psu_fan_status(struct i2c_client *client)
+{
+    struct psoc_data *data = i2c_get_clientdata(client);
+    u32 status = 0;
+    u8 byte = 0;
+    int i = 0;
+    mutex_lock(&data->update_lock);
+    status = psoc_i2c_read(client, &byte, PSOC_PSU_OFFSET,1);
+    mutex_unlock(&data->update_lock);
+    psu_info[0] = (byte >> 3) & 0x7;
+    psu_info[1] = (byte >> 0) & 0x7;
+    mutex_lock(&data->update_lock);
+    status = psoc_read8(client, FAN_GPI_OFFSET);
+    mutex_unlock(&data->update_lock);
+    for (i=0; i<FAN_NUM ; i++)
+    {
+        fan_info[i] = ((status >> i) & 0x01);
+    }
+}
+
+static void check_fan_status(struct i2c_client *client)
+{
+    struct psoc_data *data = i2c_get_clientdata(client);
+    u32 status;
+    int i = 0;
+    u8 rst = 0;
+    mutex_lock(&data->update_lock);
+    status = psoc_read8(client, FAN_GPI_OFFSET);
+    mutex_unlock(&data->update_lock);
+    for (i = 0; i < FAN_NUM; i++)
+    {
+        rst = ((status >> i) & 0x01);
+        if(rst != fan_info[i])
+        {
+            fan_info[i] = rst;
+            if (rst)
+            PSOC_WARNING("Detect FAN%d is removed \n",(i+1));
+            else
+            PSOC_WARNING("Detect FAN%d is present \n",(i+1));
+        }
+    }
+}
+
+// [Remove] Bacuase cottonwood don't have PSU info
+static void check_psu_status(struct i2c_client *client)
+{
+    static u8 psu_retry[]={0,0};
+    struct psoc_data *data = i2c_get_clientdata(client);
+    u32 status;
+    u8 byte = 0;
+    u8 psu1, psu2;
+    mutex_lock(&data->update_lock);
+    status = psoc_i2c_read(client, &byte, PSOC_PSU_OFFSET, 1);
+    mutex_unlock(&data->update_lock);
+    psu1 = (byte >> 3) & 0x7;
+    psu2 = (byte >> 0) & 0x7;
+    if(psu1 != psu_info[0])
+    {
+	if ((psu_retry[0]++)==0) { return; }
+        if (psu1 == PSU_NOT_INSTALLED)
+        PSOC_WARNING("Detect PSU1 is removed \n");
+        else
+        PSOC_WARNING("Detect PSU1 is present \n");
+ 
+        psu_info[0] = psu1;
+	psu_retry[0] = 0;
+    }
+    if(psu2 != psu_info[1])
+    {
+	if((psu_retry[1]++)==0) { return; }
+        if(psu2 == PSU_NOT_INSTALLED)
+        PSOC_WARNING("Detect PSU2 is removed \n");
+        else
+        PSOC_WARNING("Detect PSU2 is present \n");
+
+        psu_info[1] = psu2;
+        psu_retry[1] = 0;
+    }
+}
+#if 0
+static void check_switch_temp(struct i2c_client * client)
+{
+	struct psoc_data *data = i2c_get_clientdata(client);
+	static struct file *f;
+	mm_segment_t old_fs;
+
+	set_fs(get_ds());
+	f = filp_open(SWITCH_TEMPERATURE_SOCK,O_RDONLY,0644);
+	if(IS_ERR(f)) { 
+		return; 
+	}
+	else { 
+		char temp_str[]={0,0,0,0,0,0,0};
+		loff_t pos = 0;
+		u16 temp2 = 0;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		vfs_read(f, temp_str,6,&pos);
+		temp2 = ((simple_strtoul(temp_str,NULL,10)/1000) <<8 ) & 0xFF00 ; 
+                mutex_lock(&data->update_lock);
+                psoc_i2c_write(client, (u8*)&temp2, SWITCH_TMP_OFFSET, 2);
+                mutex_unlock(&data->update_lock);
+	}
+	filp_close(f,NULL);
+	set_fs(old_fs);
+}
+#endif
+
+static int psoc_polling_thread(void *p)
+{
+    struct i2c_client *client = p;
+    get_init_psu_fan_status(client); 
+    while (!kthread_should_stop())
+    {
+        check_psu_status(client);
+        check_fan_status(client);
+//        check_switch_temp(client);
+        set_current_state(TASK_INTERRUPTIBLE);
+        if(kthread_should_stop())
+            break;
+ 
+        schedule_timeout(msecs_to_jiffies(PSOC_POLLING_PERIOD));
+    }
+    return 0;
+}
+
 
 static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO,			show_thermal, 0, 0);
 static SENSOR_DEVICE_ATTR(temp2_input, S_IRUGO,			show_thermal, 0, 1);
@@ -707,10 +981,10 @@ static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR|S_IRUGO,			show_pwm, set_pwm, 2);
 static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR|S_IRUGO,			show_pwm, set_pwm, 3);
 static SENSOR_DEVICE_ATTR(pwm_psu1, S_IWUSR|S_IRUGO,		show_pwm, set_pwm, 4);
 static SENSOR_DEVICE_ATTR(pwm_psu2, S_IWUSR|S_IRUGO,		show_pwm, set_pwm, 5);
-
+#if 0
 static SENSOR_DEVICE_ATTR(psu0,  S_IRUGO,			        show_psu_st, 0, 0);
 static SENSOR_DEVICE_ATTR(psu1,  S_IRUGO,			        show_psu_st, 0, 1);
-
+#endif
 static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO,			show_rpm, 0, 0);
 static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO,			show_rpm, 0, 1);
 static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO,			show_rpm, 0, 2);
@@ -719,6 +993,78 @@ static SENSOR_DEVICE_ATTR(fan5_input, S_IRUGO,			show_rpm, 0, 4);
 static SENSOR_DEVICE_ATTR(fan6_input, S_IRUGO,			show_rpm, 0, 5);
 static SENSOR_DEVICE_ATTR(fan7_input, S_IRUGO,			show_rpm, 0, 6);
 static SENSOR_DEVICE_ATTR(fan8_input, S_IRUGO,			show_rpm, 0, 7);
+//CLEI
+#if 0
+static SENSOR_DEVICE_ATTR(fan1_issue_number, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_issue_number, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_issue_number, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_issue_number, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_abbreviation_number, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_abbreviation_number, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_abbreviation_number, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_abbreviation_number, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_fc_number, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_fc_number, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_fc_number, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_fc_number, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_clei_code, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_clei_code, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_clei_code, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_clei_code, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_product_year_and_month, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_product_year_and_month, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_product_year_and_month, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_product_year_and_month, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_label_location_code, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_label_location_code, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_label_location_code, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_label_location_code, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_serial_number, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_serial_number, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_serial_number, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_serial_number, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_pcb_revision, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_pcb_revision, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_pcb_revision, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_pcb_revision, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_vendor_name, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_vendor_name, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_vendor_name, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_vendor_name, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+#endif
+static SENSOR_DEVICE_ATTR(fan1_clei, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_clei, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_clei, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_clei, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan1_clei2, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan2_clei2, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan3_clei2, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(fan4_clei2, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | CLEIALL_INDEX << 8 );
+#if 0
+static SENSOR_DEVICE_ATTR(psu1_issue_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_issue_number, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_abbreviation_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_abbreviation_number, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_fc_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_fc_number, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | FCNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_clei_code, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_clei_code, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | CLEICODE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_product_year_and_month, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_product_year_and_month, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | PRODUCTDATE_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_label_location_code, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_label_location_code, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | LABELLOCATION_INDX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_serial_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_serial_number, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | SERIALNUMBER_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_pcb_revision, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_pcb_revision, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | PCBREVISION_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_vendor_name, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_vendor_name, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+#endif
+static SENSOR_DEVICE_ATTR(psu1_clei, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_clei, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu1_clei2, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | CLEIALL_INDEX << 8 );
+static SENSOR_DEVICE_ATTR(psu2_clei2, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | CLEIALL_INDEX << 8 );
+
 static SENSOR_DEVICE_ATTR(rpm_psu1, S_IRUGO,		show_rpm, 0, 8);
 static SENSOR_DEVICE_ATTR(rpm_psu2, S_IRUGO,		show_rpm, 0, 9);
 
@@ -727,43 +1073,30 @@ static SENSOR_DEVICE_ATTR(switch_tmp, S_IWUSR|S_IRUGO,			show_switch_tmp, set_sw
 static SENSOR_DEVICE_ATTR(diag, S_IWUSR|S_IRUGO,			show_diag, set_diag, 0);
 static SENSOR_DEVICE_ATTR(version, S_IRUGO,			show_version, 0, 0);
 
-static SENSOR_DEVICE_ATTR(fan_led_grn1, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 0);
-static SENSOR_DEVICE_ATTR(fan_led_grn2, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 1);
-static SENSOR_DEVICE_ATTR(fan_led_grn3, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 2);
-static SENSOR_DEVICE_ATTR(fan_led_grn4, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 3);
-static SENSOR_DEVICE_ATTR(fan_led_red1, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 4);
-static SENSOR_DEVICE_ATTR(fan_led_red2, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 5);
-static SENSOR_DEVICE_ATTR(fan_led_red3, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 6);
-static SENSOR_DEVICE_ATTR(fan_led_red4, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 7);
+static SENSOR_DEVICE_ATTR(fan1_led_grn, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 0);
+static SENSOR_DEVICE_ATTR(fan2_led_grn, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 1);
+static SENSOR_DEVICE_ATTR(fan3_led_grn, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 2);
+static SENSOR_DEVICE_ATTR(fan4_led_grn, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 3);
+static SENSOR_DEVICE_ATTR(fan1_led_red, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 4);
+static SENSOR_DEVICE_ATTR(fan2_led_red, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 5);
+static SENSOR_DEVICE_ATTR(fan3_led_red, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 6);
+static SENSOR_DEVICE_ATTR(fan4_led_red, S_IWUSR|S_IRUGO,			show_fan_led, set_fan_led, 7);
 
 static SENSOR_DEVICE_ATTR(fan_gpi,      S_IRUGO,			        show_value8,  0,           FAN_GPI_OFFSET);
-
-static SENSOR_DEVICE_ATTR(psu1_vin,      S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_VIN);
-static SENSOR_DEVICE_ATTR(psu1_vout,     S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_VOUT);
-static SENSOR_DEVICE_ATTR(psu1_iin,      S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_IIN);
-static SENSOR_DEVICE_ATTR(psu1_iout,     S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_IOUT);
-static SENSOR_DEVICE_ATTR(psu1_pin,      S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_PIN);
-static SENSOR_DEVICE_ATTR(psu1_pout,     S_IRUGO,			        show_psu,  0,           (0<<16) | (2<<8) | PMBUS_READ_POUT);
-
-static SENSOR_DEVICE_ATTR(psu1_vendor,   S_IRUGO,			        show_psu,  0,           (0<<16) | (0<<8) | PMBUS_MFR_ID);
-static SENSOR_DEVICE_ATTR(psu1_model,    S_IRUGO,			        show_psu,  0,           (0<<16) | (0<<8) | PMBUS_MFR_MODEL);
-static SENSOR_DEVICE_ATTR(psu1_version,  S_IRUGO,			        show_psu,  0,           (0<<16) | (0<<8) | PMBUS_MFR_REVISION);
-static SENSOR_DEVICE_ATTR(psu1_date,     S_IRUGO,			        show_psu,  0,           (0<<16) | (0<<8) | PMBUS_MFR_DATE);
-static SENSOR_DEVICE_ATTR(psu1_sn,       S_IRUGO,			        show_psu,  0,           (0<<16) | (0<<8) | PMBUS_MFR_SERIAL);
-
-static SENSOR_DEVICE_ATTR(psu2_vin,      S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_VIN);
-static SENSOR_DEVICE_ATTR(psu2_vout,     S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_VOUT);
-static SENSOR_DEVICE_ATTR(psu2_iin,      S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_IIN);
-static SENSOR_DEVICE_ATTR(psu2_iout,     S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_IOUT);
-static SENSOR_DEVICE_ATTR(psu2_pin,      S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_PIN);
-static SENSOR_DEVICE_ATTR(psu2_pout,     S_IRUGO,			        show_psu,  0,           (1<<16) | (2<<8) | PMBUS_READ_POUT);
-
-static SENSOR_DEVICE_ATTR(psu2_vendor,   S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_ID);
-static SENSOR_DEVICE_ATTR(psu2_model,    S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_MODEL);
-static SENSOR_DEVICE_ATTR(psu2_version,  S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_REVISION);
-static SENSOR_DEVICE_ATTR(psu2_date,     S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_DATE);
-static SENSOR_DEVICE_ATTR(psu2_sn,       S_IRUGO,			        show_psu,  0,           (1<<16) | (0<<8) | PMBUS_MFR_SERIAL);
-
+#if 0
+static SENSOR_DEVICE_ATTR(psu1_vin,      S_IRUGO,			        show_psu,  0,           PMBUS_READ_VIN);
+static SENSOR_DEVICE_ATTR(psu1_vout,     S_IRUGO,			        show_psu,  0,           PMBUS_READ_VOUT);
+static SENSOR_DEVICE_ATTR(psu1_iin,      S_IRUGO,			        show_psu,  0,           PMBUS_READ_IIN);
+static SENSOR_DEVICE_ATTR(psu1_iout,     S_IRUGO,			        show_psu,  0,           PMBUS_READ_IOUT);
+static SENSOR_DEVICE_ATTR(psu1_pin,      S_IRUGO,			        show_psu,  0,           PMBUS_READ_PIN);
+static SENSOR_DEVICE_ATTR(psu1_pout,     S_IRUGO,			        show_psu,  0,           PMBUS_READ_POUT);
+static SENSOR_DEVICE_ATTR(psu2_vin,      S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_VIN);
+static SENSOR_DEVICE_ATTR(psu2_vout,     S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_VOUT);
+static SENSOR_DEVICE_ATTR(psu2_iin,      S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_IIN);
+static SENSOR_DEVICE_ATTR(psu2_iout,     S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_IOUT);
+static SENSOR_DEVICE_ATTR(psu2_pin,      S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_PIN);
+static SENSOR_DEVICE_ATTR(psu2_pout,     S_IRUGO,			        show_psu,  0,           (1<<16) | PMBUS_READ_POUT);
+#endif
 static SENSOR_DEVICE_ATTR(psoc_psu1_vin,      S_IRUGO,			        show_psu_psoc,  0,      (0x02<<8)|PSOC_PSU_OFF(psu1_vin));
 static SENSOR_DEVICE_ATTR(psoc_psu1_vout,     S_IRUGO,			        show_psu_psoc,  0,      (0x02<<8)|PSOC_PSU_OFF(psu1_vout));
 static SENSOR_DEVICE_ATTR(psoc_psu1_iin,      S_IRUGO,			        show_psu_psoc,  0,      (0x02<<8)|PSOC_PSU_OFF(psu1_iin));
@@ -822,7 +1155,76 @@ static struct attribute *psoc_attributes[] = {
 	
 	&sensor_dev_attr_rpm_psu1.dev_attr.attr,
 	&sensor_dev_attr_rpm_psu2.dev_attr.attr,
-    
+	
+	//clei
+//        &sensor_dev_attr_fan1_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_fan2_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_fan3_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_fan4_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_fan1_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_fan2_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_fan3_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_fan4_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_fan1_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_fan2_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_fan3_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_fan4_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_fan1_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_fan2_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_fan3_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_fan4_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_fan1_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_fan2_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_fan3_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_fan4_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_fan1_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_fan2_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_fan3_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_fan4_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_fan1_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_fan2_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_fan3_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_fan4_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_fan1_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_fan2_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_fan3_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_fan4_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_fan1_vendor_name.dev_attr.attr,
+//        &sensor_dev_attr_fan2_vendor_name.dev_attr.attr,
+//        &sensor_dev_attr_fan3_vendor_name.dev_attr.attr,
+//        &sensor_dev_attr_fan4_vendor_name.dev_attr.attr,
+        &sensor_dev_attr_fan1_clei.dev_attr.attr,
+        &sensor_dev_attr_fan2_clei.dev_attr.attr,
+        &sensor_dev_attr_fan3_clei.dev_attr.attr,
+        &sensor_dev_attr_fan4_clei.dev_attr.attr,
+        &sensor_dev_attr_fan1_clei2.dev_attr.attr,
+        &sensor_dev_attr_fan2_clei2.dev_attr.attr,
+        &sensor_dev_attr_fan3_clei2.dev_attr.attr,
+        &sensor_dev_attr_fan4_clei2.dev_attr.attr,
+
+//        &sensor_dev_attr_psu1_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_psu2_issue_number.dev_attr.attr,
+//        &sensor_dev_attr_psu1_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_psu2_abbreviation_number.dev_attr.attr,
+//        &sensor_dev_attr_psu1_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_psu2_fc_number.dev_attr.attr,
+//        &sensor_dev_attr_psu1_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_psu2_clei_code.dev_attr.attr,
+//        &sensor_dev_attr_psu1_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_psu2_product_year_and_month.dev_attr.attr,
+//        &sensor_dev_attr_psu1_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_psu2_label_location_code.dev_attr.attr,
+//        &sensor_dev_attr_psu1_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_psu2_serial_number.dev_attr.attr,
+//        &sensor_dev_attr_psu1_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_psu2_pcb_revision.dev_attr.attr,
+//        &sensor_dev_attr_psu1_vendor_name.dev_attr.attr,
+//        &sensor_dev_attr_psu2_vendor_name.dev_attr.attr,
+        &sensor_dev_attr_psu1_clei.dev_attr.attr,
+        &sensor_dev_attr_psu2_clei.dev_attr.attr,
+        &sensor_dev_attr_psu1_clei2.dev_attr.attr,
+        &sensor_dev_attr_psu2_clei2.dev_attr.attr,
+
     //switch temperature
 	&sensor_dev_attr_switch_tmp.dev_attr.attr,
 
@@ -833,19 +1235,20 @@ static struct attribute *psoc_attributes[] = {
 	&sensor_dev_attr_version.dev_attr.attr,
 	
 	//fan led 
-	&sensor_dev_attr_fan_led_grn1.dev_attr.attr,
-	&sensor_dev_attr_fan_led_grn2.dev_attr.attr,
-	&sensor_dev_attr_fan_led_grn3.dev_attr.attr,
-	&sensor_dev_attr_fan_led_grn4.dev_attr.attr,
-	&sensor_dev_attr_fan_led_red1.dev_attr.attr,
-	&sensor_dev_attr_fan_led_red2.dev_attr.attr,
-	&sensor_dev_attr_fan_led_red3.dev_attr.attr,
-	&sensor_dev_attr_fan_led_red4.dev_attr.attr,
+	&sensor_dev_attr_fan1_led_grn.dev_attr.attr,
+	&sensor_dev_attr_fan2_led_grn.dev_attr.attr,
+	&sensor_dev_attr_fan3_led_grn.dev_attr.attr,
+	&sensor_dev_attr_fan4_led_grn.dev_attr.attr,
+	&sensor_dev_attr_fan1_led_red.dev_attr.attr,
+	&sensor_dev_attr_fan2_led_red.dev_attr.attr,
+	&sensor_dev_attr_fan3_led_red.dev_attr.attr,
+	&sensor_dev_attr_fan4_led_red.dev_attr.attr,
 
 	//fan GPI 
 	&sensor_dev_attr_fan_gpi.dev_attr.attr,
 	
 	//psu
+#if 0
 	&sensor_dev_attr_psu1_vin.dev_attr.attr,
 	&sensor_dev_attr_psu1_vout.dev_attr.attr,
 	&sensor_dev_attr_psu1_iin.dev_attr.attr,
@@ -858,21 +1261,9 @@ static struct attribute *psoc_attributes[] = {
 	&sensor_dev_attr_psu2_iout.dev_attr.attr,
 	&sensor_dev_attr_psu2_pin.dev_attr.attr,
 	&sensor_dev_attr_psu2_pout.dev_attr.attr,
-
-	&sensor_dev_attr_psu1_vendor.dev_attr.attr,
-	&sensor_dev_attr_psu1_model.dev_attr.attr,
-	&sensor_dev_attr_psu1_version.dev_attr.attr,
-	&sensor_dev_attr_psu1_date.dev_attr.attr,
-	&sensor_dev_attr_psu1_sn.dev_attr.attr,
-	&sensor_dev_attr_psu2_vendor.dev_attr.attr,
-	&sensor_dev_attr_psu2_model.dev_attr.attr,
-	&sensor_dev_attr_psu2_version.dev_attr.attr,
-	&sensor_dev_attr_psu2_date.dev_attr.attr,
-	&sensor_dev_attr_psu2_sn.dev_attr.attr,
-
 	&sensor_dev_attr_psu0.dev_attr.attr,
 	&sensor_dev_attr_psu1.dev_attr.attr,
-
+#endif
 
 	//psu_psoc, new added on psoc 1.9
 	&sensor_dev_attr_psoc_psu1_vin.dev_attr.attr,
@@ -888,17 +1279,17 @@ static struct attribute *psoc_attributes[] = {
 	&sensor_dev_attr_psoc_psu2_pin.dev_attr.attr,
 	&sensor_dev_attr_psoc_psu2_pout.dev_attr.attr,
 
-	//add info
-	&sensor_dev_attr_psoc_psu1_vendor.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu1_model.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu1_version.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu1_date.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu1_sn.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu2_vendor.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu2_model.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu2_version.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu2_date.dev_attr.attr,
-	&sensor_dev_attr_psoc_psu2_sn.dev_attr.attr,
+        //add info
+        &sensor_dev_attr_psoc_psu1_vendor.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu1_model.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu1_version.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu1_date.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu1_sn.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu2_vendor.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu2_model.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu2_version.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu2_date.dev_attr.attr,
+        &sensor_dev_attr_psoc_psu2_sn.dev_attr.attr,
 	NULL
 };
 
@@ -916,7 +1307,7 @@ psoc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct psoc_data *data;
 	int status;
 
-    printk("+%s\n", __func__);
+//    printk("+%s\n", __func__);
     
 	if (!i2c_check_functionality(client->adapter,
 			I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA))
@@ -940,6 +1331,12 @@ psoc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		status = PTR_ERR(data->hwmon_dev);
 		goto exit_remove;
 	}
+    data->auto_update = kthread_run(psoc_polling_thread,client,"%s",dev_name(data->hwmon_dev));
+    if (IS_ERR(data->auto_update))
+    {
+    	status = PTR_ERR(data->auto_update);
+    	goto exit_remove;
+    }
 
 	dev_info(&client->dev, "%s: sensor '%s'\n",
 		 dev_name(data->hwmon_dev), client->name);
@@ -957,7 +1354,7 @@ exit_free:
 static int psoc_remove(struct i2c_client *client)
 {
 	struct psoc_data *data = i2c_get_clientdata(client);
-
+    kthread_stop(data->auto_update);
 	hwmon_device_unregister(data->hwmon_dev);
 	sysfs_remove_group(&client->dev.kobj, &psoc_group);
 	i2c_set_clientdata(client, NULL);
@@ -995,7 +1392,7 @@ static void __exit inv_psoc_exit(void)
 	i2c_del_driver(&psoc_driver);
 }
 
-MODULE_AUTHOR("eddie.lan <eddie.lan@inventec>");
+MODULE_AUTHOR("Jack Ting <ting.jack@inventec>");
 MODULE_DESCRIPTION("inv psoc driver");
 MODULE_LICENSE("GPL");
 

@@ -21,11 +21,13 @@ struct inv_i2c_board_info {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
+#if 0
 static struct at24_platform_data at24c64_eeprom_data = {
         .byte_len = 256,//SZ_64K/8
         .page_size = 1,
         .flags = 0,//AT24_FLAG_ADDR8,
 };
+#endif
 
 static int	pca9555_setup(struct i2c_client *client, unsigned gpio, unsigned ngpio, void *context)
 {
@@ -207,17 +209,21 @@ static struct pca953x_platform_data   pca9555_data61 = {
 #endif
 
 static struct i2c_board_info xlp_i2c_device_info0[] __initdata = {
-//        {"24c02",            0, 0x57, &at24c64_eeprom_data, 0, 0},	//VPD
+#if 0
+        {"24c02",            0, 0x57, &at24c64_eeprom_data, 0, 0},	//VPD
+#endif
         {"inv_psoc",         0, 0x66, 0, 0, 0},//psoc
         {"inv_cpld",         0, 0x55, 0, 0, 0},//cpld
         {"pca9555",          0, 0x22, &pca9555_data, 0, 0},	
         {"pca9548",          0, 0x71, &mux_data_0, 0, 0},	
 };
 
+#if 0
 static struct i2c_board_info xlp_i2c_device_info1[] __initdata = {
         {"inv_psoc",         0, 0x66, 0, 0, 0},//psoc
         {"inv_cpld",         0, 0x55, 0, 0, 0},//cpld
 };
+#endif
 
 static struct i2c_board_info xlp_i2c_device_info2[] __initdata = {
         {"pca9548",         0, 0x72, &mux_data_0_0, 0, 0},	
@@ -273,6 +279,7 @@ static struct inv_i2c_board_info i2cdev_list[] = {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
+#if 0
 static struct 	i2c_gpio_platform_data 	i2c_gpio_platdata = {
 	.scl_pin = 8,
 	.sda_pin = 9,
@@ -288,6 +295,7 @@ static struct 	platform_device 	magnolia_device_i2c_gpio = {
 	.id  	= 0, // adapter number
 	.dev.platform_data = &i2c_gpio_platdata,
 };
+#endif
 
 #define PLAT_MAX_I2C_CLIENTS 32
 static struct i2c_client *plat_i2c_client[PLAT_MAX_I2C_CLIENTS];

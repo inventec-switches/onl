@@ -1,5 +1,5 @@
 #!/bin/bash
-#follow Gulmohar_HW_Specification_V0.8_20180702
+#follow Gulmohar_2T_HW_Specification_V0.6_20181214
 normal='0 : normal'
 unpowered='2 : unpowered'
 fault='4 : fault'
@@ -10,10 +10,28 @@ NUM=1
 FAN_NUM=5
 FIRST_READ=0
 SECOND_READ=0
-CPLD_ADDR='0-0077'
+
+PSOC_PATH=""
+CPLD_ADDR="/sys/bus/i2c/devices/i2c-0/0-0077"
+ROUTE="/sys/class/hwmon/"
+for KEY in $(ls ${ROUTE})
+do
+	KEY=${ROUTE}${KEY}
+	if [ -f $KEY"/name" ]; then
+		if [ $(cat $KEY"/name") == "inv_psoc" ]; then
+			PSOC_PATH=$KEY
+		fi
+	fi
+done
+if [[ $PSOC_PATH == "" ]]; then
+	echo "ERROR! Unable to find inv_psoc!"
+	exit
+fi
+
+
 #PSU_STAUS='000'
 #switch is ready , transfer control of cpld to cpu
-echo 1 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/ctl
+echo 1 > $CPLD_ADDR/ctl
 
 while true
 do
@@ -23,7 +41,7 @@ do
 
 #first check
 FAN_UNPLUG_NUM=0
-FAN_ARR=$(cat /sys/class/hwmon/hwmon1/$FAN_LED_RED?)
+FAN_ARR=$(cat $PSOC_PATH/$FAN_LED_RED?)
 
 while read -r line; do
     fan_led_red_check=$(echo "$line")
@@ -36,7 +54,7 @@ FIRST_READ=$FAN_UNPLUG_NUM
 
 #second check
 FAN_UNPLUG_NUM=0
-FAN_ARR=$(cat /sys/class/hwmon/hwmon1/$FAN_LED_RED?)
+FAN_ARR=$(cat $PSOC_PATH/$FAN_LED_RED?)
 
 while read -r line; do
     fan_led_red_check=$(echo "$line")
@@ -56,37 +74,37 @@ fi
 if [ $FAN_UNPLUG_NUM -ge 2 ]
 then
   #echo "solid red"  
-  echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/red_led
-  echo 0 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/grn_led
+  echo 7 > $CPLD_ADDR/red_led
+  echo 0 > $CPLD_ADDR/grn_led
   sleep 1
   continue
 elif [ $FAN_UNPLUG_NUM -eq 1 ]
 then
   #solid orange
-  echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/red_led
-  echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/grn_led
+  echo 7 > $CPLD_ADDR/red_led
+  echo 7 > $CPLD_ADDR/grn_led
   sleep 1
   continue
 fi
 
   #echo "normal"
-  psu0var=$(cat /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/psu0)    # bottom PSU
-  psu1var=$(cat /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/psu1)    # top PSU
+  psu0var=$(cat $CPLD_ADDR/psu0)    # bottom PSU
+  psu1var=$(cat $CPLD_ADDR/psu1)    # top PSU
 
    if [ "$psu0var" = "$normal" ] &&
      [ "$psu1var" = "$normal" ]                          # PSU normal operatio
    then
       #solid green
-      echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/grn_led
-      echo 0 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/red_led
+      echo 7 > $CPLD_ADDR/grn_led
+      echo 0 > $CPLD_ADDR/red_led
       #echo "solid green"
    else  
       if [ "$psu0var" = "$unpowered" ] ||
       [ "$psu1var" = "$unpowered" ]
       then
         #echo solid orange
-        echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/grn_led
-        echo 7 > /sys/bus/i2c/devices/i2c-0/$CPLD_ADDR/red_led
+        echo 7 > $CPLD_ADDR/grn_led
+        echo 7 > $CPLD_ADDR/red_led
       fi
       
    fi 

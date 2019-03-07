@@ -11,7 +11,7 @@
 
 #include "x86_64_inventec_d6254qs_log.h"
 
-#define SWPS_CYPRESS_GA2	(1)
+#define SWPS_MAGNOLIA		(1)
 
 #define ONLP_NODE_MAX_INT_LEN	(8)
 #define ONLP_NODE_MAX_PATH_LEN	(64)

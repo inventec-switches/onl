@@ -75,13 +75,14 @@ onlp_psui_init(void)
 static void
 psu_module_name_get(int id, onlp_psu_info_t* info)
 {
+#if 1
+    strncpy(info->model, "N/A", 3);
+    strncpy(info->serial, "N/A", 3);
+#else
     char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
     uint8_t temp[ONLP_CONFIG_INFO_STR_MAX] = {0};
     int ret, len;
 
-#if 0
-    strncpy(info->model, "N/A", 3);
-#else
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "model");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
@@ -94,7 +95,6 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
         AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
         strncpy(info->model, "N/A", 3);
     }
-#endif
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "sn");
@@ -108,6 +108,7 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
         AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
         strncpy(info->serial, "N/A", 3);
     }
+#endif
 }
 
 static int

@@ -267,7 +267,9 @@ static struct i2c_board_info xlp_i2c_device_info8[] __initdata = {
 
 static struct inv_i2c_board_info i2cdev_list[] = {
     {0, ARRAY_SIZE(xlp_i2c_device_info0),  xlp_i2c_device_info0 },  //smbus 0
-//    {1, ARRAY_SIZE(xlp_i2c_device_info1),  xlp_i2c_device_info1 },  //smbus 1 or gpio11+12
+#if 0
+    {1, ARRAY_SIZE(xlp_i2c_device_info1),  xlp_i2c_device_info1 },  //smbus 1 or gpio11+12
+#endif
     
     {2, ARRAY_SIZE(xlp_i2c_device_info2),  xlp_i2c_device_info2 },  //mux 0
     {3, ARRAY_SIZE(xlp_i2c_device_info3),  xlp_i2c_device_info3 },  //mux 1
@@ -310,9 +312,7 @@ static int plat_i2c_client_add(struct i2c_client *e)
     return num_i2c_clients;
 }
 
-static void plat_i2c_client_remove_all(void);
-
-static void plat_i2c_client_remove_all()
+static void plat_i2c_client_remove_all(void)
 {
     int i;
     for (i = num_i2c_clients-1; i >= 0; i--)

@@ -21,13 +21,11 @@ struct inv_i2c_board_info {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
-#if 0
 static struct at24_platform_data at24c64_eeprom_data = {
         .byte_len = 256,//SZ_64K/8
         .page_size = 1,
         .flags = 0,//AT24_FLAG_ADDR8,
 };
-#endif
 
 static int	pca9555_setup(struct i2c_client *client, unsigned gpio, unsigned ngpio, void *context)
 {
@@ -209,21 +207,17 @@ static struct pca953x_platform_data   pca9555_data61 = {
 #endif
 
 static struct i2c_board_info xlp_i2c_device_info0[] __initdata = {
-#if 0
-        {"24c02",            0, 0x57, &at24c64_eeprom_data, 0, 0},	//VPD
-#endif
+//        {"24c02",            0, 0x57, &at24c64_eeprom_data, 0, 0},	//VPD
         {"inv_psoc",         0, 0x66, 0, 0, 0},//psoc
         {"inv_cpld",         0, 0x55, 0, 0, 0},//cpld
         {"pca9555",          0, 0x22, &pca9555_data, 0, 0},	
         {"pca9548",          0, 0x71, &mux_data_0, 0, 0},	
 };
 
-#if 0
 static struct i2c_board_info xlp_i2c_device_info1[] __initdata = {
         {"inv_psoc",         0, 0x66, 0, 0, 0},//psoc
         {"inv_cpld",         0, 0x55, 0, 0, 0},//cpld
 };
-#endif
 
 static struct i2c_board_info xlp_i2c_device_info2[] __initdata = {
         {"pca9548",         0, 0x72, &mux_data_0_0, 0, 0},	
@@ -267,9 +261,7 @@ static struct i2c_board_info xlp_i2c_device_info8[] __initdata = {
 
 static struct inv_i2c_board_info i2cdev_list[] = {
     {0, ARRAY_SIZE(xlp_i2c_device_info0),  xlp_i2c_device_info0 },  //smbus 0
-#if 0
-    {1, ARRAY_SIZE(xlp_i2c_device_info1),  xlp_i2c_device_info1 },  //smbus 1 or gpio11+12
-#endif
+//    {1, ARRAY_SIZE(xlp_i2c_device_info1),  xlp_i2c_device_info1 },  //smbus 1 or gpio11+12
     
     {2, ARRAY_SIZE(xlp_i2c_device_info2),  xlp_i2c_device_info2 },  //mux 0
     {3, ARRAY_SIZE(xlp_i2c_device_info3),  xlp_i2c_device_info3 },  //mux 1

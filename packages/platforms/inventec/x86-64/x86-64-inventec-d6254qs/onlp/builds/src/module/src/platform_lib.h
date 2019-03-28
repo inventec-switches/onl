@@ -48,7 +48,7 @@ enum onlp_thermal_id {
     THERMAL_1_ON_PSU2,
     THERMAL_MAX
 };
-#define CHASSIS_THERMAL_COUNT	(10)
+#define CHASSIS_THERMAL_COUNT	(9)
 
 enum onlp_fan_id {
     FAN_RESERVED = 0,

@@ -50,7 +50,7 @@ struct eeprom_map_s eeprom_map_sfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =-1,  .offset_vendor_sn    =68,   .length_vendor_sn    =16,
     .addr_voltage      =0x51,  .page_voltage      =-1,  .offset_voltage      =98,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =-1,  .offset_wavelength   =60,   .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =-1,  .offset_eeprom       =0,    .length_id           =256,
+    .addr_eeprom       =0x50,  .page_eeprom       =-1,  .offset_eeprom       =0,    .length_eeprom       =256,
 };
 
 struct eeprom_map_s eeprom_map_qsfp = {
@@ -90,7 +90,7 @@ struct eeprom_map_s eeprom_map_qsfp = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =0,    .length_id           =256,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =256,
 };
 
 struct eeprom_map_s eeprom_map_qsfp28 = {
@@ -130,7 +130,7 @@ struct eeprom_map_s eeprom_map_qsfp28 = {
     .addr_vendor_sn    =0x50,  .page_vendor_sn    =0,   .offset_vendor_sn    =196,  .length_vendor_sn    =16,
     .addr_voltage      =0x50,  .page_voltage      =-1,  .offset_voltage      =26,   .length_voltage      =2,
     .addr_wavelength   =0x50,  .page_wavelength   =0,   .offset_wavelength   =186,  .length_wavelength   =2,
-    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =0,    .length_id           =256,
+    .addr_eeprom       =0x50,  .page_eeprom       =0,   .offset_eeprom       =128,  .length_eeprom       =256,
 };
 
 
@@ -636,17 +636,16 @@ _common_update_attr_transvr_comp_ext(struct transvr_obj_s *self,
 
 static int
 _common_update_attr_eeprom(struct transvr_obj_s *self,
-                                int show_err){
+                       int show_err){
     return _common_update_string_attr(self,
-                                      self->eeprom_map_p->addr_eeprom,
-                                      self->eeprom_map_p->page_eeprom,
-                                      self->eeprom_map_p->offset_eeprom,
-                                      self->eeprom_map_p->length_eeprom,
-                                      self->eeprom,
-                                      "_common_update_attr_eeprom",
-                                      show_err);
+                                     self->eeprom_map_p->addr_eeprom,
+                                     self->eeprom_map_p->page_eeprom,
+                                     self->eeprom_map_p->offset_eeprom,
+                                     self->eeprom_map_p->length_eeprom,
+                                     self->eeprom,
+                                     "_common_update_attr_eeprom",
+                                     show_err);
 }
-
 
 static int
 _common_update_attr_vendor_name(struct transvr_obj_s *self,
@@ -1356,6 +1355,10 @@ _common_update_attr_all(struct transvr_obj_s *self,
         err_str = "_common_update_attr_id";
         goto err_common_update_attr_all;
     }
+    if (_common_update_attr_eeprom(self, show_err) < 0) {
+        err_str = "_common_update_attr_eeprom";
+        goto err_common_update_attr_all;
+    }
     if (_common_update_attr_extended_id(self, show_err) < 0) {
         err_str = "_common_update_attr_extended_id";
         goto err_common_update_attr_all;
@@ -1482,10 +1485,6 @@ _qsfp_update_attr_all(struct transvr_obj_s *self,
 
     char *err_str  = DEBUG_TRANSVR_STR_VAL;
 
-    if (_common_update_attr_eeprom(self, show_err) < 0) {
-        err_str = "_common_update_attr_eeprom";
-        goto err_qsfp_update_attr_all;
-    }
     if (_common_update_attr_all(self, show_err) < 0){
         err_str = "_common_update_attr_all";
         goto err_qsfp_update_attr_all;
@@ -1675,7 +1674,6 @@ _common_count_wavelength(struct transvr_obj_s *self,
     return ERR_TRANSVR_UNDEFINED;
 }
 
-
 int
 common_get_id(struct transvr_obj_s *self){
 
@@ -1687,6 +1685,35 @@ common_get_id(struct transvr_obj_s *self){
     }
     /* Transform to INT to show error case */
     return (int)self->id;
+}
+
+
+int
+common_get_eeprom(struct transvr_obj_s *self, char *buf){
+
+    int err = DEBUG_TRANSVR_INT_VAL;
+    unsigned char *eeprom_update = get_eeprom_update();
+
+    if (!(eeprom_update[self->port_no/8] & (1 << self->port_no%8)) &&
+	(self->state == STATE_TRANSVR_CONNECTED &&
+        self->mode == TRANSVR_MODE_POLLING &&
+        TRANSVR_INFO_CACHE_ENABLE)) {
+        memset(buf, 0, self->eeprom_map_p->length_eeprom);
+        memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
+        *(buf+self->eeprom_map_p->length_eeprom) = '\n';
+        return self->eeprom_map_p->length_eeprom;
+    }
+    err = _check_by_mode(self, &_common_update_attr_eeprom,
+                         "common_get_eeprom");
+    if (err < 0){
+        return snprintf(buf, LEN_TRANSVR_M_STR, "%d\n", err);
+    }
+    memset(buf, 0, self->eeprom_map_p->length_eeprom);
+    memcpy(buf, self->eeprom, self->eeprom_map_p->length_eeprom);
+    *(buf+self->eeprom_map_p->length_eeprom) = '\n';
+    eeprom_update[self->port_no/8] &= ~(1 << self->port_no%8);
+    set_eeprom_update(eeprom_update);
+    return self->eeprom_map_p->length_eeprom;
 }
 
 
@@ -5184,13 +5211,12 @@ is_plugged(struct transvr_obj_s *self){
         goto err_is_plugged_1;
     }
     present = ioexp_p->get_present(ioexp_p, self->ioexp_virt_offset);
+//SWPS_INFO("RYU: is_plugged(): id = %d, swp_name = %s, present = %d\n", self->id, self->swp_name, present);
     switch (present){
         case 0:
-            //return 1;
-            return 0;
-        case 1:
-            //return 0;
             return 1;
+        case 1:
+            return 0;
         case ERR_IOEXP_UNINIT:
             snprintf(emsg, limit, "ioexp_p not ready!");
             goto err_is_plugged_1;
@@ -7806,6 +7832,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
     switch (transvr_type){
         case TRANSVR_TYPE_SFP:
             self->get_id              = common_get_id;
+            self->get_eeprom          = common_get_eeprom;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -7863,6 +7890,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
         case TRANSVR_TYPE_QSFP:
         case TRANSVR_TYPE_QSFP_PLUS:
             self->get_id              = common_get_id;
+            self->get_eeprom          = common_get_eeprom;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -7919,6 +7947,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_QSFP_28:
             self->get_id              = common_get_id;
+            self->get_eeprom          = common_get_eeprom;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -7975,6 +8004,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_FAKE:
             self->get_id              = fake_get_hex;
+            //self->get_eeprom          = fake_get_eeprom;
             self->get_ext_id          = fake_get_hex;
             self->get_connector       = fake_get_hex;
             self->get_vendor_name     = fake_get_str;

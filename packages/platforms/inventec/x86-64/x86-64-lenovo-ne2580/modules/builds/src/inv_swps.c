@@ -2969,6 +2969,9 @@ create_port_objs(void) {
                     "Create transceiver object fail <id>:%s", dev_name);
             goto err_initport_create_tranobj;
         }
+
+        transvr_obj_p->port_no = minor_curr;
+
         /* Setup Lane_ID mapping */
         i = ARRAY_SIZE(port_layout[minor_curr].lane_id);
         j = ARRAY_SIZE(transvr_obj_p->lane_id);

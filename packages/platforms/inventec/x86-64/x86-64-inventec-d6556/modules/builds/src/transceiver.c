@@ -7996,6 +7996,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_FAKE:
             self->get_id              = fake_get_hex;
+            self->get_eeprom          = fake_get_str;
             self->get_ext_id          = fake_get_hex;
             self->get_connector       = fake_get_hex;
             self->get_vendor_name     = fake_get_str;

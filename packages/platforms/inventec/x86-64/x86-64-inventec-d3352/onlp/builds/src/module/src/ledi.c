@@ -29,10 +29,11 @@ static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
     INV_CPLD_PREFIX"/%s_led",
+    INV_CPLD_PREFIX"/%s_led",
+    INV_CPLD_PREFIX"/%s_led",
+    INV_CPLD_PREFIX"/%s_led",
     INV_PSOC_PREFIX"/fan_led_%s1",
     INV_PSOC_PREFIX"/fan_led_%s2",
-    INV_PSOC_PREFIX"/fan_led_%s3",
-    INV_PSOC_PREFIX"/fan_led_%s4",
 };
 
 enum led_light_mode {
@@ -56,14 +57,12 @@ typedef struct led_light_mode_map {
 } led_light_mode_map_t;
 
 led_light_mode_map_t led_map[] = {
-	{LED_SYS, LED_MODE_OFF,   ONLP_LED_MODE_OFF},
-	{LED_SYS, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
-	{LED_SYS, LED_MODE_AMBER, ONLP_LED_MODE_ORANGE},
-	{LED_SYS, LED_MODE_RED,   ONLP_LED_MODE_RED},
+	{LED_SYS, LED_MODE_BLUE,  ONLP_LED_MODE_BLUE,},
+	{LED_PWR, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
+	{LED_FAN, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
+	{LED_STK, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
 	{LED_FAN1,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
 	{LED_FAN2,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
-	{LED_FAN3,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
-	{LED_FAN4,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
 };
 
 static char last_path[][10] =  /* must map with onlp_led_id */
@@ -89,6 +88,24 @@ static onlp_led_info_t linfo[LED_MAX] =
 	ONLP_LED_MODE_ON, '0',
     },
     {
+        { ONLP_LED_ID_CREATE(LED_PWR), "Chassis LED (POWER LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN), "Chassis LED (FAN LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_STK), "Chassis LED (STACKING LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
         { ONLP_LED_ID_CREATE(LED_FAN1), "Fan LED 1 (FAN1 LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
         ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
@@ -96,18 +113,6 @@ static onlp_led_info_t linfo[LED_MAX] =
     },
     {
         { ONLP_LED_ID_CREATE(LED_FAN2), "Fan LED 2 (FAN2 LED)", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN3), "Fan LED 3 (FAN3 LED)", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN4), "Fan LED 4 (FAN4 LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
         ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
 	ONLP_LED_MODE_ON, '0',
@@ -135,6 +140,8 @@ static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led
 int
 onlp_ledi_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     /*
      * Diag LED Off
      */
@@ -163,42 +170,45 @@ int onlp_chassis_led_read(char *pathp, char *buf, size_t len)
 int
 onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 {
-    int  local_id, gret = 0, rret = 0;
+    int  local_id = ONLP_OID_ID_GET(id);
     char fullpath_grn[50] = {0};
     char fullpath_red[50] = {0};
     int  gvalue = 0, rvalue = 0;
     char buf[32] = {0};
 		
     VALIDATE(id);
-	
-    local_id = ONLP_OID_ID_GET(id);
+
+    memset(info, 0, sizeof(onlp_led_info_t));
+    *info = linfo[local_id]; /* Set the onlp_oid_hdr_t */
     		
     /* get fullpath */
     switch (local_id) {
 	case LED_SYS:
+	case LED_PWR:
+	case LED_FAN:
+	case LED_STK:
             sprintf(fullpath_grn, devfiles__[local_id], "grn");
-            sprintf(fullpath_red, devfiles__[local_id], "red");
-
 	    /* Set LED mode */
-	    gret = onlp_chassis_led_read(fullpath_grn, buf, 32);
-	    if (buf[0] == '1' || buf[0] == '2' || buf[0] == '3' || buf[0] == '7') {
-		gvalue = 1;
+	    if (onlp_chassis_led_read(fullpath_grn, buf, 32) <= 0) {
+		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+		info->mode = ONLP_LED_MODE_OFF;
+        	info->status &= ~ONLP_LED_STATUS_PRESENT;
+    		return ONLP_STATUS_OK;
 	    }
 
-	    rret = onlp_chassis_led_read(fullpath_red, buf, 32);
 	    if (buf[0] == '1' || buf[0] == '2' || buf[0] == '3' || buf[0] == '7') {
-		rvalue = 1;
+		info->mode = ONLP_LED_MODE_GREEN;
+		info->status |= ONLP_LED_STATUS_PRESENT;
+    		return ONLP_STATUS_OK;
 	    }
-	    if (gret < 0 && rret < 0) {
-		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
-		gvalue = -1;
-		rvalue = -1;
-	    }
+
+	    DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+	    info->mode = ONLP_LED_MODE_OFF;
+            info->status &= ~ONLP_LED_STATUS_PRESENT;
+    	    return ONLP_STATUS_OK;
 	    break;
 	case LED_FAN1:
 	case LED_FAN2:
-	case LED_FAN3:
-	case LED_FAN4:
             sprintf(fullpath_grn, devfiles__[local_id], "grn");
             sprintf(fullpath_red, devfiles__[local_id], "red");
 
@@ -214,14 +224,15 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    break;
 	default:
 	    DEBUG_PRINT("%s(%d) Invalid led id %d\r\n", __FUNCTION__, __LINE__, local_id);
-	    gvalue = -1;
-	    rvalue = -1;
+	    info->mode = ONLP_LED_MODE_OFF;
+	    info->status |= ONLP_LED_STATUS_FAILED;
+            info->status &= ~ONLP_LED_STATUS_PRESENT;
+    	    return ONLP_STATUS_OK;
 	    break;
     }
 		
     /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[ONLP_OID_ID_GET(id)];
-
     if (gvalue == 1 && rvalue == 0) {
 	info->mode = ONLP_LED_MODE_GREEN;
 	info->status |= ONLP_LED_STATUS_ON;
@@ -243,7 +254,7 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     }
     else {
 	info->mode = ONLP_LED_MODE_OFF;
-	info->status |= ONLP_LED_STATUS_FAILED;
+        info->status &= ~ONLP_LED_STATUS_PRESENT;
     }
     return ONLP_STATUS_OK;
 }
@@ -286,12 +297,13 @@ onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
     local_id = ONLP_OID_ID_GET(id);
     switch (local_id) {
 	case LED_SYS:
+	case LED_PWR:
+	case LED_FAN:
+	case LED_STK:
 	    sprintf(fullpath, "%s%s/%s", INV_CPLD_PREFIX, last_path[local_id], filename);	
 	    break;
 	case LED_FAN1:
 	case LED_FAN2:
-	case LED_FAN3:
-	case LED_FAN4:
 	    sprintf(fullpath, "%s%s/%s", INV_PSOC_PREFIX, last_path[local_id], filename);	
 	    break;
 	default:

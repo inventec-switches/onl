@@ -181,6 +181,8 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
 int
 onlp_fani_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     return ONLP_STATUS_OK;
 }
 

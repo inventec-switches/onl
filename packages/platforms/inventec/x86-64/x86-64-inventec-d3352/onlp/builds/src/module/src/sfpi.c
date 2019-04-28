@@ -58,6 +58,8 @@ sfp_get_port_path(int port, char *node_name)
 int
 onlp_sfpi_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     /* Called at initialization time */
     return ONLP_STATUS_OK;
 }

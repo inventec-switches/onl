@@ -69,11 +69,11 @@ static onlp_thermal_info_t linfo[THERMAL_MAX] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 4", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_4_ON_MAIN_BROAD), "Chassis Thermal Sensor 4", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "Chassis Thermal Sensor 5", 0},
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_5_ON_MAIN_BROAD), "Chassis Thermal Sensor 5", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
@@ -93,6 +93,8 @@ static onlp_thermal_info_t linfo[THERMAL_MAX] = {
 int
 onlp_thermali_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     return ONLP_STATUS_OK;
 }
 

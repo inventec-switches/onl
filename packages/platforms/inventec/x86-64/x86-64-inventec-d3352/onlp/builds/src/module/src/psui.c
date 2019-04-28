@@ -30,15 +30,15 @@
 static char* status_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"/psu1",
     INV_CPLD_PREFIX"/psu0",
+    INV_CPLD_PREFIX"/psu1",
 };
 
 static char* module_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    INV_PSOC_PREFIX"/psoc_psu2_%s",
     INV_PSOC_PREFIX"/psoc_psu1_%s",
+    INV_PSOC_PREFIX"/psoc_psu2_%s",
 };
 
 static int 
@@ -69,6 +69,8 @@ psu_status_info_get(int id, char *node, int *value)
 int
 onlp_psui_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     return ONLP_STATUS_OK;
 }
 

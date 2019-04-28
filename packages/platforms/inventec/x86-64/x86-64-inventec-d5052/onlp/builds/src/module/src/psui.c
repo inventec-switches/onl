@@ -69,6 +69,8 @@ psu_status_info_get(int id, char *node, int *value)
 int
 onlp_psui_init(void)
 {
+    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
+
     return ONLP_STATUS_OK;
 }
 

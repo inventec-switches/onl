@@ -18,6 +18,6 @@ class OnlPlatform_x86_64_inventec_d5052_r0(OnlPlatformInventec,
 	self.new_i2c_device('inv_psoc', 0x66, 1)
 	self.new_i2c_device('inv_cpld', 0x55, 1)
 	self.insmod('swps')
-        #self.insmod('vpd')
 	self.insmod('inv_pthread')
+        #self.insmod('vpd')
         return True

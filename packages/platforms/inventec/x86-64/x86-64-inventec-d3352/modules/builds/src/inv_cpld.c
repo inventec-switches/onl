@@ -394,15 +394,15 @@ static ssize_t set_pwr_led(struct device *dev,
 	}
 	else
 	if (byte == 1) {
-	    byte = 0x04;
+	    byte = 0x10;
 	}
 	else
 	if (byte == 2) {
-	    byte = 0x08;
+	    byte = 0x20;
 	}
 	else
 	if (byte == 3) {
-	    byte = 0x0c;
+	    byte = 0x30;
 	}
 	else {
 	    printk(KERN_INFO "%s/%d: Invalide value: %s\n",__func__,__LINE__,buf);
@@ -412,7 +412,7 @@ static ssize_t set_pwr_led(struct device *dev,
 
         mutex_lock(&data->update_lock);
         cpld_i2c_read(client, &temp, CPLD_LED_OFFSET, 1);
-	temp &= ~0x0c;
+	temp &= ~0x30;
 	byte |= temp;
         cpld_i2c_write(client, &byte, CPLD_LED_OFFSET, 1);
         mutex_unlock(&data->update_lock);
@@ -438,15 +438,15 @@ ssize_t cpld_set_pwr_led(const char *buf, size_t count)
 	}
 	else
 	if (byte == 1) {
-	    byte = 0x04;
+	    byte = 0x10;
 	}
 	else
 	if (byte == 2) {
-	    byte = 0x08;
+	    byte = 0x20;
 	}
 	else
 	if (byte == 3) {
-	    byte = 0x0c;
+	    byte = 0x30;
 	}
 	else {
 	    printk(KERN_INFO "%s/%d: Invalide value: %s\n",__func__,__LINE__,buf);
@@ -456,7 +456,7 @@ ssize_t cpld_set_pwr_led(const char *buf, size_t count)
 
         mutex_lock(&data->update_lock);
         cpld_i2c_read(client, &temp, CPLD_LED_OFFSET, 1);
-	temp &= ~0x0c;
+	temp &= ~0x30;
 	byte |= temp;
         cpld_i2c_write(client, &byte, CPLD_LED_OFFSET, 1);
         mutex_unlock(&data->update_lock);
@@ -495,15 +495,15 @@ static ssize_t set_fan_led(struct device *dev,
 	}
 	else
 	if (byte == 1) {
-	    byte = 0x10;
+	    byte = 0x04;
 	}
 	else
 	if (byte == 2) {
-	    byte = 0x20;
+	    byte = 0x08;
 	}
 	else
 	if (byte == 3) {
-	    byte = 0x30;
+	    byte = 0x0c;
 	}
 	else {
 	    printk(KERN_INFO "%s/%d: Invalide value: %s\n",__func__,__LINE__,buf);
@@ -513,7 +513,7 @@ static ssize_t set_fan_led(struct device *dev,
 
         mutex_lock(&data->update_lock);
         cpld_i2c_read(client, &temp, CPLD_LED_OFFSET, 1);
-	temp &= ~0x30;
+	temp &= ~0x0c;
 	byte |= temp;
         cpld_i2c_write(client, &byte, CPLD_LED_OFFSET, 1);
         mutex_unlock(&data->update_lock);
@@ -539,15 +539,15 @@ ssize_t cpld_set_fan_led(const char *buf, size_t count)
 	}
 	else
 	if (byte == 1) {
-	    byte = 0x10;
+	    byte = 0x04;
 	}
 	else
 	if (byte == 2) {
-	    byte = 0x20;
+	    byte = 0x08;
 	}
 	else
 	if (byte == 3) {
-	    byte = 0x30;
+	    byte = 0x0c;
 	}
 	else {
 	    printk(KERN_INFO "%s/%d: Invalide value: %s\n",__func__,__LINE__,buf);
@@ -557,7 +557,7 @@ ssize_t cpld_set_fan_led(const char *buf, size_t count)
 
         mutex_lock(&data->update_lock);
         cpld_i2c_read(client, &temp, CPLD_LED_OFFSET, 1);
-	temp &= ~0x30;
+	temp &= ~0x0c;
 	byte |= temp;
         cpld_i2c_write(client, &byte, CPLD_LED_OFFSET, 1);
         mutex_unlock(&data->update_lock);

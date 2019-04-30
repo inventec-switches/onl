@@ -58,11 +58,7 @@
 
 static struct mutex pthread_mutex;
 
-ssize_t status_led_grn(const char *freq);
-ssize_t status_led_red(const char *freq);
-ssize_t status_led_diag_mode_enable(void);
-ssize_t status_led_diag_mode_disable(void);
-int status_led_check_color(void);
+unsigned int status_led_check_color(void);
 int status_led_check_diag_mode(void);
 
 #if 1
@@ -77,20 +73,6 @@ int status_led_check_diag_mode(void);
 /* inventec_class *********************************/
 static struct kobject *status_kobj;
 static struct kset *status_kset;
-
-#if 0
-int inventec_strtol(const char *sbufp, char **endp, unsigned int base)
-{
-    char *endptr;
-    int value = simple_strtol(sbufp, &endptr, base);
-    if (value == 0 && sbufp == endptr) {
-	*endp = NULL;
-	return value;
-    }
-    *endp = (char*)1;
-    return value;
-}
-#endif
 
 int inventec_singlechar_to_int(const char c)
 {
@@ -119,7 +101,6 @@ int inventec_singlechar_to_int(const char c)
 #define FAN_LOG_UNINSTALLED	"removed"
 #define FAN_LOG_NORMAL		"inserted"
 
-//#define FAN_STATE_BIT_NORMAL		0
 #define FAN_STATE_BIT_FAULTY		0
 #define FAN_STATE_BIT_UNINSTALLED	1
 #define FAN_STATE_BIT_UNKNOW		2
@@ -249,8 +230,8 @@ int fans_control(void)
     int i, err_fans = 0;
 
     if (psoc_show_fan_state(buf) < 0) {
-        SYSFS_LOG("[p_thread] read fan_gpi failed\n");
-        return FAN_TBL_TOTAL+1;
+	SYSFS_LOG("[p_thread] read fan_gpi failed\n");
+	return FAN_TBL_TOTAL+1;
     }
 
     for (i = 0; i < FAN_TBL_TOTAL; i++) {
@@ -260,16 +241,18 @@ int fans_control(void)
     }
 
     if (!err_fans) {
+	cpld_set_fan_led("1", 1);	//ON
 	return 0;
     }
 
-    status_led_red("3");  //1Hz
     if (0 < err_fans && err_fans < FAN_TBL_TOTAL) {
-	printk(KERN_ERR "[p_thread] %d fans failed. [%s]\n", err_fans, buf);
+	//printk(KERN_ERR "[p_thread] %d fans failed. %s\n", err_fans, buf);
+	cpld_set_fan_led("2", 1);	//1HZ
     }
     else
     if (err_fans == FAN_TBL_TOTAL) {
-        printk(KERN_ERR "[p_thread] All fans failed. [%s]\n", buf);
+        //printk(KERN_ERR "[p_thread] All fans failed. [%s]\n", buf);
+	cpld_set_fan_led("3", 1);	//0.5HZ
     }
     return err_fans;
 }
@@ -333,12 +316,12 @@ static psu_dev_t psu_dev_name[] = {
 
 static psu_dev_group_t psu_dev_group[] = {
 	{
-	  .psu_name = "psu1",
+	  .psu_name = "psu0",
 	  .psu_dev_namep = &psu_dev_name[0],
 	  .psu_dev_total = sizeof(psu_dev_name) / sizeof(const psu_dev_t),
 	},
 	{
-	  .psu_name = "psu2",
+	  .psu_name = "psu1",
 	  .psu_dev_namep = &psu_dev_name[0],
 	  .psu_dev_total = sizeof(psu_dev_name) / sizeof(const psu_dev_t),
 	},
@@ -384,7 +367,6 @@ static ssize_t
 (*psu_get_show_function(const char *psu_attrp, const char *psu_namep, char **psu_statepp)) (char *buf)
 {
     int i;
-
     for (i = 0; i < PSU_WIRE_TBL_TOTAL; i++) {
 	if (strncmp(psu_wire_tbl[i].psu_attr, psu_attrp, strlen(psu_attrp)) == 0 &&
 	    strncmp(psu_wire_tbl[i].psu_name, psu_namep, strlen(psu_namep)) == 0) {
@@ -442,7 +424,7 @@ void psu_get_voltin(void)
 	}
     }
 
-    SYSFS_LOG("[p_thread] PSU voltin = %u\n", psu_voltin);
+    //SYSFS_LOG("[p_thread] PSU voltin = %u\n", psu_voltin);
 }
 
 #define PSU_ATTR_STATE		("state")
@@ -452,63 +434,22 @@ void psu_get_voltin(void)
 int psus_control(int log_only)
 {
     char state[MIN_ACC_SIZE];
-    psu_dev_t *devnamep = NULL;
-    ssize_t (*invwirep)(char *buf) = NULL;
-    char *psu_statep = NULL;
-    int i, j, flag = 0;
+    ssize_t sz = cpld_show_psu(state);
+    u8 st;
 
-    for (i = 0; i < PSU_DEV_GROUP_TOTAL; i++) {
-	devnamep = psu_dev_group[i].psu_dev_namep;
-	for (j = 0; j < psu_dev_group[i].psu_dev_total; j++, devnamep++) {
-	    if (strncmp(devnamep->inv_dev_attrp, PSU_ATTR_STATE, PSU_ATTR_STATE_LEN) == 0) {
-		invwirep = psu_get_show_function(PSU_ATTR_STATE, psu_dev_group[i].psu_name, &psu_statep);
-		if (invwirep == NULL) {
-		    printk(KERN_DEBUG "[p_thread] Invalid psuname: %s\n", psu_dev_group[i].psu_name);
-		    continue;
-		}
-		if (invwirep(state) <= 0) {
-		    printk(KERN_DEBUG "[p_thread] Read %s failed\n", psu_dev_group[i].psu_name);
-		    if (strncmp(psu_statep, PSU_STATE_ERROR, strlen(PSU_STATE_ERROR)) != 0) {
-			strcpy(psu_statep, PSU_STATE_ERROR);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,PSU_STATE_ERROR);
-		    }
-		    flag = 1;
-		}
-		else
-		if (strstr(state, "normal")) {
-		    if (strncmp(psu_statep, state, strlen(state)) != 0) {
-			strcpy(psu_statep, state);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
-		    }
-		}
-		else
-		if (psu_voltin > PSU_VOLTIN_ACDC) {	/* AC PSUS */
-		    if (strncmp(psu_statep, state, strlen(state)) != 0) {
-			strcpy(psu_statep, state);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
-		    }
-		    flag = 1;
-		}
-		else {					/* DC PSUS */
-		    if (strncmp(psu_statep, PSU_STATE_CHECKPSU, PSU_STATE_LEN_CHECKPSU) != 0) {
-			strcpy(psu_statep, PSU_STATE_CHECKPSU);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,PSU_STATE_CHECKPSU);
-		    }
-		    flag = 1;
-		}
-	    }
-	}
-    }
-
-    if (log_only) {
+    if (sz < 1) {
+	cpld_set_pwr_led("0", 1);
 	return 0;
     }
 
-    //SYSFS_LOG("[p_thread] RYU: %s: flag = %d\n",psu_wire_tbl[i].psu_name,flag);
-    if (flag == 1) {
-	status_led_grn("2");
-	return 1;
+    st = simple_strtoul(&state[0], NULL, 16);
+    if (st == 0) {
+	cpld_set_pwr_led("1", 1);
     }
+    else {
+	cpld_set_pwr_led("2", 1);
+    }
+
     return 0;
 }
 
@@ -517,49 +458,16 @@ int psus_control(int log_only)
 /* led device *************************************/
 
 /* return 0/off 1/green 2/red */
-int
+unsigned int
 status_led_check_color(void)
 {
     char tmpbuf[MIN_ACC_SIZE];
     int ret = STATUS_LED_INVALID;
 
-    if (cpld_show_led(&tmpbuf[0], CPLD_DEV_LED_GRN_INDEX) > 0) {
-	if (tmpbuf[0] == '0') {
-	    ret = STATUS_LED_GRN0;
-	}
-	if (tmpbuf[0] == '1') {
-	    ret = STATUS_LED_GRN1;
-	}
-	if (tmpbuf[0] == '2') {
-	    ret = STATUS_LED_GRN2;
-	}
-	if (tmpbuf[0] == '3') {
-	    ret = STATUS_LED_GRN3;
-	}
-	if (tmpbuf[0] == '7') {
-	    ret = STATUS_LED_GRN7;
-	}
-        return ret;
+    if (cpld_show_led(&tmpbuf[0], 4) > 0) {
+	return simple_strtoul(&tmpbuf[0], NULL, 16);
     }
 
-    if (cpld_show_led(&tmpbuf[0], CPLD_DEV_LED_RED_INDEX) > 0) {
-	if (tmpbuf[0] == '0') {
-	    ret = STATUS_LED_RED0;
-	}
-	if (tmpbuf[0] == '1') {
-	    ret = STATUS_LED_RED1;
-	}
-	if (tmpbuf[0] == '2') {
-	    ret = STATUS_LED_RED2;
-	}
-	if (tmpbuf[0] == '3') {
-	    ret = STATUS_LED_RED3;
-	}
-	if (tmpbuf[0] == '7') {
-	    ret = STATUS_LED_RED7;
-	}
-	return ret;
-    }
     return ret;
 }
 
@@ -615,64 +523,6 @@ ssize_t status_led_diag_mode_disable(void)
     return 1;
 }
 
-ssize_t
-status_led_red(const char *freq)
-{
-    char buf[MIN_ACC_SIZE];
-    ssize_t ret;
-
-    ret = cpld_show_led(buf, CPLD_DEV_LED_RED_INDEX);
-    if (ret < 0 || buf[0] == freq[0]) {
-        return ret;
-    }
-
-    ret = cpld_set_led("0", 1, CPLD_DEV_LED_GRN_INDEX);
-    if (ret < 0) {
-        return ret;
-    }
-    ret = cpld_set_led(freq, strlen(freq), CPLD_DEV_LED_RED_INDEX);
-    if (ret < 0) {
-        return ret;
-    }
-    if ((ret = status_led_diag_mode_enable()) <= 0) {
-        return ret;
-    }
-    ssleep(1);
-    if ((ret = status_led_diag_mode_disable()) <= 0) {
-        return ret;
-    }
-    return ret;
-}
-
-ssize_t
-status_led_grn(const char *freq)
-{
-    char buf[MIN_ACC_SIZE];
-    ssize_t ret;
-
-    ret = cpld_show_led(buf, CPLD_DEV_LED_GRN_INDEX);
-    if (ret < 0 || buf[0] == freq[0]) {
-	return ret;
-    }
-
-    ret = cpld_set_led("0", 1, CPLD_DEV_LED_RED_INDEX);
-    if (ret < 0) {
-        return ret;
-    }
-    ssleep(1);
-    ret = cpld_set_led(freq, strlen(freq), CPLD_DEV_LED_GRN_INDEX);
-    if (ret < 0) {
-        return ret;
-    }
-    if ((ret = status_led_diag_mode_enable()) <= 0) {
-        return ret;
-    }
-    ssleep(1);
-    if ((ret = status_led_diag_mode_disable()) <= 0) {
-        return ret;
-    }
-    return ret;
-}
 
 int status_led_check_diag_mode(void)
 {
@@ -726,11 +576,17 @@ static int thread_fn(void *unused)
     ssleep(THREAD_DELAY_MINS);
 
     /* Default status init */
+
     mutex_lock(&pthread_mutex);
-    status_led_grn("7");
+    cpld_set_ctl("0x11", 4);
     mutex_unlock(&pthread_mutex);
 
     psu_get_voltin();
+
+    mutex_lock(&pthread_mutex);
+    cpld_set_sys_led("1", 1);
+    cpld_set_stk_led("1", 1);	// TBD: always ON now
+    mutex_unlock(&pthread_mutex);
 
     /* Delay for guarantee HW ready */
     ssleep(THREAD_DELAY_MINS);
@@ -751,9 +607,11 @@ static int thread_fn(void *unused)
             continue;
 	}
 
-#if 0
+#if 1
+	fans_control();
+	psus_control(0);
+#else
 	switch_temp_update();
-#endif
 
 	if (fans_control() > 0) {
 	    psus_control(1);
@@ -764,9 +622,14 @@ static int thread_fn(void *unused)
 	    continue;
 	}
 
-	if (status_led_check_color() != STATUS_LED_GRN7) {      /* status led red, change it to green */
-	    status_led_grn("7");
+	if (status_led_check_color() != 0x55) {      /* status led red, change it to green */
+	    //status_led_grn("7");
+	    cpld_set_sys_led("1", 1);
+	    cpld_set_pwr_led("1", 1);
+	    cpld_set_fan_led("1", 1);
+	    cpld_set_stk_led("1", 1);
 	}
+#endif
     }
 
     do_exit(0);

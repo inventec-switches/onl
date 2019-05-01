@@ -67,10 +67,10 @@ enum onlp_fan_id {
 
 enum onlp_led_id {
     LED_RESERVED = 0,
-    LED_SYS,
-    LED_PWR,
-    LED_FAN,
     LED_STK,
+    LED_FAN,
+    LED_PWR,
+    LED_SYS,
     LED_FAN1,
     LED_FAN2,
     LED_MAX

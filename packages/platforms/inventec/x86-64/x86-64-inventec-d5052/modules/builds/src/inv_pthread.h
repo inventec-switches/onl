@@ -4,8 +4,26 @@
 #define CPLD_DEV_LED_GRN_INDEX	(0)
 #define CPLD_DEV_LED_RED_INDEX	(1)
 
+enum cpld_led_index {
+	RESERVED,
+	LED_STK,
+	LED_FAN,
+	LED_PWR,
+	LED_SYS
+};
+
+typedef struct cpld_led_map_s {
+	char	*name;
+	int	bit_shift;
+	u8	bit_mask;
+	u8	led_off;
+	u8	led_on;
+	u8	led_blink;
+	u8	led_blink_slow;
+} cpld_led_map_t;
+
 ssize_t cpld_show_psu(char *buf);
-ssize_t cpld_show_led(const char *buf, size_t count);
+ssize_t cpld_show_led(char *buf, size_t count);
 
 ssize_t cpld_set_ctl(const char *buf, size_t count);
 ssize_t cpld_set_sys_led(const char *buf, size_t count);

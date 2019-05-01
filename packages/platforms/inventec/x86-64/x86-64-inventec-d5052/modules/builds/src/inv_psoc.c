@@ -1009,6 +1009,7 @@ static void get_init_psu_fan_status(struct i2c_client *client)
     }
 }
 
+#if 0
 static void check_fan_status(struct i2c_client *client)
 {
     struct psoc_data *data = i2c_get_clientdata(client);
@@ -1031,7 +1032,7 @@ static void check_fan_status(struct i2c_client *client)
         }
     }
 }
-#if 0
+
 // [Remove] Bacuase cottonwood don't have PSU info
 static void check_psu_status(struct i2c_client *client)
 {

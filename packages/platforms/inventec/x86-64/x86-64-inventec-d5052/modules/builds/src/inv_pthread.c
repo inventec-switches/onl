@@ -1,5 +1,5 @@
 /*****************************
- Cottonwood(D5052) platform
+ Cottonwood(D3352) platform
 ******************************/
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -607,29 +607,8 @@ static int thread_fn(void *unused)
             continue;
 	}
 
-#if 1
 	fans_control();
 	psus_control(0);
-#else
-	switch_temp_update();
-
-	if (fans_control() > 0) {
-	    psus_control(1);
-	    continue;
-	}
-	else
-	if (psus_control(0) > 0) {
-	    continue;
-	}
-
-	if (status_led_check_color() != 0x55) {      /* status led red, change it to green */
-	    //status_led_grn("7");
-	    cpld_set_sys_led("1", 1);
-	    cpld_set_pwr_led("1", 1);
-	    cpld_set_fan_led("1", 1);
-	    cpld_set_stk_led("1", 1);
-	}
-#endif
     }
 
     do_exit(0);
@@ -719,5 +698,5 @@ module_exit(inv_pthread_exit);
 
 MODULE_AUTHOR("Robert <yu.robertxk@inventec.com>");
 MODULE_DESCRIPTION("Inventec Platform Management Thread");
-MODULE_VERSION("version 1.1");
+MODULE_VERSION("version 1.2");
 MODULE_LICENSE("GPL");

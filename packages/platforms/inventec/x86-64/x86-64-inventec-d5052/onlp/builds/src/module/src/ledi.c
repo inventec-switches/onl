@@ -9,6 +9,7 @@
 #include <onlp/platformi/ledi.h>
 #include <sys/mman.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -25,15 +26,46 @@
         }                                       \
     } while(0)
 
+
+#if 0
+enum cpld_led_index {
+	RESERVED,
+	LED_STK,
+	LED_FAN,
+	LED_PWR,
+	LED_SYS
+};
+#else
+/* Reference to inv_cpld.h */
+
+typedef struct cpld_led_map_s {
+	char	*name;
+	int	bit_shift;
+	unsigned int	bit_mask;
+	unsigned int	led_off;
+	unsigned int	led_on;
+	unsigned int	led_blink;
+	unsigned int	led_blink_slow;
+} cpld_led_map_t;
+
+static cpld_led_map_t cpld_led_map[] = {
+	{ NULL,      0, 0x00, 0x00, 0x00, 0x00, 0x00 },
+	{ "stk_led", 0, 0x03, 0x00, 0x01, 0x02, 0x03 },
+	{ "fan_led", 2, 0x0c, 0x00, 0x04, 0x08, 0x0c },
+	{ "pwr_led", 4, 0x30, 0x00, 0x10, 0x20, 0x30 },
+	{ "sys_led", 6, 0xc0, 0x00, 0x40, 0x80, 0xc0 }
+};
+#endif
+
 static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"/%s_led",
-    INV_CPLD_PREFIX"/%s_led",
-    INV_CPLD_PREFIX"/%s_led",
-    INV_CPLD_PREFIX"/%s_led",
-    INV_PSOC_PREFIX"/fan_led_%s1",
-    INV_PSOC_PREFIX"/fan_led_%s2",
+    INV_CPLD_PREFIX"/stk_led",
+    INV_CPLD_PREFIX"/fan_led",
+    INV_CPLD_PREFIX"/pwr_led",
+    INV_CPLD_PREFIX"/sys_led",
+    INV_PSOC_PREFIX"/fan1_led_%s",
+    INV_PSOC_PREFIX"/fan2_led_%s",
 };
 
 enum led_light_mode {
@@ -82,27 +114,27 @@ static onlp_led_info_t linfo[LED_MAX] =
 {
     { }, /* Not used */
     {
-        { ONLP_LED_ID_CREATE(LED_SYS), "Chassis LED (SYSTEM LED)", 0 },
+        { ONLP_LED_ID_CREATE(LED_STK), "Chassis LED (STACKING LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_PWR), "Chassis LED (POWER LED)", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN,
 	ONLP_LED_MODE_ON, '0',
     },
     {
         { ONLP_LED_ID_CREATE(LED_FAN), "Chassis LED (FAN LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN,
 	ONLP_LED_MODE_ON, '0',
     },
     {
-        { ONLP_LED_ID_CREATE(LED_STK), "Chassis LED (STACKING LED)", 0 },
+        { ONLP_LED_ID_CREATE(LED_PWR), "Chassis LED (POWER LED)", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_SYS), "Chassis LED (SYSTEM LED)", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_BLUE,
 	ONLP_LED_MODE_ON, '0',
     },
     {
@@ -174,7 +206,9 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     char fullpath_grn[50] = {0};
     char fullpath_red[50] = {0};
     int  gvalue = 0, rvalue = 0;
-    char buf[32] = {0};
+    int  led_on, led_blink;
+    char *bp, buf[32] = {0};
+    unsigned int led_st;
 		
     VALIDATE(id);
 
@@ -183,28 +217,72 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     		
     /* get fullpath */
     switch (local_id) {
-	case LED_SYS:
-	case LED_PWR:
-	case LED_FAN:
 	case LED_STK:
-            sprintf(fullpath_grn, devfiles__[local_id], "grn");
+	case LED_FAN:
+	case LED_PWR:
+	case LED_SYS:
+            sprintf(fullpath_grn, devfiles__[local_id]);
 	    /* Set LED mode */
-	    if (onlp_chassis_led_read(fullpath_grn, buf, 32) <= 0) {
-		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
+	    if (onlp_chassis_led_read(fullpath_grn, buf, 32) < 0) {
+		DEBUG_PRINT("%s/%d\r\n", __FUNCTION__, __LINE__);
 		info->mode = ONLP_LED_MODE_OFF;
         	info->status &= ~ONLP_LED_STATUS_PRESENT;
     		return ONLP_STATUS_OK;
 	    }
-
-	    if (buf[0] == '1' || buf[0] == '2' || buf[0] == '3' || buf[0] == '7') {
-		info->mode = ONLP_LED_MODE_GREEN;
-		info->status |= ONLP_LED_STATUS_PRESENT;
+	    bp = strstr(&buf[0], "0x");
+	    if (!bp) {
+		DEBUG_PRINT("%s/%d: (%s)\r\n", __FUNCTION__, __LINE__,buf);
+		info->mode = ONLP_LED_MODE_OFF;
+        	info->status &= ~ONLP_LED_STATUS_PRESENT;
     		return ONLP_STATUS_OK;
 	    }
+	    *(bp+4) = '\0';
+	    led_st = strtoul(bp, NULL, 16);
+	    switch (local_id) {
+		case LED_STK:
+		    led_st &=  cpld_led_map[LED_STK].bit_mask;
+		    led_st >>= cpld_led_map[LED_STK].bit_shift;
+		    led_on    = ONLP_LED_MODE_GREEN;
+		    led_blink = ONLP_LED_MODE_GREEN_BLINKING;
+		    break;
+		case LED_FAN:
+		    led_st &=  cpld_led_map[LED_FAN].bit_mask;
+		    led_st >>= cpld_led_map[LED_FAN].bit_shift;
+		    led_on    = ONLP_LED_MODE_GREEN;
+		    led_blink = ONLP_LED_MODE_GREEN_BLINKING;
+		    break;
+		case LED_PWR:
+		    led_st &=  cpld_led_map[LED_PWR].bit_mask;
+		    led_st >>= cpld_led_map[LED_PWR].bit_shift;
+		    led_on    = ONLP_LED_MODE_GREEN;
+		    led_blink = ONLP_LED_MODE_GREEN_BLINKING;
+		    break;
+		case LED_SYS:
+		    led_st &=  cpld_led_map[LED_SYS].bit_mask;
+		    led_st >>= cpld_led_map[LED_SYS].bit_shift;
+		    led_on    = ONLP_LED_MODE_BLUE;
+		    led_blink = ONLP_LED_MODE_BLUE_BLINKING;
+		    break;
+	    }
 
-	    DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
-	    info->mode = ONLP_LED_MODE_OFF;
-            info->status &= ~ONLP_LED_STATUS_PRESENT;
+	    info->status |= ONLP_LED_STATUS_PRESENT;
+	    if (led_st == 0) {
+		info->mode = ONLP_LED_MODE_OFF;
+	    }
+	    else
+	    if (led_st == 1) {
+		info->mode = led_on;
+		info->status |= ONLP_LED_STATUS_ON;
+	    }
+	    else
+	    if (led_st == 2 || led_st == 3) {
+		info->mode = led_blink;
+		info->status |= ONLP_LED_STATUS_ON;
+	    }
+	    else {
+		info->mode = ONLP_LED_MODE_OFF;
+		info->status &= ~ONLP_LED_STATUS_PRESENT;
+	    }
     	    return ONLP_STATUS_OK;
 	    break;
 	case LED_FAN1:
@@ -220,6 +298,23 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 	    if (onlp_file_read_int(&rvalue, fullpath_red) != 0) {
 		DEBUG_PRINT("%s(%d)\r\n", __FUNCTION__, __LINE__);
 		rvalue = 0;
+	    }
+
+	    if (gvalue == 1 && rvalue == 0) {
+		info->mode = ONLP_LED_MODE_GREEN;
+		info->status |= ONLP_LED_STATUS_PRESENT;
+		info->status |= ONLP_LED_STATUS_ON;
+	    }
+	    else
+	    if (gvalue == 0 && rvalue == 1) {
+		info->mode = ONLP_LED_MODE_RED;
+		info->status |= ONLP_LED_STATUS_PRESENT;
+		info->status |= ONLP_LED_STATUS_ON;
+	    }
+	    else {
+		info->mode = ONLP_LED_MODE_OFF;
+		info->status &= ~ONLP_LED_STATUS_PRESENT;
+		info->status &= ~ONLP_LED_STATUS_ON;
 	    }
 	    break;
 	default:

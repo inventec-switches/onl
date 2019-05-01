@@ -27,17 +27,8 @@
     } while(0)
 
 
-#if 0
-enum cpld_led_index {
-	RESERVED,
-	LED_STK,
-	LED_FAN,
-	LED_PWR,
-	LED_SYS
-};
-#else
 /* Reference to inv_cpld.h */
-
+/*
 typedef struct cpld_led_map_s {
 	char	*name;
 	int	bit_shift;
@@ -47,7 +38,7 @@ typedef struct cpld_led_map_s {
 	unsigned int	led_blink;
 	unsigned int	led_blink_slow;
 } cpld_led_map_t;
-
+*/
 static cpld_led_map_t cpld_led_map[] = {
 	{ NULL,      0, 0x00, 0x00, 0x00, 0x00, 0x00 },
 	{ "stk_led", 0, 0x03, 0x00, 0x01, 0x02, 0x03 },
@@ -55,7 +46,6 @@ static cpld_led_map_t cpld_led_map[] = {
 	{ "pwr_led", 4, 0x30, 0x00, 0x10, 0x20, 0x30 },
 	{ "sys_led", 6, 0xc0, 0x00, 0x40, 0x80, 0xc0 }
 };
-#endif
 
 static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {

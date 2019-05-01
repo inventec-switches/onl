@@ -4,12 +4,18 @@
 #define CPLD_DEV_LED_GRN_INDEX	(0)
 #define CPLD_DEV_LED_RED_INDEX	(1)
 
-enum cpld_led_index {
-	RESERVED,
-	LED_STK,
-	LED_FAN,
-	LED_PWR,
-	LED_SYS
+/*
+ * onlp_led_id should be same as in onlp/platform_lib.h
+ */
+enum onlp_led_id {
+    LED_RESERVED = 0,
+    LED_STK,
+    LED_FAN,
+    LED_PWR,
+    LED_SYS,
+    LED_FAN1,
+    LED_FAN2,
+    LED_MAX
 };
 
 typedef struct cpld_led_map_s {

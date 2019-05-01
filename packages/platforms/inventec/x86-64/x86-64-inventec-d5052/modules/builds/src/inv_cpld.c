@@ -238,27 +238,6 @@ static ssize_t set_bios_cs(struct device *dev,
         return count;
 }
 
-#if 0
-/* Definition in inv_pthread.h */
-enum cpld_led_index {
-	RESERVED,
-	LED_STK,
-	LED_FAN,
-	LED_PWR,
-	LED_SYS
-};
-
-typedef struct cpld_led_map_s {
-	char	*name;
-	int	bit_shift;
-	u8	bit_mask;
-	u8	led_off;
-	u8	led_on;
-	u8	led_blink;
-	u8	led_blink_slow;
-} cpld_led_map_t;
-
-#else
 static cpld_led_map_t cpld_led_map[] = {
 	{ NULL,      0, 0x00, 0x00, 0x00, 0x00, 0x00 },
 	{ "stk_led", 0, 0x03, 0x00, 0x01, 0x02, 0x03 },
@@ -266,7 +245,6 @@ static cpld_led_map_t cpld_led_map[] = {
 	{ "pwr_led", 4, 0x30, 0x00, 0x10, 0x20, 0x30 },
 	{ "sys_led", 6, 0xc0, 0x00, 0x40, 0x80, 0xc0 }
 };
-#endif
 
 /* System Leds: sys_led/pwr_led/fan_led/stk_led */
 ssize_t cpld_show_led(char *buf, size_t count)

@@ -77,6 +77,19 @@ enum onlp_led_id {
 };
 #define CHASSIS_LED_COUNT	(4)
 
+/*
+ * struct cpld_led_map_s must be same as it in inv_platform.h
+ */
+typedef struct cpld_led_map_s {
+        char    *name;
+        int     bit_shift;
+        unsigned int    bit_mask;
+        unsigned int    led_off;
+        unsigned int    led_on;
+        unsigned int    led_blink;
+        unsigned int    led_blink_slow;
+} cpld_led_map_t;
+
 enum onlp_psu_id {
     PSU_RESERVED = 0,
     PSU1_ID,

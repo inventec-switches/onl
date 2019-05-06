@@ -1,12 +1,17 @@
 #!/bin/bash
-#lavender platform
 normal='0 : normal'
 unpowered='2 : unpowered'
 fault='4 : fault'
 notinstalled='7 : not installed'
+FAN_UNPLUG_NUM=0
+FAN_LED_RED='fan_led_red'
+NUM=1
+FAN_NUM=5
+FIRST_READ=0
+SECOND_READ=0
 
 PSOC_PATH=""
-CPLD_PATH="/sys/bus/i2c/devices/i2c-0/0-0055"
+CPLD_ADDR="/sys/bus/i2c/devices/i2c-0/0-0055"
 ROUTE="/sys/class/hwmon/"
 for KEY in $(ls ${ROUTE})
 do
@@ -22,49 +27,87 @@ if [[ $PSOC_PATH == "" ]]; then
 	exit
 fi
 
+
+#PSU_STAUS='000'
+#switch is ready , transfer control of cpld to cpu
+echo 1 > $CPLD_ADDR/ctl
+
 while true
 do
-  psu0var=$(cat $CPLD_PATH/psu0)    # bottom PSU
-  psu1var=$(cat $CPLD_PATH/psu1)    # top PSU
-  fan1in=$(cat $PSOC_PATH/fan1_input)  # fanmodule1, far right, back view
-  fan2in=$(cat $PSOC_PATH/fan2_input)  # fanmodule1, far right, back view
-  fan3in=$(cat $PSOC_PATH/fan3_input)  # fanmodule2
-  fan4in=$(cat $PSOC_PATH/fan4_input)  # fanmodule2
-  fan5in=$(cat $PSOC_PATH/fan5_input)  # fanmodule3
-  fan6in=$(cat $PSOC_PATH/fan6_input)  # fanmodule3
-  fan7in=$(cat $PSOC_PATH/fan7_input)  # fanmodule4, far left, back view
-  fan8in=$(cat $PSOC_PATH/fan8_input)  # fanmodule4, far left, back view
 
-  if [ "$psu0var" = "$normal" ] &&
-     [ "$psu1var" = "$normal" ] &&                         # PSU normal operation
-     [ "$fan1in" -gt 0 ] && [ "$fan2in" -gt 0 ] &&         # fan on
-     [ "$fan3in" -gt 0 ] && [ "$fan4in" -gt 0 ] &&
-     [ "$fan5in" -gt 0 ] && [ "$fan6in" -gt 0 ] &&
-     [ "$fan7in" -gt 0 ] && [ "$fan8in" -gt 0 ]
-  then
-    echo 1 > $CPLD_PATH/ctl
-    echo 0 > $CPLD_PATH/red_led     # red off
-    echo 7 > $CPLD_PATH/grn_led     # grn solid
+#monitor how many fan modules are unplugged
 
-  elif [ "$psu0var" = "$unpowered" ] ||
-       [ "$psu1var" = "$unpowered" ] ||                    # PSU unpowered
-       [ "$fan1in" -eq 0 ] || [ "$fan2in" -eq 0 ] ||       # fan off
-       [ "$fan3in" -eq 0 ] || [ "$fan4in" -eq 0 ] ||
-       [ "$fan5in" -eq 0 ] || [ "$fan6in" -eq 0 ] ||
-       [ "$fan7in" -eq 0 ] || [ "$fan8in" -eq 0 ]
-  then
-    echo 1 > $CPLD_PATH/ctl
-    echo 0 > $CPLD_PATH/red_led     # red off
-    echo 3 > $CPLD_PATH/grn_led     # grn @2Hz
 
-  elif [ "$psu0var" = "$fault" ] ||
-       [ "$psu0var" = "$notinstalled" ] ||
-       [ "$psu1var" = "$fault" ] ||
-       [ "$psu1var" = "$notinstalled" ]                    # PSU fault or PSU not installed
-  then
-    echo 1 > $CPLD_PATH/ctl
-    echo 0 > $CPLD_PATH/grn_led     # grn off
-    echo 7 > $CPLD_PATH/red_led     # red solid
-  fi
+#first check
+FAN_UNPLUG_NUM=0
+FAN_ARR=$(cat $PSOC_PATH/$FAN_LED_RED?)
+
+while read -r line; do
+    fan_led_red_check=$(echo "$line")
+    if [ $fan_led_red_check -eq 1 ]
+    then
+    let FAN_UNPLUG_NUM=FAN_UNPLUG_NUM+1
+    fi 
+done <<< "$FAN_ARR"
+FIRST_READ=$FAN_UNPLUG_NUM
+
+#second check
+FAN_UNPLUG_NUM=0
+FAN_ARR=$(cat $PSOC_PATH/$FAN_LED_RED?)
+
+while read -r line; do
+    fan_led_red_check=$(echo "$line")
+    if [ $fan_led_red_check -eq 1 ]
+    then
+    let FAN_UNPLUG_NUM=FAN_UNPLUG_NUM+1
+    fi 
+done <<< "$FAN_ARR"
+SECOND_READ=$FAN_UNPLUG_NUM
+
+if [ $FIRST_READ -ne $SECOND_READ ]
+then
+  #echo "not equl:$FIRST_READ != $SECOND_READ"
+  continue
+fi 
+
+if [ $FAN_UNPLUG_NUM -ge 2 ]
+then
+  #echo "red @2Hz"  
+  echo 7 > $CPLD_ADDR/red_led
+  echo 0 > $CPLD_ADDR/grn_led
   sleep 1
+  continue
+elif [ $FAN_UNPLUG_NUM -eq 1 ]
+then
+  #echo "solid red"
+  echo 3 > $CPLD_ADDR/red_led
+  echo 0 > $CPLD_ADDR/grn_led
+  sleep 1
+  continue
+fi
+
+  #echo "normal"
+  psu0var=$(cat $CPLD_ADDR/psu0)    # bottom PSU
+  psu1var=$(cat $CPLD_ADDR/psu1)    # top PSU
+
+   if [ "$psu0var" = "$normal" ] &&
+     [ "$psu1var" = "$normal" ]                          # PSU normal operatio
+   then
+      #echo "solid green"
+      echo 7 > $CPLD_ADDR/grn_led
+      echo 0 > $CPLD_ADDR/red_led
+   else  
+      if [ "$psu0var" = "$unpowered" ] ||
+      [ "$psu1var" = "$unpowered" ]
+      then
+        #echo "grn @2Hz"
+        echo 3 > $CPLD_ADDR/grn_led
+        echo 0 > $CPLD_ADDR/red_led
+      fi
+      
+   fi 
+
+
+sleep 1
 done
+

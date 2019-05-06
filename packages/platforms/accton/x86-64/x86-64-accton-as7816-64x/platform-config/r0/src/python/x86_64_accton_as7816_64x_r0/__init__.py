@@ -6,7 +6,7 @@ class OnlPlatform_x86_64_accton_as7816_64x_r0(OnlPlatformAccton,
     PLATFORM='x86-64-accton-as7816-64x-r0'
     MODEL="AS7816-64x"
     SYS_OBJECT_ID=".7816.64"
-
+    
     def baseconfig(self):
         self.insmod('optoe')
         self.insmod('ym2651y')
@@ -124,7 +124,7 @@ class OnlPlatform_x86_64_accton_as7816_64x_r0(OnlPlatformAccton,
                 ('optoe1', 0x50, 87),
                 ('optoe1', 0x50, 88),
 
-                ('24c02', 0x56, 0),
+                #('24c02', 0x56, 0),
                 ])
 
         subprocess.call('echo port61 > /sys/bus/i2c/devices/25-0050/port_name', shell=True)
@@ -192,5 +192,5 @@ class OnlPlatform_x86_64_accton_as7816_64x_r0(OnlPlatformAccton,
         subprocess.call('echo port50 > /sys/bus/i2c/devices/86-0050/port_name', shell=True)
         subprocess.call('echo port51 > /sys/bus/i2c/devices/87-0050/port_name', shell=True)
         subprocess.call('echo port52 > /sys/bus/i2c/devices/88-0050/port_name', shell=True)
-
+        
         return True

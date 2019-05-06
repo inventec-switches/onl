@@ -24,6 +24,7 @@
 
 #define LED_TYPE_1 1
 #define LED_TYPE_2 2
+#define LED_TYPE_3 3
 
 /* led common id */
 #define LED_RESERVED 0
@@ -40,6 +41,11 @@
 #define LED_PSU2 4
 #define LED_UID 5
 
+/*led type 3 id */
+#define LED_FAN5 6
+#define LED_FAN6 7
+#define LED_PSU_T3 8
+
 #define PERCENTAGE_MIN 60.0
 #define PERCENTAGE_MAX 100.0
 #define RPM_MAGIC_MIN  153.0
@@ -54,6 +60,7 @@
 /* 1 -without eeprom, 2 - with eeprom */
 #define PSU_TYPE_1 1
 #define PSU_TYPE_2 2
+#define PSU_TYPE_3 3
 
 #define FAN_MODEL	"MEC012579"
 
@@ -125,14 +132,18 @@ typedef struct mlnx_platform_info_s {
     onlp_fan_info_t* finfo;
     fan_path_T* fan_fnames;
     int fan_type;
+    int fan_per_module;
     int first_psu_fan_id;
 } mlnx_platform_info_t;
 
 #define PSU1_ID 1
 #define PSU2_ID 2
-#define PSU_MODULE_PREFIX "/bsp/module/psu%d_%s"
-#define PSU_POWER_PREFIX "/bsp/power/psu%d_%s"
-#define IDPROM_PATH "/bsp/eeprom/%s%d_info"
+#define HW_MANAGEMENT_PATH "/var/run/hw-management"
+#define QSFP_PATH HW_MANAGEMENT_PATH"/qsfp"
+#define THERMAL_PATH "/var/run/hw-management/thermal"
+#define PSU_MODULE_PREFIX THERMAL_PATH"/psu%d_%s"
+#define PSU_POWER_PREFIX HW_MANAGEMENT_PATH"/power/psu%d_%s"
+#define IDPROM_PATH HW_MANAGEMENT_PATH"/eeprom/%s%d_info"
 
 typedef enum psu_type {
     PSU_TYPE_UNKNOWN,

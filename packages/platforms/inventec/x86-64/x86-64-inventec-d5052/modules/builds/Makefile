@@ -4,3 +4,4 @@ VENDOR := inventec
 BASENAME := x86-64-inventec-d5052
 ARCH := x86_64
 include $(ONL)/make/kmodule.mk
+

@@ -37,7 +37,7 @@
 static ssize_t show_status(struct device *dev, struct device_attribute *da, char *buf);
 static ssize_t show_model_name(struct device *dev, struct device_attribute *da, char *buf);
 static int as5916_54xk_psu_read_block(struct i2c_client *client, u8 command, u8 *data,int data_len);
-extern int accton_i2c_cpld_read(unsigned short cpld_addr, u8 reg);
+extern int as5916_54xk_cpld_read(unsigned short cpld_addr, u8 reg);
 
 /* Addresses scanned 
  */
@@ -135,7 +135,8 @@ static int as5916_54xk_psu_probe(struct i2c_client *client,
         goto exit_free;
     }
 
-    data->hwmon_dev = hwmon_device_register(&client->dev);
+    data->hwmon_dev = hwmon_device_register_with_info(&client->dev, "as5916_54xk_psu",
+                                                      NULL, NULL, NULL);
     if (IS_ERR(data->hwmon_dev)) {
         status = PTR_ERR(data->hwmon_dev);
         goto exit_remove;
@@ -234,7 +235,7 @@ static struct as5916_54xk_psu_data *as5916_54xk_psu_update_device(struct device 
         dev_dbg(&client->dev, "Starting as5916_54xk update\n");
 
         /* Read psu status */
-        status = accton_i2c_cpld_read(0x60, 0x2);
+        status = as5916_54xk_cpld_read(0x60, 0x2);
         
         if (status < 0) {
             dev_dbg(&client->dev, "cpld reg 0x60 err %d\n", status);

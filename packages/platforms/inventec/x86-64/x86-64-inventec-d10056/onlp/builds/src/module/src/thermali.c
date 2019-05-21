@@ -42,12 +42,13 @@ typedef struct thermali_path_s {
     char file[ONLP_CONFIG_INFO_STR_MAX];
 } thermali_path_t;
 
-#define MAKE_THERMAL_PATH_ON_CPU(id)	        { INV_CTMP_PREFIX"temp"#id"_input"}
-#define MAKE_THERMAL_PATH_ON_MAIN_BROAD(id)   	{ INV_HWMON_PREFIX"temp"#id"_input"}
-#define MAKE_THERMAL1_PATH_ON_PSU(psu_id)	{ INV_HWMON_PREFIX"thermal_psu"#psu_id}
+#define MAKE_THERMAL_PATH_ON_CPU(id)            { INV_CTMP_PREFIX"temp"#id"_input"}
+#define MAKE_THERMAL_PATH_ON_MAIN_BROAD(id)     { INV_HWMON_PREFIX"temp"#id"_input"}
+#define MAKE_THERMAL1_PATH_ON_PSU(psu_id)   { INV_HWMON_PREFIX"thermal_psu"#psu_id}
 #define MAKE_THERMAL2_PATH_ON_PSU(psu_id)       { INV_HWMON_PREFIX"thermal2_psu"#psu_id}
 
-static thermali_path_t __path_list[ONLP_THERMAL_COUNT] = {
+static thermali_path_t __path_list[ ] = {
+    {},
     MAKE_THERMAL_PATH_ON_CPU(1),
     MAKE_THERMAL_PATH_ON_CPU(2),
     MAKE_THERMAL_PATH_ON_CPU(3),
@@ -89,7 +90,8 @@ static thermali_path_t __path_list[ONLP_THERMAL_COUNT] = {
     }
 
 /* Static values */
-static onlp_thermal_info_t __onlp_thermal_info[ONLP_THERMAL_COUNT] = {
+static onlp_thermal_info_t __onlp_thermal_info[ ] = {
+    {},
     MAKE_THERMAL_INFO_NODE_ON_CPU_PHY,
     MAKE_THERMAL_INFO_NODE_ON_CPU_CORE(0),
     MAKE_THERMAL_INFO_NODE_ON_CPU_CORE(1),
@@ -128,22 +130,22 @@ onlp_thermali_init(void)
 int
 onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 {
-    int local_id;
     VALIDATE(id);
     int ret;
-
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_THERMAL_MAX) {
+    int thermal_id = ONLP_OID_ID_GET(id);
+    if(thermal_id >= ONLP_THERMAL_MAX) {
         return ONLP_STATUS_E_INVALID;
     }
 
     /* Set the onlp_oid_hdr_t and capabilities */
-    *info = __onlp_thermal_info[LOCAL_ID_TO_INFO_IDX(local_id)];
+    *info = __onlp_thermal_info[ thermal_id];
     ret = onlp_thermali_status_get(id, &info->status);
-    if( ret != ONLP_STATUS_OK ) { return ret; }
+    if( ret != ONLP_STATUS_OK ) {
+        return ret;
+    }
 
     if(info->status & ONLP_THERMAL_STATUS_PRESENT) {
-        ret = onlp_file_read_int(&info->mcelsius, __path_list[LOCAL_ID_TO_INFO_IDX(local_id)].file);
+        ret = onlp_file_read_int(&info->mcelsius, __path_list[ thermal_id].file);
     }
 
     return ret;
@@ -157,31 +159,28 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
  */
 int onlp_thermali_status_get(onlp_oid_t id, uint32_t* rv)
 {
-    int local_id;
     int ret = ONLP_STATUS_OK;
     onlp_thermal_info_t* info;
     VALIDATE(id);
     uint32_t psu_status;
 
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_THERMAL_MAX) {
+    int thermal_id = ONLP_OID_ID_GET(id);
+    if(thermal_id >= ONLP_THERMAL_MAX) {
         return ONLP_STATUS_E_INVALID;
     }
-    info = &__onlp_thermal_info[LOCAL_ID_TO_INFO_IDX(local_id)];
+    info = &__onlp_thermal_info[ thermal_id];
 
-    switch(local_id) {
+    switch(thermal_id) {
     case ONLP_THERMAL_1_ON_PSU1:
     case ONLP_THERMAL_2_ON_PSU1:
     case ONLP_THERMAL_1_ON_PSU2:
     case ONLP_THERMAL_2_ON_PSU2:
         ret = onlp_psui_status_get((&info->hdr)->poid, &psu_status);
-        if(ret != ONLP_STATUS_OK) {return ret;}
-
-        if(psu_status & ONLP_PSU_STATUS_PRESENT) {
-            info->status |= ONLP_THERMAL_STATUS_PRESENT;
-        } else {
-            info->status = 0;
+        if(ret != ONLP_STATUS_OK) {
+            return ret;
         }
+        info->status = (psu_status & ONLP_PSU_STATUS_PRESENT)?  \
+                       ADD_STATE(info->status,ONLP_PSU_STATUS_PRESENT):0;
         break;
     default:
         break;
@@ -199,15 +198,14 @@ int onlp_thermali_status_get(onlp_oid_t id, uint32_t* rv)
  */
 int onlp_thermali_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* rv)
 {
-    int local_id;
     onlp_thermal_info_t* info;
     VALIDATE(id);
 
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_THERMAL_MAX) {
+    int thermal_id = ONLP_OID_ID_GET(id);
+    if(thermal_id >= ONLP_THERMAL_MAX) {
         return ONLP_STATUS_E_INVALID;
     }
-    info = &__onlp_thermal_info[LOCAL_ID_TO_INFO_IDX(local_id)];
+    info = &__onlp_thermal_info[ thermal_id];
 
     *rv = info->hdr;
 

@@ -44,6 +44,9 @@
 #define SYSI_ONIE_TYPE_SUPPORT_NUM        17
 #define SYSI_PLATFORM_INFO_TYPE_STR_MAX   10
 #define SYSI_PLATFORM_INFO_NUM             2
+#define TLV_PREFIX_LENGTH 2 /*TLV prefix with one byte of 'Type' and one byte fpr 'Length' */
+#define PATH_LENGTH 50
+#define ITEM_NUM 17
 
 /**
  *  The TLV Types.
@@ -101,7 +104,6 @@ static onlp_oid_t __oid_info[] = {
     ONLP_FAN_ID_CREATE(ONLP_FAN_2),
     ONLP_FAN_ID_CREATE(ONLP_FAN_3),
     ONLP_FAN_ID_CREATE(ONLP_FAN_4),
-    ONLP_FAN_ID_CREATE(ONLP_FAN_5),
     ONLP_PSU_ID_CREATE(ONLP_PSU_1),
     ONLP_PSU_ID_CREATE(ONLP_PSU_2),
     ONLP_LED_ID_CREATE(ONLP_LED_MGMT),
@@ -120,7 +122,9 @@ static int _sysi_version_parsing(char* file_str, char* str_buf, char* version)
     char *temp;
 
     rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX*4, &len, file_str);
-    if( rv != ONLP_STATUS_OK ) { return rv; }
+    if( rv != ONLP_STATUS_OK ) {
+        return rv;
+    }
 
     temp = strstr(buf, str_buf);
     if(temp) {
@@ -141,7 +145,7 @@ static void _case_tlv_code_string(onlp_onie_info_t* info, char** member, char* p
     char buf[ONLP_CONFIG_INFO_STR_MAX];
     rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
     if( rv == ONLP_STATUS_OK ) {
-        info->_hdr_length += 2;
+        info->_hdr_length += TLV_PREFIX_LENGTH;
         buf[strlen(buf)-1] = '\0';
         *member = aim_fstrdup("%s",buf);
         info->_hdr_length += strlen(*member);
@@ -158,52 +162,24 @@ static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
     int rv = ONLP_STATUS_OK;
     int len;
     char buf[ONLP_CONFIG_INFO_STR_MAX];
-    switch(type) {
-    case TLV_CODE_PRODUCT_NAME:
-        _case_tlv_code_string(info, &(info->product_name), INV_SYS_PREFIX"product_name");
-        break;
-    case TLV_CODE_PART_NUMBER:
-        _case_tlv_code_string(info, &(info->part_number), INV_SYS_PREFIX"pn");
-        break;
-    case TLV_CODE_SERIAL_NUMBER:
-        _case_tlv_code_string(info, &(info->serial_number), INV_SYS_PREFIX"sn");
-        break;
-    case TLV_CODE_MANUF_DATE:
-        _case_tlv_code_string(info, &(info->manufacture_date), INV_SYS_PREFIX"man_date");
-        break;
-    case TLV_CODE_LABEL_REVISION:
-        _case_tlv_code_string(info, &(info->label_revision), INV_SYS_PREFIX"label_rev");
-        break;
-    case TLV_CODE_PLATFORM_NAME:
-        _case_tlv_code_string(info, &(info->platform_name), INV_SYS_PREFIX"plat_name");
-        break;
-    case TLV_CODE_ONIE_VERSION:
-        _case_tlv_code_string(info, &(info->onie_version), INV_SYS_PREFIX"ldr_ver");
-        break;
-    case TLV_CODE_MANUF_NAME:
-        _case_tlv_code_string(info, &(info->manufacturer), INV_SYS_PREFIX"manufacturer");
-        break;
-    case TLV_CODE_MANUF_COUNTRY:
-        _case_tlv_code_string(info, &(info->country_code), INV_SYS_PREFIX"country_code");
-        break;
-    case TLV_CODE_VENDOR_NAME:
-        _case_tlv_code_string(info, &(info->vendor), INV_SYS_PREFIX"vendor_name");
-        break;
-    case TLV_CODE_SERVICE_TAG:
-        _case_tlv_code_string(info, &(info->service_tag), INV_SYS_PREFIX"service_tag");
-        break;
-    case TLV_CODE_DIAG_VERSION:
-        _case_tlv_code_string(info, &(info->diag_version), INV_SYS_PREFIX"diag_ver");
-        break;
 
-    case TLV_CODE_MAC_BASE:
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"base_mac_addr" );
+    char** list[]= { &(info->product_name), &(info->part_number), &(info->serial_number), NULL, &(info->manufacture_date), NULL,
+                     &(info->label_revision), &(info->platform_name), &(info->onie_version), NULL, &(info->manufacturer) ,
+                     &(info->country_code), &(info->vendor), &(info->diag_version), &(info->service_tag), NULL ,NULL
+                   } ;
+    char *path_name[]= {"product_name","pn","sn","base_mac_addr","man_date","dev_ver", "label_rev","plat_name","ldr_ver",
+                        "mac_addr","manufacturer","country_code","vendor_name","diag_ver","service_tag","vendor_ext","crc32"
+                       };
+    char path[PATH_LENGTH];
+    int key=(type>TLV_CODE_SERVICE_TAG)? (ITEM_NUM+type-TLV_CODE_CRC_32-1):(type-TLV_CODE_PRODUCT_NAME);
+    snprintf(path,PATH_LENGTH,"%s%s",INV_SYS_PREFIX,path_name[key]);
+    if(type ==TLV_CODE_MAC_BASE) {
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len,path);
         if( rv == ONLP_STATUS_OK ) {
             if(sscanf( buf, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\n",
                        &info->mac[0], &info->mac[1], &info->mac[2],
                        &info->mac[3], &info->mac[4], &info->mac[5]) == 6) {
-                info->_hdr_length += 2;
-                info->_hdr_length += 6;
+                info->_hdr_length += (TLV_PREFIX_LENGTH+6);
             } else {
                 /*parsing fail*/
                 memset(info->mac, 0, 6);
@@ -212,54 +188,44 @@ static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
             memset(info->mac, 0, 6);
             rv = ONLP_STATUS_OK;
         }
-        break;
-
-    case TLV_CODE_DEVICE_VERSION:
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"dev_ver");
+    } else if(type==TLV_CODE_DEVICE_VERSION) {
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
         if( rv == ONLP_STATUS_OK ) {
-            info->_hdr_length += 2;
             info->device_version= (uint8_t)strtoul(buf, NULL, 0);
-            info->_hdr_length += 1;
+            info->_hdr_length += (TLV_PREFIX_LENGTH+1);
         } else {
             info->device_version = 0;
             rv = ONLP_STATUS_OK;
         }
-        break;
-    case TLV_CODE_MAC_SIZE:
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"mac_addr");
+    } else if(type==TLV_CODE_MAC_SIZE) {
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
         if( rv == ONLP_STATUS_OK ) {
-            info->_hdr_length += 2;
             info->mac_range = (uint16_t)strtoul(buf, NULL, 0);
-            info->_hdr_length += 2;
+            info->_hdr_length += (TLV_PREFIX_LENGTH+2);
         } else {
             info->mac_range = 0;
             rv = ONLP_STATUS_OK;
         }
-        break;
-
-    case TLV_CODE_VENDOR_EXT:
+    } else if(type==TLV_CODE_VENDOR_EXT) {
         list_init(&info->vx_list);
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"vendor_ext");
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
         if( rv == ONLP_STATUS_OK ) {
             /*TODO*/
         }
         rv = ONLP_STATUS_OK;
-        break;
-
-    case TLV_CODE_CRC_32:
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"crc32");
+    } else if(type==TLV_CODE_CRC_32) {
+        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, path);
         if( rv == ONLP_STATUS_OK ) {
-            info->_hdr_length += 2;
             info->crc = (uint32_t)strtoul(buf, NULL, 0);
-            info->_hdr_length += 4;
+            info->_hdr_length += (TLV_PREFIX_LENGTH+4);
         } else {
             info->crc = 0;
             rv = ONLP_STATUS_OK;
         }
-        break;
-
-    default:
-        break;
+    } else if( (type>=TLV_CODE_PRODUCT_NAME) &&  (type<=TLV_CODE_VENDOR_NAME) ) {
+        _case_tlv_code_string(info, list[key], path);
+    } else {
+        return rv;
     }
     return rv;
 }
@@ -303,25 +269,6 @@ onlp_sysi_onie_data_phys_addr_get(void** pa)
 int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
-#if 0
-    int rv;
-    int i;
-
-    /*
-     * This represents the example ONIE data.
-     */
-    static uint8_t onie_data[] = {
-        'T', 'l', 'v','I','n','f','o', 0,
-        0x1, 0x0, 0x0,
-        0x21, 0x8, 'O', 'N', 'L', 'P', 'I', 'E', 0, 0,
-        0x22, 0x3, 'O', 'N', 'L',
-        0xFE, 0x4, 0x4b, 0x1b, 0x1d, 0xde,
-    };
-
-
-    memcpy(*data, onie_data, ONLPLIB_CONFIG_I2C_BLOCK_SIZE);
-    return 0;
-#endif
     return ONLP_STATUS_E_UNSUPPORTED;
 }
 
@@ -353,7 +300,9 @@ onlp_sysi_onie_info_get (onlp_onie_info_t *onie)
     int i;
     onie->_hdr_length = 0;
     for(i = 0; i < SYSI_ONIE_TYPE_SUPPORT_NUM; i++) {
-        if( rv != ONLP_STATUS_OK ) { return rv; }
+        if( rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
         rv = _parse_tlv(onie, (__tlv_code_list[i]));
 
     }
@@ -375,10 +324,14 @@ onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
     pi->other_versions = NULL;
 
     rv = _sysi_version_parsing(INV_SYSLED_PREFIX"info", "The CPLD version is ", version);
-    if( rv != ONLP_STATUS_OK ) { return rv; }
+    if( rv != ONLP_STATUS_OK ) {
+        return rv;
+    }
     snprintf(cpld_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s ", cpld_str, version);
     rv = _sysi_version_parsing(INV_HWMON_PREFIX"version", "ver: ", version);
-    if( rv != ONLP_STATUS_OK ) { return rv; }
+    if( rv != ONLP_STATUS_OK ) {
+        return rv;
+    }
     snprintf(other_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s.%s "
              ,other_str, "psoc", version);
 

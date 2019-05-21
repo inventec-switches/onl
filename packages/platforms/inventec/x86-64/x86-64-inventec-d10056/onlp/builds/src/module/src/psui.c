@@ -36,13 +36,15 @@
         }                                       \
     } while(0)
 
-
 typedef enum hwmon_psu_state_e {
     HWMON_PSU_NORMAL = 0,
     HWMON_PSU_UNPOWERED = 2,       //010
     HWMON_PSU_FAULT = 4,           //100
     HWMON_PSU_NOT_INSTALLED = 7    //111
 } hwmon_psu_state_t;
+
+#define PATH_LENGTH 50
+#define PSU_CAPS ONLP_PSU_CAPS_VIN|ONLP_PSU_CAPS_VOUT|ONLP_PSU_CAPS_IIN|ONLP_PSU_CAPS_IOUT|ONLP_PSU_CAPS_PIN| ONLP_PSU_CAPS_POUT
 
 /*
  * Get all information about the given PSU oid.
@@ -57,10 +59,11 @@ typedef enum hwmon_psu_state_e {
                 ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_##id)			\
             }				\
         },				\
-        "","", 0, 0			\
+        "","", 0, PSU_CAPS,			\
     }
 
-static onlp_psu_info_t __onlp_psu_info[ONLP_PSU_COUNT] = {
+static onlp_psu_info_t __onlp_psu_info[ ] = {
+    {},
     MAKE_PSU_NODE_INFO(1),
     MAKE_PSU_NODE_INFO(2)
 };
@@ -77,74 +80,40 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 {
     int ret   = ONLP_STATUS_OK;
     int len;
-    int local_id = ONLP_OID_ID_GET(id);
+    int psu_id = ONLP_OID_ID_GET(id);
     uint8_t temp[ONLP_CONFIG_INFO_STR_MAX] = {0};
 
     VALIDATE(id);
 
-    if(local_id >= ONLP_PSU_MAX) {
+    if(psu_id >= ONLP_PSU_MAX) {
         return ONLP_STATUS_E_INVALID;
     }
 
-
-    *info = __onlp_psu_info[LOCAL_ID_TO_INFO_IDX(local_id)]; /* Set the onlp_oid_hdr_t */
-
-    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, INV_HWMON_PREFIX"psoc_psu%d_vendor", local_id);
-    if(ret != ONLP_STATUS_OK) { return ret; }
-    /*remove the '\n'*/
-    temp[strlen((char*)temp)-1] = 0;
-    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
-
-
-    memset(temp, 0, ONLP_CONFIG_INFO_STR_MAX);
-    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, INV_HWMON_PREFIX"psoc_psu%d_serial", local_id);
-    if(ret != ONLP_STATUS_OK) { return ret; }
-    /*remove the '\n'*/
-    temp[strlen((char*)temp)-1] = 0;
-    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
-
+    *info = __onlp_psu_info[psu_id];
     ret = onlp_psui_status_get(id, &info->status);
-    if(ret != ONLP_STATUS_OK) { return ret; }
+    if(ret != ONLP_STATUS_OK) {
+        return ret;
+    }
 
-    if(info->status & ONLP_PSU_STATUS_PRESENT) {
-        info->caps = ONLP_PSU_CAPS_AC;
-        /*millivolts*/
-        ret = onlp_file_read_int(&info->mvin, INV_HWMON_PREFIX"psoc_psu%d_vin", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->mvin >= 0) {
-            info->caps |= ONLP_PSU_CAPS_VIN;
-        }
-        ret = onlp_file_read_int(&info->mvout, INV_HWMON_PREFIX"psoc_psu%d_vout", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->mvout >= 0) {
-            info->caps |= ONLP_PSU_CAPS_VOUT;
-        }
+    char *list1[]= {info->model,info->serial};
+    int* list2[]= {0,0,&info->mvin,&info->mvout,&info->miin,&info->miout,&info->mpin,&info->mpout};
+    char* path_list[]= {"vender","serial","vin","vout","iin","iout","pin","pout"};
 
-        /* milliamps */
-        ret = onlp_file_read_int(&info->miin, INV_HWMON_PREFIX"psoc_psu%d_iin", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->miin >= 0) {
-            info->caps |= ONLP_PSU_CAPS_IIN;
-        }
-        ret = onlp_file_read_int(&info->miout, INV_HWMON_PREFIX"psoc_psu%d_iout", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->miout >= 0) {
-            info->caps |= ONLP_PSU_CAPS_IOUT;
-        }
-
-        /* milliwatts */
-        ret = onlp_file_read_int(&info->mpin, INV_HWMON_PREFIX"psoc_psu%d_pin", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->mpin >= 0) {
-            info->caps |= ONLP_PSU_CAPS_PIN;
-        }
-        ret = onlp_file_read_int(&info->mpout, INV_HWMON_PREFIX"psoc_psu%d_pout", local_id);
-        if(ret != ONLP_STATUS_OK) { return ret; }
-        if(info->mpout >= 0) {
-            info->caps |= ONLP_PSU_CAPS_POUT;
+    int i=0;
+    for (i=0; i<8; i++) {
+        char path[PATH_LENGTH];
+        snprintf(path,PATH_LENGTH,"%spsoc_psu%d_%s",INV_HWMON_PREFIX,psu_id,path_list[i]);
+        if(i<2) {
+            memset(temp, 0, ONLP_CONFIG_INFO_STR_MAX);
+            onlp_file_read( temp, ONLP_CONFIG_INFO_STR_MAX, &len, path );
+            temp[strlen((char*)temp)-1] = 0;
+            snprintf(list1[i], ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
+        } else {
+            onlp_file_read_int( list2[i], path );
         }
     }
     return ret;
+
 }
 
 
@@ -167,7 +136,9 @@ int onlp_psui_status_get(onlp_oid_t id, uint32_t* rv)
         result = ONLP_STATUS_E_INVALID;
     } else {
         result = onlp_file_read((uint8_t*)&buf, ONLP_CONFIG_INFO_STR_MAX, &len, "%s""psu%d", INV_HWMON_PREFIX, local_id);
-        if( result != ONLP_STATUS_OK ) {return result;}
+        if( result != ONLP_STATUS_OK ) {
+            return result;
+        }
         psu_state = (uint8_t)strtoul(buf, NULL, 0);
         if( psu_state == HWMON_PSU_UNPOWERED) {
             *rv = ONLP_PSU_STATUS_PRESENT|ONLP_PSU_STATUS_UNPLUGGED;
@@ -193,14 +164,14 @@ int onlp_psui_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* rv)
 {
     int result = ONLP_STATUS_OK;
     onlp_psu_info_t* info;
-    int local_id;
+    int psu_id=ONLP_OID_ID_GET(id);
+
     VALIDATE(id);
 
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_PSU_MAX) {
+    if(psu_id >= ONLP_PSU_MAX) {
         result = ONLP_STATUS_E_INVALID;
     } else {
-        info = &__onlp_psu_info[LOCAL_ID_TO_INFO_IDX(local_id)];
+        info = &__onlp_psu_info[psu_id];
         *rv = info->hdr;
     }
     return result;

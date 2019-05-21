@@ -40,10 +40,9 @@
 #define MUX_START_INDEX 10
 #define QSFP_DEV_ADDR 0x50
 #define NUM_OF_SFP_PORT 48
-#define NUM_OF_QSFP_PORT 6
+#define NUM_OF_QSFP_PORT 8
 #define NUM_OF_ALL_PORT (NUM_OF_SFP_PORT+NUM_OF_QSFP_PORT)
 
-#define FRONT_PORT_TO_MUX_INDEX(port) (port+MUX_START_INDEX)
 /************************************************************
  *
  * SFPI Entry Points
@@ -78,7 +77,9 @@ onlp_sfpi_init(void)
 int onlp_sfpi_port_map(int port, int* rport)
 {
     int p_type = onlp_sfpi_port_type(port);
-    if(p_type < 0) {return ONLP_STATUS_E_INVALID;}
+    if(p_type < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
     *rport = port;
     return ONLP_STATUS_OK;
 }
@@ -86,9 +87,6 @@ int onlp_sfpi_port_map(int port, int* rport)
 int
 onlp_sfpi_bitmap_get(onlp_sfp_bitmap_t* bmap)
 {
-    /*
-     * Ports {0, 53}
-     */
     int p;
     AIM_BITMAP_CLR_ALL(bmap);
 
@@ -108,19 +106,21 @@ onlp_sfpi_is_present(int port)
      * Return < 0 if error.
      */
     int p_type = onlp_sfpi_port_type(port);
-    if(p_type < 0) {return ONLP_STATUS_E_INVALID;}
+    if(p_type < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
 
-    int present;
+    int present_data;
     int rv;
-    if(onlp_file_read_int(&present, INV_SFP_PREFIX"port%d/present", port) != ONLP_STATUS_OK) {
+    if(onlp_file_read_int(&present_data, INV_SFP_PREFIX"port%d/present", port) != ONLP_STATUS_OK) {
         return ONLP_STATUS_E_INTERNAL;
     }
-    if(present == 0) {
-        rv = true;
-    } else if (present == 1) {
-        rv = false;
-    } else {
-        AIM_LOG_ERROR("Unvalid present status %d from port(%d)\r\n",present,port);
+    switch(present_data) {
+    case 1:
+    case 0:
+        return !present_data;
+    default:
+        AIM_LOG_ERROR("Unvalid present status %d from port(%d)\r\n",present_data,port);
         return ONLP_STATUS_E_INTERNAL;
     }
     return rv;
@@ -157,11 +157,7 @@ onlp_sfpi_is_rx_los(int port)
         if(onlp_file_read_int(&rxlos, INV_SFP_PREFIX"port%d/rxlos", port) != ONLP_STATUS_OK) {
             return ONLP_STATUS_E_INTERNAL;
         }
-        if(rxlos == 0) {
-            rv = true;
-        } else {
-            rv = false;
-        }
+        rv = (rxlos==0)? true:false;
     } else if(p_type == ONLP_PORT_TYPE_QSFP) {
         if(onlp_file_read((uint8_t*)buf, ONLP_CONFIG_INFO_STR_MAX, &len, INV_SFP_PREFIX"port%d/soft_rx_los", port) != ONLP_STATUS_OK) {
             return ONLP_STATUS_E_INTERNAL;
@@ -207,6 +203,20 @@ onlp_sfpi_rx_los_bitmap_get(onlp_sfp_bitmap_t* dst)
 }
 
 int
+onlp_sfpi_port2chan(int port)  // port start from 0
+{
+    int i2c_bus=port +MUX_START_INDEX;
+    if(port<NUM_OF_SFP_PORT) {
+        return i2c_bus;
+    } else if(port<NUM_OF_ALL_PORT) {
+        //the qsfp port to i2c mappping is in reversed way
+        i2c_bus =(port%2==0)? i2c_bus+1:i2c_bus-1;
+        return i2c_bus;
+    }
+    return ONLP_STATUS_E_INVALID;
+}
+
+int
 onlp_sfpi_dom_read(int port, uint8_t data[256])
 {
     return ONLP_STATUS_E_UNSUPPORTED;
@@ -229,9 +239,12 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      */
     memset(data, 0, 256);
 
-    if(onlp_sfpi_port_type(port) < 0) { return ONLP_STATUS_E_INVALID; }
+    if(onlp_sfpi_port_type(port) < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
     int sts;
-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    int bus = onlp_sfpi_port2chan(port);
+
     sts = onlp_i2c_read(bus, QSFP_DEV_ADDR, 0, 256, data, ONLP_I2C_F_FORCE);
     if(sts < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
@@ -243,32 +256,40 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 int
 onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
 {
-    if(onlp_sfpi_port_type(port) < 0) { return ONLP_STATUS_E_INVALID; }
-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    if(onlp_sfpi_port_type(port) < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
+    int bus = onlp_sfpi_port2chan(port);
     return onlp_i2c_readb(bus, devaddr, addr, ONLP_I2C_F_FORCE);
 }
 
 int
 onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
 {
-    if(onlp_sfpi_port_type(port) < 0) { return ONLP_STATUS_E_INVALID; }
-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    if(onlp_sfpi_port_type(port) < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
+    int bus = onlp_sfpi_port2chan(port);
     return onlp_i2c_writeb(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
 }
 
 int
 onlp_sfpi_dev_readw(int port, uint8_t devaddr, uint8_t addr)
 {
-    if(onlp_sfpi_port_type(port) < 0) { return ONLP_STATUS_E_INVALID; }
-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    if(onlp_sfpi_port_type(port) < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
+    int bus = onlp_sfpi_port2chan(port);
     return onlp_i2c_readw(bus, devaddr, addr, ONLP_I2C_F_FORCE);
 }
 
 int
 onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
 {
-    if(onlp_sfpi_port_type(port) < 0) { return ONLP_STATUS_E_INVALID; }
-    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+    if(onlp_sfpi_port_type(port) < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
+    int bus = onlp_sfpi_port2chan(port);
     return onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
 }
 
@@ -277,7 +298,9 @@ onlp_sfpi_control_supported(int port, onlp_sfp_control_t control, int* rv)
 {
     *rv = 0;
     int p_type = onlp_sfpi_port_type(port);
-    if(p_type < 0) { return ONLP_STATUS_E_INVALID; }
+    if(p_type < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
     switch (control) {
     case ONLP_SFP_CONTROL_RESET_STATE:
         if(p_type == ONLP_PORT_TYPE_QSFP) {
@@ -306,7 +329,9 @@ onlp_sfpi_control_set(int port, onlp_sfp_control_t control, int value)
 {
     int ret = ONLP_STATUS_E_UNSUPPORTED;
     int p_type = onlp_sfpi_port_type(port);
-    if(p_type < 0) { return ONLP_STATUS_E_INVALID; }
+    if(p_type < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
     switch (control) {
     case ONLP_SFP_CONTROL_RESET_STATE:
         if(p_type == ONLP_PORT_TYPE_QSFP) {
@@ -335,7 +360,9 @@ onlp_sfpi_control_get(int port, onlp_sfp_control_t control, int* value)
 {
     int ret = ONLP_STATUS_E_UNSUPPORTED;
     int p_type = onlp_sfpi_port_type(port);
-    if(p_type < 0) { return ONLP_STATUS_E_INVALID; }
+    if(p_type < 0) {
+        return ONLP_STATUS_E_INVALID;
+    }
     switch (control) {
     case ONLP_SFP_CONTROL_RESET_STATE:
         if(p_type == ONLP_PORT_TYPE_QSFP) {

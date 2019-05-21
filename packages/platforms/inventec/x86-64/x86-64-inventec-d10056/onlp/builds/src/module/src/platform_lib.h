@@ -49,7 +49,6 @@
  *         |
  *         |----ONLP_FAN_4--------ONLP_LED_FAN4
  *         |
- *         |----ONLP_FAN_5--------ONLP_LED_FAN5
  *         |
  *         |----ONLP_PSU_1--------ONLP_THERMAL_1_ON_PSU1
  *         |                   |--ONLP_THERMAL_2_ON_PSU1
@@ -68,8 +67,10 @@
 #define INV_SFP_PREFIX		"/sys/class/swps/"
 #define INV_SYS_PREFIX		"/sys/class/eeprom/vpd/"
 
-#define OID_MAP_TO_INFO_IDX(oid)  ONLP_OID_ID_GET(oid)-1
-#define LOCAL_ID_TO_INFO_IDX(id)  (id-1)
+#define OID_MAP_TO_INFO_IDX(oid)         ONLP_OID_ID_GET(oid)-1
+#define LOCAL_ID_TO_INFO_IDX(id)         (id-1)
+#define ADD_STATE(orig_state,new_state)  orig_state | new_state
+#define REMOVE_STATE(orig_state, target) orig_state & (~target)
 
 /* Thermal definitions*/
 enum onlp_thermal_id {
@@ -98,7 +99,6 @@ enum onlp_fan_id {
     ONLP_FAN_2,
     ONLP_FAN_3,
     ONLP_FAN_4,
-    ONLP_FAN_5,
     ONLP_FAN_PSU_1,
     ONLP_FAN_PSU_2,
     ONLP_FAN_MAX
@@ -122,7 +122,6 @@ enum onlp_led_id {
     ONLP_LED_FAN2,
     ONLP_LED_FAN3,
     ONLP_LED_FAN4,
-    ONLP_LED_FAN5,
     ONLP_LED_MAX
 };
 

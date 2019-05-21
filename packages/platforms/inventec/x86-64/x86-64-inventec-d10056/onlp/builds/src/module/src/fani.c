@@ -42,7 +42,7 @@
 #define NORMAL_PWM 175
 #define MAX_PWM 255
 #define STEP_SIZE 100
-#define FAN_ON_MAIN_BOARD_COUNT 5
+#define FAN_ON_MAIN_BOARD_COUNT 4
 #define LOCAL_ID_TO_PSU_ID(id) (id-FAN_ON_MAIN_BOARD_COUNT)
 
 #define FAN_CAPS ONLP_FAN_CAPS_GET_RPM|ONLP_FAN_CAPS_GET_PERCENTAGE
@@ -58,23 +58,23 @@ static int _fani_status_present_check(uint32_t* status, int local_id);
                 ONLP_LED_ID_CREATE(ONLP_LED_FAN##id),		\
             } 							\
         },							\
-        0, 0							\
+        0, FAN_CAPS							\
     }
 
 #define MAKE_FAN_INFO_NODE_ON_PSU(psu_id) 		\
     { 							\
         { ONLP_FAN_ID_CREATE(ONLP_FAN_PSU_##psu_id), "PSU-"#psu_id" Fan", ONLP_PSU_ID_CREATE(ONLP_PSU_##psu_id)}, \
-        0, 0						\
+        0, FAN_CAPS						\
     }
 
 
 /* Static values */
 static onlp_fan_info_t __onlp_fan_info[ONLP_FAN_COUNT] = {
+    {},
     MAKE_FAN_INFO_NODE_ON_FAN_BOARD(1),
     MAKE_FAN_INFO_NODE_ON_FAN_BOARD(2),
     MAKE_FAN_INFO_NODE_ON_FAN_BOARD(3),
     MAKE_FAN_INFO_NODE_ON_FAN_BOARD(4),
-    MAKE_FAN_INFO_NODE_ON_FAN_BOARD(5),
     MAKE_FAN_INFO_NODE_ON_PSU(1),
     MAKE_FAN_INFO_NODE_ON_PSU(2),
 };
@@ -93,42 +93,44 @@ int
 onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
 {
     int rv = ONLP_STATUS_OK;
-    int local_id;
-    int lrpm, rrpm, pwm, psu_id;
+    int lrpm=0, rrpm=0, pwm=0, psu_id;
     VALIDATE(id);
-    pwm = 0;
 
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_FAN_MAX) {
-        rv = ONLP_STATUS_E_INVALID;
+    int fan_id=ONLP_OID_ID_GET(id);
+    if(fan_id>=ONLP_FAN_MAX) {
+        rv=ONLP_STATUS_E_INVALID;
     }
-    if(rv ==ONLP_STATUS_OK) {
-        *info = __onlp_fan_info[LOCAL_ID_TO_INFO_IDX(local_id)];
-        rv = onlp_fani_status_get(id, &info->status);
+
+    if(rv==ONLP_STATUS_OK) {
+        *info=__onlp_fan_info[fan_id];
+        rv=onlp_fani_status_get(id, &info->status);
     }
 
     if(rv == ONLP_STATUS_OK) {
         if(info->status & ONLP_FAN_STATUS_PRESENT) {
-            switch(local_id) {
+            switch(fan_id) {
             case ONLP_FAN_1:
             case ONLP_FAN_2:
             case ONLP_FAN_3:
             case ONLP_FAN_4:
-            case ONLP_FAN_5:
                 if(info->status & ONLP_FAN_STATUS_F2B) {
-                    info->caps = FAN_CAPS|ONLP_FAN_CAPS_F2B;
+                    info->caps = ADD_STATE(info->caps,ONLP_FAN_CAPS_F2B);
                 } else if(info->status & ONLP_FAN_STATUS_B2F) {
-                    info->caps = FAN_CAPS|ONLP_FAN_CAPS_B2F;
-                } else {
-                    info->caps = FAN_CAPS;
+                    info->caps = ADD_STATE(info->caps,ONLP_FAN_CAPS_B2F) ;
                 }
 
-                rv = onlp_file_read_int(&lrpm, INV_HWMON_PREFIX"fan%d_input", local_id*2-1);
-                if(rv != ONLP_STATUS_OK ) { return rv; }
-                rv = onlp_file_read_int(&rrpm, INV_HWMON_PREFIX"fan%d_input", local_id*2);
-                if(rv != ONLP_STATUS_OK ) { return rv; }
-                rv = onlp_file_read_int(&pwm,INV_HWMON_PREFIX"pwm%d", local_id);
-                if(rv != ONLP_STATUS_OK ) { return rv; }
+                rv = onlp_file_read_int(&lrpm, INV_HWMON_PREFIX"fan%d_input", fan_id*2-1);
+                if(rv != ONLP_STATUS_OK ) {
+                    return rv;
+                }
+                rv = onlp_file_read_int(&rrpm, INV_HWMON_PREFIX"fan%d_input", fan_id*2);
+                if(rv != ONLP_STATUS_OK ) {
+                    return rv;
+                }
+                rv = onlp_file_read_int(&pwm,INV_HWMON_PREFIX"pwm%d", fan_id);
+                if(rv != ONLP_STATUS_OK ) {
+                    return rv;
+                }
 
                 if(lrpm <=0 && rrpm <=0) {
                     info->rpm = 0;
@@ -144,11 +146,15 @@ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
             case ONLP_FAN_PSU_1:
             case ONLP_FAN_PSU_2:
                 info->caps = FAN_CAPS|ONLP_FAN_CAPS_F2B;
-                psu_id = LOCAL_ID_TO_PSU_ID(local_id);
+                psu_id = LOCAL_ID_TO_PSU_ID(fan_id);
                 rv = onlp_file_read_int(&info->rpm,INV_HWMON_PREFIX"rpm_psu%d", psu_id);
-                if(rv != ONLP_STATUS_OK) { return rv; }
+                if(rv != ONLP_STATUS_OK) {
+                    return rv;
+                }
                 rv = onlp_file_read_int(&pwm, INV_HWMON_PREFIX"pwm_psu%d", psu_id);
-                if(rv != ONLP_STATUS_OK) { return rv; }
+                if(rv != ONLP_STATUS_OK) {
+                    return rv;
+                }
                 break;
             default:
                 rv = ONLP_STATUS_E_INVALID;
@@ -191,36 +197,45 @@ static int _fani_status_failed_check(uint32_t* status, int local_id)
     case ONLP_FAN_2:
     case ONLP_FAN_3:
     case ONLP_FAN_4:
-    case ONLP_FAN_5:
         rv = onlp_file_read_int(&lrpm, INV_HWMON_PREFIX"fan%d_input", local_id*2-1);
-        if(rv != ONLP_STATUS_OK ) { return rv; }
+        if(rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
         rv = onlp_file_read_int(&rrpm, INV_HWMON_PREFIX"fan%d_input", local_id*2);
-        if(rv != ONLP_STATUS_OK ) { return rv; }
+        if(rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
         rv = onlp_file_read_int(&pwm,INV_HWMON_PREFIX"pwm%d", local_id);
-        if(rv != ONLP_STATUS_OK ) { return rv; }
+        if(rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
 
-        if( lrpm <= 0 || rrpm <=0 || pwm <=0 || pwm > MAX_PWM) {
-            *status |= ONLP_FAN_STATUS_FAILED;
-            *status &= (~ONLP_FAN_STATUS_B2F);
-            *status &= (~ONLP_FAN_STATUS_F2B);
+        if(lrpm<=0 || rrpm<=0 || pwm<=0 || pwm > MAX_PWM) {
+            *status=ADD_STATE(*status,ONLP_FAN_STATUS_FAILED);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_B2F);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_F2B);
         } else {
-            *status &= (~ONLP_FAN_STATUS_FAILED);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_FAILED);
         }
         break;
     case ONLP_FAN_PSU_1:
     case ONLP_FAN_PSU_2:
         psu_id = LOCAL_ID_TO_PSU_ID(local_id);
         rv = onlp_file_read_int(&rpm, INV_HWMON_PREFIX"rpm_psu%d", psu_id);
-        if(rv != ONLP_STATUS_OK ) { return rv; }
+        if(rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
         rv = onlp_file_read_int(&pwm, INV_HWMON_PREFIX"pwm_psu%d", psu_id);
-        if(rv != ONLP_STATUS_OK ) { return rv; }
+        if(rv != ONLP_STATUS_OK ) {
+            return rv;
+        }
 
         if( rpm <= 0 || pwm <=0 || pwm > MAX_PWM) {
-            *status |= ONLP_FAN_STATUS_FAILED;
-            *status &= (~ONLP_FAN_STATUS_B2F);
-            *status &= (~ONLP_FAN_STATUS_F2B);
+            *status=ADD_STATE(*status,ONLP_FAN_STATUS_FAILED);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_B2F);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_F2B);
         } else {
-            *status &= (~ONLP_FAN_STATUS_FAILED);
+            *status=REMOVE_STATE(*status,ONLP_FAN_STATUS_FAILED);
         }
         break;
     default:
@@ -234,16 +249,12 @@ static int _fani_status_present_check(uint32_t* status, int local_id)
 {
     int rv;
     int gpi;
-    int info_idx;
+    int info_idx=local_id-1;
     int len;
     char buf[ONLP_CONFIG_INFO_STR_MAX];
-    if(local_id >= ONLP_FAN_1 && local_id <= ONLP_FAN_4){
-        info_idx = LOCAL_ID_TO_INFO_IDX(local_id);
+    if(local_id >= ONLP_FAN_1 && local_id <= ONLP_FAN_4) {
         rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_HWMON_PREFIX"fan_gpi");
-    }else if(local_id == ONLP_FAN_5){
-        info_idx = LOCAL_ID_TO_INFO_IDX(local_id)-ONLP_FAN_4;
-        rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_HWMON_PREFIX"fan_gpi2");
-    }else{
+    } else {
         rv = ONLP_STATUS_E_INVALID;
     }
     if( rv == ONLP_STATUS_OK ) {
@@ -251,19 +262,15 @@ static int _fani_status_present_check(uint32_t* status, int local_id)
         /* B[0-3] installed(0)/uninstalled(1)
            B[4-7] FRtype(0)/RFtype(1) */
         if (!((gpi>>info_idx) & 1)) {
-            *status |= ONLP_FAN_STATUS_PRESENT;
-            if (!((gpi>>(info_idx+4)) & 1)) {
-                *status |= ONLP_FAN_STATUS_F2B;
-            } else {
-                *status |= ONLP_FAN_STATUS_B2F;
-            }
+            *status = ADD_STATE(*status,ONLP_FAN_STATUS_PRESENT);
+            bool flow_b2f=((gpi>>(info_idx+4)) & 1);
+            *status= (flow_b2f)? ADD_STATE(*status,ONLP_FAN_STATUS_B2F) : ADD_STATE(*status,ONLP_FAN_STATUS_F2B);
         } else {
             *status = 0;
         }
     }
     return rv;
 }
-
 
 /**
  * @brief Retrieve the fan's operational status.
@@ -276,36 +283,35 @@ int onlp_fani_status_get(onlp_oid_t id, uint32_t* rv)
 {
     int result = ONLP_STATUS_OK;
     onlp_fan_info_t* info;
-    int local_id;
+    int fan_id=ONLP_OID_ID_GET(id);
     VALIDATE(id);
     uint32_t psu_status;
 
-    local_id = ONLP_OID_ID_GET(id);
-    if(local_id >= ONLP_FAN_MAX) {
+    if(fan_id >= ONLP_FAN_MAX) {
         result = ONLP_STATUS_E_INVALID;
     } else {
-        info = &__onlp_fan_info[LOCAL_ID_TO_INFO_IDX(local_id)];
-        switch(local_id) {
+        info = &__onlp_fan_info[fan_id];
+        switch(fan_id) {
         case ONLP_FAN_1:
         case ONLP_FAN_2:
         case ONLP_FAN_3:
         case ONLP_FAN_4:
-        case ONLP_FAN_5:
-            result = _fani_status_present_check(&info->status, local_id);
+            result = _fani_status_present_check(&info->status, fan_id);
             if (result == ONLP_STATUS_OK ) {
                 if (info->status & ONLP_FAN_STATUS_PRESENT) {
-                    result = _fani_status_failed_check(&info->status, local_id);
+                    result = _fani_status_failed_check(&info->status, fan_id);
                 }
             }
             break;
         case ONLP_FAN_PSU_1:
         case ONLP_FAN_PSU_2:
             result = onlp_psui_status_get((&info->hdr)->poid, &psu_status);
-            if(result != ONLP_STATUS_OK) { return result; }
-
+            if(result != ONLP_STATUS_OK) {
+                return result;
+            }
             if(psu_status & ONLP_PSU_STATUS_PRESENT) {
-                info->status |= ONLP_FAN_STATUS_PRESENT;
-                result = _fani_status_failed_check(&info->status, local_id);
+                info->status = ADD_STATE(info->status, ONLP_FAN_STATUS_PRESENT);
+                result = _fani_status_failed_check(&info->status,  fan_id);
             } else {
                 info->status = 0;
             }
@@ -335,7 +341,7 @@ int onlp_fani_hdr_get(onlp_oid_t id, onlp_oid_hdr_t* hdr)
     if(local_id >= ONLP_FAN_MAX) {
         result = ONLP_STATUS_E_INVALID;
     } else {
-        info = &__onlp_fan_info[LOCAL_ID_TO_INFO_IDX(local_id)];
+        info = &__onlp_fan_info[local_id];
         *hdr = info->hdr;
     }
     return result;

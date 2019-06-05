@@ -242,11 +242,11 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 	return ret;
     }
 
-    if (val == 0) {
+    if (val == 1) {
 	info->status = ONLP_PSU_STATUS_PRESENT;
     }
     else
-    if (val == 1) {
+    if (val == 0) {
 	info->status = ONLP_PSU_STATUS_UNPLUGGED;
 	return ret;
     }

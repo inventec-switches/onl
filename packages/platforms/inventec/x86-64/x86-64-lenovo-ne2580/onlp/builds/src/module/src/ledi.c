@@ -31,15 +31,15 @@
 static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
+    INV_CPLD_PREFIX"/service_led",
+    INV_CPLD_PREFIX"/power_led",
     INV_CPLD_PREFIX"/fan_led",
+    INV_CPLD_PREFIX"/stacking_led",
     INV_CPLD_PREFIX"/fanmodule1_led",
     INV_CPLD_PREFIX"/fanmodule2_led",
     INV_CPLD_PREFIX"/fanmodule3_led",
     INV_CPLD_PREFIX"/fanmodule4_led",
     INV_CPLD_PREFIX"/fanmodule5_led",
-    INV_CPLD_PREFIX"/power_led",
-    INV_CPLD_PREFIX"/service_led",
-    INV_CPLD_PREFIX"/stacking_led",
 };
 
 /*
@@ -49,57 +49,57 @@ static onlp_led_info_t linfo[LED_MAX] =
 {
     { }, /* Not used */
     {
-        { ONLP_LED_ID_CREATE(LED_SYS), "Chassis LED", 0 },
+        { ONLP_LED_ID_CREATE(LED_SYS), "SERVICE LED", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN1), "Fan LED 1", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN2), "Fan LED 2", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN3), "Fan LED 3", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN4), "Fan LED 4", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
-	ONLP_LED_MODE_ON, '0',
-    },
-    {
-        { ONLP_LED_ID_CREATE(LED_FAN5), "Fan LED 5", 0 },
-        ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_BLUE | ONLP_LED_CAPS_BLUE_BLINKING ,
 	ONLP_LED_MODE_ON, '0',
     },
     {
         { ONLP_LED_ID_CREATE(LED_POWER), "POWER LED", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
 	ONLP_LED_MODE_ON, '0',
     },
     {
-        { ONLP_LED_ID_CREATE(LED_SERVICE), "SERVICE LED", 0 },
+        { ONLP_LED_ID_CREATE(LED_FAN), "Fan LED", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
 	ONLP_LED_MODE_ON, '0',
     },
     {
         { ONLP_LED_ID_CREATE(LED_STACKING), "STACKING LED", 0 },
         ONLP_LED_STATUS_PRESENT,
-        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_RED | ONLP_LED_CAPS_ORANGE,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN1), "Fan Module LED 1", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN2), "Fan Module LED 2", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN3), "Fan Module LED 3", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN4), "Fan Module LED 4", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
+	ONLP_LED_MODE_ON, '0',
+    },
+    {
+        { ONLP_LED_ID_CREATE(LED_FAN5), "Fan Module LED 5", 0 },
+        ONLP_LED_STATUS_PRESENT,
+        ONLP_LED_CAPS_ON_OFF | ONLP_LED_CAPS_GREEN | ONLP_LED_CAPS_GREEN_BLINKING,
 	ONLP_LED_MODE_ON, '0',
     },
 };
@@ -108,6 +108,7 @@ static onlp_led_info_t linfo[LED_MAX] =
  * This function will be called prior to any other onlp_ledi_* functions.
  */
 static pthread_mutex_t diag_mutex;
+static int onlp_chassis_led_diag_disable(void);
 
 int
 onlp_ledi_init(void)
@@ -117,7 +118,7 @@ onlp_ledi_init(void)
     /*
      * Diag LED Off
      */
-    onlp_ledi_mode_set(ONLP_LED_ID_CREATE(LED_SYS), ONLP_LED_MODE_OFF);
+    onlp_chassis_led_diag_disable();
 
     return ONLP_STATUS_OK;
 }
@@ -186,7 +187,7 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     switch (local_id) {
 	case LED_SYS:
 	case LED_POWER:
-	case LED_SERVICE:
+	case LED_FAN:
 	case LED_STACKING:
 	    info->status = ONLP_LED_STATUS_PRESENT;
 	    if (mode_value == 0) {
@@ -277,18 +278,24 @@ int
 onlp_ledi_set(onlp_oid_t id, int on_or_off)
 {
     VALIDATE(id);
-
-    if (!on_or_off) {
-        return onlp_ledi_mode_set(id, ONLP_LED_MODE_OFF);
+    switch (on_or_off) {
+    case ONLP_LED_MODE_OFF:
+    case ONLP_LED_MODE_ON:
+    case ONLP_LED_MODE_BLUE:
+    case ONLP_LED_MODE_BLUE_BLINKING:
+    case ONLP_LED_MODE_GREEN:
+    case ONLP_LED_MODE_GREEN_BLINKING:
+        return onlp_ledi_mode_set(id, on_or_off);
+	break;
+    default:
+	break;
     }
 
     return ONLP_STATUS_E_UNSUPPORTED;
 }
 
-#define HWMON_PSOC_DIAG_PATH    "/sys/bus/i2c/devices/0-0055/hwmon/hwmon2/subsystem/hwmon1/diag"
-#define HWMON_CPLD_CTRL_PATH    "/sys/bus/i2c/devices/0-0055/ctl"
-#define HWMON_DEVICE_DIAG_PATH  HWMON_PSOC_DIAG_PATH
-#define HWMON_DEVICE_CTRL_PATH  HWMON_CPLD_CTRL_PATH
+#define HWMON_CPLD_CTRL_PATH    "/sys/bus/i2c/devices/i2c-0/0-0077/diag"
+#define HWMON_DEVICE_DIAG_PATH  HWMON_CPLD_CTRL_PATH
 
 #define MIN_ACC_SIZE	(32)
 
@@ -305,21 +312,13 @@ static int onlp_chassis_led_diag_enable(void)
         return ret;
     }
 
-    if (tmp[0] == '0') {
-	pthread_mutex_lock(&diag_mutex);
-	ret = onlp_chassis_led_write(HWMON_DEVICE_DIAG_PATH, "1");
-        if (ret < 0) {
-	    pthread_mutex_unlock(&diag_mutex);
-            return ret;
-        }
-
-	ret = onlp_chassis_led_write(HWMON_DEVICE_CTRL_PATH, "1");
-        if (ret < 0) {
-	    pthread_mutex_unlock(&diag_mutex);
-            return ret;
-        }
-	pthread_mutex_unlock(&diag_mutex);
+    if (tmp[0] == '1') {
+	return ret;
     }
+
+    pthread_mutex_lock(&diag_mutex);
+    ret = onlp_chassis_led_write(HWMON_DEVICE_DIAG_PATH, "1");
+    pthread_mutex_unlock(&diag_mutex);
 
     return ret;
 }
@@ -334,22 +333,15 @@ static int onlp_chassis_led_diag_disable(void)
         return ret;
     }
 
-    if (tmp[0] == '1') {
-	pthread_mutex_lock(&diag_mutex);
-	ret = onlp_chassis_led_write(HWMON_DEVICE_DIAG_PATH, "1");
-        if (ret < 0) {
-	    pthread_mutex_unlock(&diag_mutex);
-            return 1;
-        }
-
-	ret = onlp_chassis_led_write(HWMON_DEVICE_CTRL_PATH, "1");
-        if (ret < 0) {
-	    pthread_mutex_unlock(&diag_mutex);
-            return 1;
-        }
-	pthread_mutex_unlock(&diag_mutex);
+    if (tmp[0] == '0') {
+	return ret;
     }
-    return 1;
+
+    pthread_mutex_lock(&diag_mutex);
+    ret = onlp_chassis_led_write(HWMON_DEVICE_DIAG_PATH, "0");
+    pthread_mutex_unlock(&diag_mutex);
+
+    return ret;
 }
 
 /*
@@ -361,84 +353,118 @@ static int onlp_chassis_led_diag_disable(void)
 int
 onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
 {
-    char fullpath_grn[50] = {0};
-    char fullpath_red[50] = {0};
-    char sys_buf[32] = {0};
+    char fullpath[MIN_ACC_SIZE*2] = {0};
+    char sys_buf[MIN_ACC_SIZE] = {0};
     onlp_led_info_t linfo;
-    int ret = onlp_ledi_info_get(id, &linfo);
-    int  local_id;
+    onlp_led_info_t linfo1;
+    int ret = -1;
+    int local_id;
 
     VALIDATE(id);
 	
     local_id = ONLP_OID_ID_GET(id);
-    		
+
+    switch (local_id) {
+	case LED_SYS:
+	case LED_POWER:
+	case LED_FAN:
+	case LED_STACKING:
+	    ret = onlp_chassis_led_diag_enable();
+	    if (ret != 0) {
+		return ret;
+	    }
+	    break;
+	default:
+	    break;
+    }
+    sleep(1);
+
+    ret = onlp_ledi_info_get(id, &linfo);
     switch (mode) {
-        case ONLP_LED_MODE_OFF:
-	    if (ret == ONLP_STATUS_OK && linfo.status & ONLP_LED_STATUS_ON && linfo.mode == ONLP_LED_MODE_OFF) {
+        case ONLP_LED_MODE_ON:
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_ON)) {
 		return ONLP_STATUS_OK;
 	    }
 
-	    sprintf(sys_buf, "%d", 0x0);
-	    sprintf(fullpath_grn, devfiles__[local_id], "grn");
-	    ret = onlp_chassis_led_write(fullpath_grn, sys_buf);
+	    sprintf(sys_buf, "%d", 0x1);	// LED OFF
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
 
-	    sprintf(sys_buf, "%d", 0x0);
-	    sprintf(fullpath_red, devfiles__[local_id], "red");
-	    ret = onlp_chassis_led_write(fullpath_red, sys_buf);
             break;
-        case ONLP_LED_MODE_RED:
-	    if (ret == ONLP_STATUS_OK && linfo.status & ONLP_LED_STATUS_ON && linfo.mode == ONLP_LED_MODE_RED) {
+        case ONLP_LED_MODE_OFF:
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_OFF)) {
 		return ONLP_STATUS_OK;
 	    }
 
-	    sprintf(sys_buf, "%d", 0x0);
-	    sprintf(fullpath_grn, devfiles__[local_id], "grn");
-	    ret = onlp_chassis_led_write(fullpath_grn, sys_buf);
+	    sprintf(sys_buf, "%d", 0x0);	// LED OFF
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
 
-	    sprintf(sys_buf, "%d", 0x7);
-	    sprintf(fullpath_red, devfiles__[local_id], "red");
-	    ret = onlp_chassis_led_write(fullpath_red, sys_buf);
+            break;
+        case ONLP_LED_MODE_BLUE:
+	    if (local_id != LED_SYS) {		// Only service LED
+		return ONLP_STATUS_OK;
+	    }
+
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_BLUE)) {
+		return ONLP_STATUS_OK;
+	    }
+
+	    sprintf(sys_buf, "%d", 0x1);	// BLUE ON
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
+
+    onlp_ledi_info_get(id, &linfo1);
+            break;
+        case ONLP_LED_MODE_BLUE_BLINKING:
+	    if (local_id != LED_SYS) {		// Only service LED
+		return ONLP_STATUS_OK;
+	    }
+
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_BLUE_BLINKING)) {
+		return ONLP_STATUS_OK;
+	    }
+
+	    sprintf(sys_buf, "%d", 0x2);	// BLUE BLINK
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
+
             break;
         case ONLP_LED_MODE_GREEN:
-	    if (ret == ONLP_STATUS_OK && linfo.status & ONLP_LED_STATUS_ON && linfo.mode == ONLP_LED_MODE_GREEN) {
+	    if (local_id == 1) {		// Except service LED
 		return ONLP_STATUS_OK;
 	    }
 
-	    sprintf(sys_buf, "%d", 0x7);
-	    sprintf(fullpath_grn, devfiles__[local_id], "grn");
-	    ret = onlp_chassis_led_write(fullpath_grn, sys_buf);
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_GREEN)) {
+		return ONLP_STATUS_OK;
+	    }
 
-	    sprintf(sys_buf, "%d", 0x0);
-	    sprintf(fullpath_red, devfiles__[local_id], "red");
-	    ret = onlp_chassis_led_write(fullpath_red, sys_buf);
+	    sprintf(sys_buf, "%d", 0x1);	// GREEN ON
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
             break;
-        case ONLP_LED_MODE_ORANGE:
-	    if (ret == ONLP_STATUS_OK && linfo.status & ONLP_LED_STATUS_ON && linfo.mode == ONLP_LED_MODE_ORANGE) {
+        case ONLP_LED_MODE_GREEN_BLINKING:
+	    if (local_id == 1) {		// Except service LED
 		return ONLP_STATUS_OK;
 	    }
 
-	    sprintf(sys_buf, "%d", 0x7);
-	    sprintf(fullpath_grn, devfiles__[local_id], "grn");
-	    ret = onlp_chassis_led_write(fullpath_grn, sys_buf);
+	    if ((ret == ONLP_STATUS_OK) && (linfo.status & ONLP_LED_STATUS_ON) &&
+		(linfo.mode == ONLP_LED_MODE_GREEN_BLINKING)) {
+		return ONLP_STATUS_OK;
+	    }
 
-	    sprintf(sys_buf, "%d", 0x7);
-	    sprintf(fullpath_red, devfiles__[local_id], "red");
-	    ret = onlp_chassis_led_write(fullpath_red, sys_buf);
+	    sprintf(sys_buf, "%d", 0x2);	// GREEN BLINK
+	    sprintf(fullpath, devfiles__[local_id]);
+	    ret = onlp_chassis_led_write(fullpath, sys_buf);
             break;
         default:
 	    DEBUG_PRINT("%s(%d) Invalid led mode %d\r\n", __FUNCTION__, __LINE__, mode);
 	    return ONLP_STATUS_E_INTERNAL;
     }
-
-    switch (local_id) {
-	case LED_SYS:
-	    onlp_chassis_led_diag_enable();
-	    sleep(1);
-	    onlp_chassis_led_diag_disable();
-	    break;
-	default:
-	    break;
-    }
-		
     return ONLP_STATUS_OK;
 }

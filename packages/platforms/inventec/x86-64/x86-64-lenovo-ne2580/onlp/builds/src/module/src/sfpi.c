@@ -19,8 +19,7 @@
 
 static char sfp_node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
 
-#define NUM_OF_SFP_PORT	(CHASSIS_SFP_COUNT)
-static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
+static const int sfp_mux_index[CHASSIS_SFP_COUNT] = {
 20, 21, 22, 23, 24, 25, 26, 27,
 28, 29, 30, 31, 32, 33, 34, 35,
 36, 37, 38, 39, 40, 41, 42, 43,
@@ -77,7 +76,7 @@ onlp_sfpi_bitmap_get(onlp_sfp_bitmap_t* bmap)
     int p;
     AIM_BITMAP_CLR_ALL(bmap);
 
-    for(p = 0; p < NUM_OF_SFP_PORT; p++) {
+    for(p = CHASSIS_SFP_START; p < CHASSIS_SFP_COUNT; p++) {
         AIM_BITMAP_SET(bmap, p);
     }
 
@@ -118,7 +117,7 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
     uint32_t presence_all[2] = {0};
     int port, ret, index;
 
-    for (port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+    for (port = CHASSIS_SFP_START, index = 0; port < CHASSIS_SFP_COUNT; port++) {
 	if (port == 32) {
 	    index = 1;
 	}
@@ -136,7 +135,7 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 	}
     }
     /* Populate bitmap */
-    for(port = 0, index = 0; port < NUM_OF_SFP_PORT; port++) {
+    for(port = CHASSIS_SFP_START, index = 0; port < CHASSIS_SFP_COUNT; port++) {
 	if (port == 32) {
 	    index = 1;
 	}

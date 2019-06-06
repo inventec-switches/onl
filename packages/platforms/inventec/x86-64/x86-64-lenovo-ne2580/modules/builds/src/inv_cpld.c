@@ -23,7 +23,7 @@
 #include <linux/delay.h>
 
 #define USE_SMBUS    		1
-#define CPLD_POLLING_PERIOD 	1000
+#define CPLD_POLLING_PERIOD 	2000
 #define ENABLE_SIMULATE		0
 #define ENABLE_AUTOFAN		1
 
@@ -967,7 +967,7 @@ static struct notifier_block panic_notifier = {
 #define MAX_HWMON 9
 
 //[Model:10G/SFP][FanDirection:R2F/F2R][Type:CPU/ASIC/ENV]
-u8 Thermaltrip[2][2][3] ={{{64,64,67},{62,60,60}},{{64,64,67},{62,60,60}}};
+u8 Thermaltrip[2][2][3] ={{{67,67,67},{67,67,67}},{{64,64,67},{70,70,60}}};
 u8    FanTable[2][2][3][n_entries][2]={
 {//10GBastT
 	{//Rear-to-Front
@@ -1009,7 +1009,7 @@ u8    FanTable[2][2][3][n_entries][2]={
 			{ 70, 255 },  \
 			{ 58, 255 },  \
 			{ 57, 201 },  \
-			{ 56, 270 },  \
+			{ 56, 170 },  \
 			{ 55, 130 },  \
 			{ 54, 110 },  \
 			{ 53,  90 },  \
@@ -1124,52 +1124,52 @@ u8    FanTable[2][2][3][n_entries][2]={
 	},
 	{//Front-to-Rear
 		{//CPU
-			{ 62, 255 },  \
-			{ 60, 240 },  \
-			{ 59, 220 },  \
-			{ 58, 201 },  \
-			{ 57, 160 },  \
-			{ 56, 120 },  \
-			{ 55, 101 },  \
-			{ 54,  85 },  \
-			{ 52,  75 },  \
-			{ 49,  70 },  \
-			{ 46,  65 },  \
-			{ 43,  60 },  \
-			{ 40,  55 },  \
-			{ 37,  50 }
+			{ 69, 255 },  \
+			{ 68, 201 },  \
+			{ 67, 140 },  \
+			{ 66, 120 },  \
+			{ 65,  85 },  \
+			{ 63,  80 },  \
+			{ 60,  75 },  \
+			{ 57,  65 },  \
+			{ 30,  60 },  \
+			{ 25,  60 },  \
+			{ 20,  60 },  \
+			{ 15,  60 },  \
+			{ 10,  60 },  \
+			{  5,  60 }
 		}
 		,{//ASIC
-			{ 60, 250 },  \
-			{ 57, 240 },  \
-			{ 56, 220 },  \
-			{ 55, 201 },  \
-			{ 54, 160 },  \
-			{ 51, 120 },  \
-			{ 49, 101 },  \
-			{ 47,  85 },  \
-			{ 45,  75 },  \
-			{ 40,  70 },  \
-			{ 37,  65 },  \
-			{ 34,  60 },  \
-			{ 25,  55 },  \
-			{ 22,  50 }
+			{ 80, 255 },  \
+			{ 75, 255 },  \
+			{ 69, 255 },  \
+			{ 68, 240 },  \
+			{ 67, 220 },  \
+			{ 66, 201 },  \
+			{ 65, 160 },  \
+			{ 64, 140 },  \
+			{ 63, 120 },  \
+			{ 62,  85 },  \
+			{ 60,  80 },  \
+			{ 57,  75 },  \
+			{ 53,  65 },  \
+			{ 30,  60 }
 		}
 		,{//ENV
-			{ 60, 255 },  \
-			{ 56, 240 },  \
-			{ 55, 220 },  \
-			{ 54, 201 },  \
-			{ 52, 160 },  \
-			{ 50, 120 },  \
-			{ 47, 101 },  \
-			{ 44,  85 },  \
-			{ 41,  75 },  \
-			{ 38,  70 },  \
-			{ 34,  65 },  \
-			{ 25,  60 },  \
-			{ 18,  55 },  \
-			{ 15,  50 }
+			{ 58, 255 },  \
+			{ 55, 240 },  \
+			{ 52, 220 },  \
+			{ 49, 201 },  \
+			{ 46, 160 },  \
+			{ 43, 140 },  \
+			{ 40, 120 },  \
+			{ 37,  85 },  \
+			{ 34,  80 },  \
+			{ 30,  75 },  \
+			{ 20,  65 },  \
+			{ 15,  60 },  \
+			{ 10,  60 },  \
+			{  5,  60 }
 		}
 	}
 }
@@ -1326,7 +1326,7 @@ static void autofanspeed(struct i2c_client *client, u8 fanfail, u8 fanturnoff)
 	probe_setvalue(PSU2_PWM, psu_duty);
 	probe_setvalue(PSU1_PWM_DVT, psu_duty);
 	probe_setvalue(PSU2_PWM_DVT, psu_duty);
-
+	probe_gettemp(CPU_TEMPERATURE);
 	mutex_lock(&data->update_lock);
 	cpld_i2c_write(client2,fanpwm,CPLD_PWM_OFFSET,FAN_NUM);
 	mutex_unlock(&data->update_lock);
@@ -1604,7 +1604,6 @@ static struct i2c_driver cpld_driver = {
 };
 
 /*-----------------------------------------------------------------------*/
-
 /* module glue */
 
 static int __init inv_cpld_init(void)
@@ -1617,9 +1616,10 @@ static void __exit inv_cpld_exit(void)
 	i2c_del_driver(&cpld_driver);
 }
 
+module_init(inv_cpld_init);
+module_exit(inv_cpld_exit);
+
 MODULE_AUTHOR("jack.ting <ting.jack@inventec>");
 MODULE_DESCRIPTION("cpld driver");
 MODULE_LICENSE("GPL");
-
-module_init(inv_cpld_init);
-module_exit(inv_cpld_exit);
+MODULE_VERSION("v3.0");

@@ -16,7 +16,6 @@ class OnlPlatform_x86_64_lenovo_ne2580_r0(OnlPlatformInventec,
 	self.insmod('swps')
 	self.new_i2c_device('inv_eeprom', 0x57, 0)
 	self.insmod('inv_eeprom')
-	#RYU #self.insmod('vpd')
-	#RYU self.insmod('inv_pthread')
-	#RYU self.insmod('inv_psoc')
+	# self.insmod('inv_pthread')
+	# #self.insmod('vpd')
 	return True

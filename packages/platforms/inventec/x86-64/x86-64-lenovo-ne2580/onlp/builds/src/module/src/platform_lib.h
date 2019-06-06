@@ -22,7 +22,10 @@
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
 
 #define INV_SFP_EEPROM_UPDATE	"/sys/class/swps/module/eeprom_update"
-#define CHASSIS_SFP_COUNT	(56)
+#define CHASSIS_25G_COUNT	(48)
+#define CHASSIS_100G_COUNT	(8)
+#define CHASSIS_SFP_START	(0)
+#define CHASSIS_SFP_COUNT	(CHASSIS_25G_COUNT+CHASSIS_100G_COUNT)
 
 /*
  * Definitions of Chassis EEPROM
@@ -71,14 +74,14 @@ enum onlp_fan_id {
 enum onlp_led_id {
     LED_RESERVED = 0,
     LED_SYS,
+    LED_POWER,
+    LED_FAN,
+    LED_STACKING,
     LED_FAN1,
     LED_FAN2,
     LED_FAN3,
     LED_FAN4,
     LED_FAN5,
-    LED_POWER,
-    LED_SERVICE,
-    LED_STACKING,
     LED_MAX
 };
 #define CHASSIS_LED_COUNT	(9)

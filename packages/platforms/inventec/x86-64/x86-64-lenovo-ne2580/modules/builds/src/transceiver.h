@@ -663,7 +663,7 @@ struct transvr_obj_s {
     uint8_t extphy_offset;
 
     uint8_t eeprom[256];
-    int eeprom_update[2];	/* max 64 ports on peony */
+    int eeprom_update[2];       /* max 64 ports on peony */
     int port_no;
 
     /* ========== Object private property ==========

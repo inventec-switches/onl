@@ -633,7 +633,6 @@ _common_update_attr_transvr_comp_ext(struct transvr_obj_s *self,
                                      show_err);
 }
 
-
 static int
 _common_update_attr_eeprom(struct transvr_obj_s *self,
                        int show_err){
@@ -646,6 +645,7 @@ _common_update_attr_eeprom(struct transvr_obj_s *self,
                                      "_common_update_attr_eeprom",
                                      show_err);
 }
+
 
 static int
 _common_update_attr_vendor_name(struct transvr_obj_s *self,
@@ -1674,6 +1674,7 @@ _common_count_wavelength(struct transvr_obj_s *self,
     return ERR_TRANSVR_UNDEFINED;
 }
 
+
 int
 common_get_id(struct transvr_obj_s *self){
 
@@ -1686,7 +1687,6 @@ common_get_id(struct transvr_obj_s *self){
     /* Transform to INT to show error case */
     return (int)self->id;
 }
-
 
 int
 common_get_eeprom(struct transvr_obj_s *self, char *buf){
@@ -5211,7 +5211,6 @@ is_plugged(struct transvr_obj_s *self){
         goto err_is_plugged_1;
     }
     present = ioexp_p->get_present(ioexp_p, self->ioexp_virt_offset);
-//SWPS_INFO("RYU: is_plugged(): id = %d, swp_name = %s, present = %d\n", self->id, self->swp_name, present);
     switch (present){
         case 0:
             return 1;
@@ -7890,7 +7889,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
         case TRANSVR_TYPE_QSFP:
         case TRANSVR_TYPE_QSFP_PLUS:
             self->get_id              = common_get_id;
-            self->get_eeprom          = common_get_eeprom;
+	    self->get_eeprom          = common_get_eeprom;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -7947,7 +7946,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_QSFP_28:
             self->get_id              = common_get_id;
-            self->get_eeprom          = common_get_eeprom;
+	    self->get_eeprom          = common_get_eeprom;
             self->get_ext_id          = common_get_ext_id;
             self->get_connector       = common_get_connector;
             self->get_vendor_name     = common_get_vendor_name;
@@ -8004,7 +8003,7 @@ setup_transvr_public_cb(struct transvr_obj_s *self,
 
         case TRANSVR_TYPE_FAKE:
             self->get_id              = fake_get_hex;
-            self->get_eeprom          = fake_get_str;
+	    self->get_eeprom          = fake_get_str;
             self->get_ext_id          = fake_get_hex;
             self->get_connector       = fake_get_hex;
             self->get_vendor_name     = fake_get_str;
@@ -8440,3 +8439,12 @@ EXPORT_SYMBOL(resync_channel_tier_2);
  *    => Verify 25GBASE-LR
  *    => Verify 40G Active Cable (XLPPI)
  */
+
+
+
+
+
+
+
+
+

@@ -295,7 +295,6 @@ _update_auto_config_2_trnasvr(void) {
     return retval;
 }
 
-
 unsigned char *
 get_eeprom_update(void)
 {
@@ -307,6 +306,7 @@ set_eeprom_update(unsigned char value[8])
 {
     memcpy(ueu_64.eeprom_update_8, value, 8);
 }
+
 
 /* ========== R/W Functions module control attribute ==========
  */
@@ -2469,6 +2469,10 @@ register_transvr_common_attr(struct device *device_p){
         err_attr = "dev_attr_wavelength";
         goto err_transvr_comm_attr;
     }
+    if (device_create_file(device_p, &dev_attr_eeprom_update) < 0) {
+        err_attr = "dev_attr_eeprom_update";
+        goto err_transvr_comm_attr;
+    }
     return 0;
 
 err_transvr_comm_attr:
@@ -2970,7 +2974,7 @@ create_port_objs(void) {
             goto err_initport_create_tranobj;
         }
 
-        transvr_obj_p->port_no = minor_curr;
+	transvr_obj_p->port_no = minor_curr;
 
         /* Setup Lane_ID mapping */
         i = ARRAY_SIZE(port_layout[minor_curr].lane_id);
@@ -3175,3 +3179,15 @@ MODULE_SOFTDEP("pre: inv_platform");
 
 module_init(swp_module_init);
 module_exit(swp_module_exit);
+
+
+
+
+
+
+
+
+
+
+
+

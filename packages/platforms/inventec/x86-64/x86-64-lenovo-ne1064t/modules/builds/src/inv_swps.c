@@ -2468,6 +2468,10 @@ register_transvr_common_attr(struct device *device_p){
         err_attr = "dev_attr_wavelength";
         goto err_transvr_comm_attr;
     }
+    if (device_create_file(device_p, &dev_attr_eeprom_update) < 0) {
+        err_attr = "dev_attr_eeprom_update";
+        goto err_transvr_comm_attr;
+    }
     return 0;
 
 err_transvr_comm_attr:

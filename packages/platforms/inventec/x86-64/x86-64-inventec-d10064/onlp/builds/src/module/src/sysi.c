@@ -393,16 +393,16 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     onlp_oid_t* e = table;
     memset(table, 0, max*sizeof(onlp_oid_t));
 
-    for(i=1; i<ONLP_THERMAL_MAX; i++){
+    for(i=1;i<=THERMAL_ON_CHASSIS; i++){
         *e++ = ONLP_THERMAL_ID_CREATE(i); 
     }
-    for(i=1; i<ONLP_FAN_MAX; i++){
+    for(i=1; i<=FAN_ON_CHASSIS; i++){
         *e++ = ONLP_FAN_ID_CREATE(i); 
     }
-    for(i=1; i<ONLP_PSU_MAX; i++){
+    for(i=1; i<=PSU_ON_CHASSIS; i++){
         *e++ = ONLP_PSU_ID_CREATE(i); 
     }
-    for(i=1; i<ONLP_LED_MAX; i++){
+    for(i=1; i<=LED_ON_CHASSIS; i++){
         *e++ = ONLP_LED_ID_CREATE(i); 
     }
     return ONLP_STATUS_OK;

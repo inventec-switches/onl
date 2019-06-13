@@ -26,7 +26,7 @@ include $(ONL)/make/config.amd64.mk
 MODULE := libonlp-x86-64-inventec-d10064
 include $(BUILDER)/standardinit.mk
 
-DEPENDMODULES := AIM IOF x86_64_inventec_d510064 onlplib
+DEPENDMODULES := AIM IOF x86_64_inventec_d10064 onlplib
 DEPENDMODULE_HEADERS := sff
 
 include $(BUILDER)/dependmodules.mk

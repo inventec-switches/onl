@@ -220,7 +220,6 @@ struct eeprom_map_s {
     int addr_extbr;        int page_extbr;        int offset_extbr;        int length_extbr;
     int addr_ext_id;       int page_ext_id;       int offset_ext_id;       int length_ext_id;
     int addr_id;           int page_id;           int offset_id;           int length_id;
-    int addr_eeprom;       int page_eeprom;       int offset_eeprom;       int length_eeprom;
     int addr_len_sm;       int page_len_sm;       int offset_len_sm;       int length_len_sm;
     int addr_len_smf;      int page_len_smf;      int offset_len_smf;      int length_len_smf;
     int addr_len_om1;      int page_len_om1;      int offset_len_om1;      int length_len_om1;
@@ -249,6 +248,7 @@ struct eeprom_map_s {
     int addr_vendor_sn;    int page_vendor_sn;    int offset_vendor_sn;    int length_vendor_sn;
     int addr_voltage;      int page_voltage;      int offset_voltage;      int length_voltage;
     int addr_wavelength;   int page_wavelength;   int offset_wavelength;   int length_wavelength;
+    int addr_eeprom;       int page_eeprom;       int offset_eeprom;       int length_eeprom;
 };
 
 
@@ -663,7 +663,7 @@ struct transvr_obj_s {
     uint8_t extphy_offset;
 
     uint8_t eeprom[256];
-    uint8_t eeprom_update[8];
+    uint8_t eeprom_update[8];       /* max 64 ports on Maple */
     int port_no;
 
     /* ========== Object private property ==========
@@ -693,7 +693,6 @@ struct transvr_obj_s {
     /* ========== Object public functions ==========
      */
     int  (*get_id)(struct transvr_obj_s *self);
-    int  (*get_eeprom)(struct transvr_obj_s *self, char *buf_p);
     int  (*get_ext_id)(struct transvr_obj_s *self);
     int  (*get_connector)(struct transvr_obj_s *self);
     int  (*get_vendor_name)(struct transvr_obj_s *self, char *buf_p);
@@ -746,6 +745,7 @@ struct transvr_obj_s {
     int  (*set_rx_em)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_offset)(struct transvr_obj_s *self, int input_val);
     int  (*set_extphy_reg)(struct transvr_obj_s *self, int input_val);
+    int  (*get_eeprom)(struct transvr_obj_s *self, char *buf_p);
 
     /* ========== Object private functions ==========
      */
@@ -804,7 +804,6 @@ int isolate_transvr_obj(struct transvr_obj_s *self);
 int resync_channel_tier_2(struct transvr_obj_s *self);
 
 void alarm_msg_2_user(struct transvr_obj_s *self, char *emsg);
-
 unsigned char *get_eeprom_update(void);
 void set_eeprom_update(unsigned char value[8]);
 

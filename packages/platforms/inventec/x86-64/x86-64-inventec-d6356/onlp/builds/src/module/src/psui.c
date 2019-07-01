@@ -30,38 +30,37 @@
 static char* status_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"/psu0",
     INV_CPLD_PREFIX"/psu1",
+    INV_CPLD_PREFIX"/psu2",
 };
 
+#if PSU_MODULE_INFO_SUPPORT
 static char* module_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
     INV_PSOC_PREFIX"/psoc_psu1_%s",
     INV_PSOC_PREFIX"/psoc_psu2_%s",
 };
+#endif
 
 static int 
 psu_status_info_get(int id, char *node, int *value)
 {
-    int ret = 0;
     char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
+    char status_info[16] = {0};
     
-    *value = 0;
     if (PSU1_ID == id) {
 	sprintf(node_path, status_devfiles__[id]);
     }
     else if (PSU2_ID == id) {
 	sprintf(node_path, status_devfiles__[id]);
     }
-    
-    ret = onlp_file_read_int(value, node_path);
 
-    if (ret < 0) {
-	AIM_LOG_ERROR("Unable to read status from file(%s)\r\n", node_path);
+    if (onlp_file_read_string(node_path, status_info, 16, 0) != 0) {
 	return ONLP_STATUS_E_INTERNAL;
     }
 
+    *value = status_info[0] - '0';
     return ONLP_STATUS_OK;
 }
 
@@ -75,13 +74,11 @@ onlp_psui_init(void)
 static void
 psu_module_name_get(int id, onlp_psu_info_t* info)
 {
+#if PSU_MODULE_INFO_SUPPORT
     char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
     uint8_t temp[ONLP_CONFIG_INFO_STR_MAX] = {0};
     int ret, len;
 
-#if 1
-    strncpy(info->model, "N/A", 3);
-#else
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "model");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
@@ -94,25 +91,15 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
 	AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
 	strncpy(info->model, "N/A", 3);
     }
+#else
+    strncpy(info->model, "N/A", 3);
 #endif
-
-    memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "serial");
-    ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
-    if (ret == 0) {
-	/*remove the '\n'*/
-	temp[strlen((char*)temp)-1] = 0;
-	snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "%s", temp);
-    }
-    else {
-	AIM_LOG_ERROR("Unable to read model name from file(%s)\r\n", node_path);
-	strncpy(info->serial, "N/A", 3);
-    }
 }
 
 static int
 psu_module_info_get(int id, onlp_psu_info_t* info)
 {
+#if PSU_MODULE_INFO_SUPPORT
     int ret = 0;
     char node_path[ONLP_NODE_MAX_PATH_LEN] = {0};
     int value = 0;
@@ -184,6 +171,27 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 	info->mpin = value;
 	info->caps |= ONLP_PSU_CAPS_PIN;
     }
+#else
+    info->caps |= ONLP_PSU_CAPS_AC;
+
+    info->mvout = 0;
+    info->caps |= ONLP_PSU_CAPS_VOUT;
+
+    info->miout = 0;
+    info->caps |= ONLP_PSU_CAPS_IOUT;
+
+    info->mpout = 0;
+    info->caps |= ONLP_PSU_CAPS_POUT;
+
+    info->mvin = 0;
+    info->caps |= ONLP_PSU_CAPS_VIN;
+
+    info->miin = 0;
+    info->caps |= ONLP_PSU_CAPS_IIN;
+
+    info->mpin = 0;
+    info->caps |= ONLP_PSU_CAPS_PIN;
+#endif
 
     psu_module_name_get(id, info);
     return ONLP_STATUS_OK;
@@ -235,11 +243,11 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 	return ret;
     }
 
-    if (val == 0) {
+    if (val == 1) {
 	info->status = ONLP_PSU_STATUS_PRESENT;
     }
     else
-    if (val == 1) {
+    if (val == 0) {
 	info->status = ONLP_PSU_STATUS_UNPLUGGED;
 	return ret;
     }

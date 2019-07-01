@@ -2,6 +2,11 @@
 #include <linux/i2c.h>
 #include "io_expander.h"
 
+/* For build single module using (Ex: ONL platform) */
+//#include <linux/module.h>
+//#include <linux/inventec/d5254/io_expander.h>
+
+
 static struct ioexp_obj_s *ioexp_head_p = NULL;
 static struct ioexp_obj_s *ioexp_tail_p = NULL;
 
@@ -571,6 +576,7 @@ struct ioexp_map_s cpld_map_cottonwood = {
     },
 };
 
+
 struct ioexp_map_s ioexp_map_maple_0abc = {
 
     .chip_amount    = 3,
@@ -613,6 +619,7 @@ struct ioexp_map_s ioexp_map_maple_0abc = {
                         {0, 0, 7}, /* map_modsel[7] = MODSEL_QSFP_N_P(X+7) */
     },
 };
+
 
 struct ioexp_map_s ioexp_map_maple_nabc = {
 
@@ -674,6 +681,209 @@ struct ioexp_map_s ioexp_map_maple_nabc = {
                         {2, 1, 7}, /* map_hard_rs1[7] = RS1_SFP28_P(X+7) */
     },
 };
+
+
+struct ioexp_map_s ioexp_map_gulmohar_nabc = {
+
+    .chip_amount = 3,
+    .data_width  = 2,
+
+    .map_present    = { {0, 0, 4}, /* map_present[0] = MOD_ABS_PORT(X)   */
+                        {0, 0, 5}, /* map_present[1] = MOD_ABS_PORT(X+1) */
+                        {0, 1, 4}, /* map_present[2] = MOD_ABS_PORT(X+2) */
+                        {0, 1, 5}, /* map_present[3] = MOD_ABS_PORT(X+3) */
+                        {1, 0, 4}, /* map_present[4] = MOD_ABS_PORT(X+4) */
+                        {1, 0, 5}, /* map_present[5] = MOD_ABS_PORT(X+5) */
+                        {1, 1, 4}, /* map_present[6] = MOD_ABS_PORT(X+6) */
+                        {1, 1, 5}, /* map_present[7] = MOD_ABS_PORT(X+7) */
+    },
+    .map_tx_disable = { {0, 0, 2}, /* map_tx_disable[0] = TXDISABLE_SFP+_P(X)   */
+                        {0, 0, 3}, /* map_tx_disable[1] = TXDISABLE_SFP+_P(X+1) */
+                        {0, 1, 2}, /* map_tx_disable[2] = TXDISABLE_SFP+_P(X+2) */
+                        {0, 1, 3}, /* map_tx_disable[3] = TXDISABLE_SFP+_P(X+3) */
+                        {1, 0, 2}, /* map_tx_disable[4] = TXDISABLE_SFP+_P(X+4) */
+                        {1, 0, 3}, /* map_tx_disable[5] = TXDISABLE_SFP+_P(X+5) */
+                        {1, 1, 2}, /* map_tx_disable[6] = TXDISABLE_SFP+_P(X+6) */
+                        {1, 1, 3}, /* map_tx_disable[7] = TXDISABLE_SFP+_P(X+7) */
+    },
+    .map_tx_fault   = { {0, 0, 0}, /* map_tx_fault[0] = TXFAULT_SFP+_P(X)   */
+                        {0, 0, 1}, /* map_tx_fault[1] = TXFAULT_SFP+_P(X+1) */
+                        {0, 1, 0}, /* map_tx_fault[2] = TXFAULT_SFP+_P(X+2) */
+                        {0, 1, 1}, /* map_tx_fault[3] = TXFAULT_SFP+_P(X+3) */
+                        {1, 0, 0}, /* map_tx_fault[4] = TXFAULT_SFP+_P(X+4) */
+                        {1, 0, 1}, /* map_tx_fault[5] = TXFAULT_SFP+_P(X+5) */
+                        {1, 1, 0}, /* map_tx_fault[6] = TXFAULT_SFP+_P(X+6) */
+                        {1, 1, 1}, /* map_tx_fault[7] = TXFAULT_SFP+_P(X+7) */
+    },
+    .map_rxlos      = { {0, 0, 6}, /* map_rxlos[0] = OPRXLOS_PORT(X)   */
+                        {0, 0, 7}, /* map_rxlos[1] = OPRXLOS_PORT(X+1) */
+                        {0, 1, 6}, /* map_rxlos[2] = OPRXLOS_PORT(X+2) */
+                        {0, 1, 7}, /* map_rxlos[3] = OPRXLOS_PORT(X+3) */
+                        {1, 0, 6}, /* map_rxlos[4] = OPRXLOS_PORT(X+4) */
+                        {1, 0, 7}, /* map_rxlos[5] = OPRXLOS_PORT(X+5) */
+                        {1, 1, 6}, /* map_rxlos[6] = OPRXLOS_PORT(X+6) */
+                        {1, 1, 7}, /* map_rxlos[7] = OPRXLOS_PORT(X+7) */
+    },
+    .map_hard_rs0   = { {2, 0, 0}, /* map_hard_rs0[0] = RS0_SFP28_P(X)   */
+                        {2, 0, 2}, /* map_hard_rs0[1] = RS0_SFP28_P(X+1) */
+                        {2, 0, 4}, /* map_hard_rs0[2] = RS0_SFP28_P(X+2) */
+                        {2, 0, 6}, /* map_hard_rs0[3] = RS0_SFP28_P(X+3) */
+                        {2, 1, 0}, /* map_hard_rs0[4] = RS0_SFP28_P(X+4) */
+                        {2, 1, 2}, /* map_hard_rs0[5] = RS0_SFP28_P(X+5) */
+                        {2, 1, 4}, /* map_hard_rs0[6] = RS0_SFP28_P(X+6) */
+                        {2, 1, 6}, /* map_hard_rs0[7] = RS0_SFP28_P(X+7) */
+    },
+    .map_hard_rs1   = { {2, 0, 1}, /* map_hard_rs1[0] = RS1_SFP28_P(X)   */
+                        {2, 0, 3}, /* map_hard_rs1[1] = RS1_SFP28_P(X+1) */
+                        {2, 0, 5}, /* map_hard_rs1[2] = RS1_SFP28_P(X+2) */
+                        {2, 0, 7}, /* map_hard_rs1[3] = RS1_SFP28_P(X+3) */
+                        {2, 1, 1}, /* map_hard_rs1[4] = RS1_SFP28_P(X+4) */
+                        {2, 1, 3}, /* map_hard_rs1[5] = RS1_SFP28_P(X+5) */
+                        {2, 1, 5}, /* map_hard_rs1[6] = RS1_SFP28_P(X+6) */
+                        {2, 1, 7}, /* map_hard_rs1[7] = RS1_SFP28_P(X+7) */
+    },
+};
+
+
+struct ioexp_map_s ioexp_map_gulmohar_7abc = {
+
+    .chip_amount    = 3,
+    .data_width     = 2,
+
+    .map_present    = { {2, 1, 0}, /* map_present[0] = MOD_ABS_PORT(X)   */
+                        {2, 1, 1}, /* map_present[1] = MOD_ABS_PORT(X+1) */
+                        {2, 1, 2}, /* map_present[2] = MOD_ABS_PORT(X+2) */
+                        {2, 1, 3}, /* map_present[3] = MOD_ABS_PORT(X+3) */
+                        {2, 1, 4}, /* map_present[4] = MOD_ABS_PORT(X+4) */
+                        {2, 1, 5}, /* map_present[5] = MOD_ABS_PORT(X+5) */
+    },
+    .map_reset      = { {0, 1, 0}, /* map_reset[0] = QRESET_QSFP_N_P(X)   */
+                        {0, 1, 1}, /* map_reset[1] = QRESET_QSFP_N_P(X+1) */
+                        {0, 1, 2}, /* map_reset[2] = QRESET_QSFP_N_P(X+2) */
+                        {0, 1, 3}, /* map_reset[3] = QRESET_QSFP_N_P(X+3) */
+                        {0, 1, 4}, /* map_reset[4] = QRESET_QSFP_N_P(X+4) */
+                        {0, 1, 5}, /* map_reset[5] = QRESET_QSFP_N_P(X+5) */
+    },
+    .map_lpmod      = { {1, 0, 0}, /* map_lpmod[0] = LPMODE_QSFP_P(X)   */
+                        {1, 0, 1}, /* map_lpmod[1] = LPMODE_QSFP_P(X+1) */
+                        {1, 0, 2}, /* map_lpmod[2] = LPMODE_QSFP_P(X+2) */
+                        {1, 0, 3}, /* map_lpmod[3] = LPMODE_QSFP_P(X+3) */
+                        {1, 0, 4}, /* map_lpmod[4] = LPMODE_QSFP_P(X+4) */
+                        {1, 0, 5}, /* map_lpmod[5] = LPMODE_QSFP_P(X+5) */
+    },
+    .map_modsel     = { {0, 0, 0}, /* map_modsel[0] = MODSEL_QSFP_N_P(X)   */
+                        {0, 0, 1}, /* map_modsel[1] = MODSEL_QSFP_N_P(X+1) */
+                        {0, 0, 2}, /* map_modsel[2] = MODSEL_QSFP_N_P(X+2) */
+                        {0, 0, 3}, /* map_modsel[3] = MODSEL_QSFP_N_P(X+3) */
+                        {0, 0, 4}, /* map_modsel[4] = MODSEL_QSFP_N_P(X+4) */
+                        {0, 0, 5}, /* map_modsel[5] = MODSEL_QSFP_N_P(X+5) */
+    },
+};
+
+
+/* PortType: SFP / 8 port
+ * Platform: Cypress, Peony_SFP
+ */
+struct ioexp_map_s ioexp_map_sfp_8p_layout_1 = {
+
+    .chip_amount = 3,
+    .data_width  = 2,
+
+    .map_present    = { {0, 0, 4}, /* map_present[0] = MOD_ABS_PORT(X)   */
+                        {0, 0, 5}, /* map_present[1] = MOD_ABS_PORT(X+1) */
+                        {0, 0, 6}, /* map_present[2] = MOD_ABS_PORT(X+2) */
+                        {0, 0, 7}, /* map_present[3] = MOD_ABS_PORT(X+3) */
+                        {1, 0, 4}, /* map_present[4] = MOD_ABS_PORT(X+4) */
+                        {1, 0, 5}, /* map_present[5] = MOD_ABS_PORT(X+5) */
+                        {1, 0, 6}, /* map_present[6] = MOD_ABS_PORT(X+6) */
+                        {1, 0, 7}, /* map_present[7] = MOD_ABS_PORT(X+7) */
+    },
+    .map_tx_disable = { {0, 1, 0}, /* map_tx_disable[0] = TXDISABLE_SFP+_P(X)   */
+                        {0, 1, 1}, /* map_tx_disable[1] = TXDISABLE_SFP+_P(X+1) */
+                        {0, 1, 2}, /* map_tx_disable[2] = TXDISABLE_SFP+_P(X+2) */
+                        {0, 1, 3}, /* map_tx_disable[3] = TXDISABLE_SFP+_P(X+3) */
+                        {1, 1, 0}, /* map_tx_disable[4] = TXDISABLE_SFP+_P(X+4) */
+                        {1, 1, 1}, /* map_tx_disable[5] = TXDISABLE_SFP+_P(X+5) */
+                        {1, 1, 2}, /* map_tx_disable[6] = TXDISABLE_SFP+_P(X+6) */
+                        {1, 1, 3}, /* map_tx_disable[7] = TXDISABLE_SFP+_P(X+7) */
+    },
+    .map_tx_fault   = { {0, 0, 0}, /* map_tx_fault[0] = TXFAULT_SFP+_P(X)   */
+                        {0, 0, 1}, /* map_tx_fault[1] = TXFAULT_SFP+_P(X+1) */
+                        {0, 0, 2}, /* map_tx_fault[2] = TXFAULT_SFP+_P(X+2) */
+                        {0, 0, 3}, /* map_tx_fault[3] = TXFAULT_SFP+_P(X+3) */
+                        {1, 0, 0}, /* map_tx_fault[4] = TXFAULT_SFP+_P(X+4) */
+                        {1, 0, 1}, /* map_tx_fault[5] = TXFAULT_SFP+_P(X+5) */
+                        {1, 0, 2}, /* map_tx_fault[6] = TXFAULT_SFP+_P(X+6) */
+                        {1, 0, 3}, /* map_tx_fault[7] = TXFAULT_SFP+_P(X+7) */
+    },
+    .map_rxlos      = { {0, 1, 4}, /* map_rxlos[0] = OPRXLOS_PORT(X)   */
+                        {0, 1, 5}, /* map_rxlos[1] = OPRXLOS_PORT(X+1) */
+                        {0, 1, 6}, /* map_rxlos[2] = OPRXLOS_PORT(X+2) */
+                        {0, 1, 7}, /* map_rxlos[3] = OPRXLOS_PORT(X+3) */
+                        {1, 1, 4}, /* map_rxlos[4] = OPRXLOS_PORT(X+4) */
+                        {1, 1, 5}, /* map_rxlos[5] = OPRXLOS_PORT(X+5) */
+                        {1, 1, 6}, /* map_rxlos[6] = OPRXLOS_PORT(X+6) */
+                        {1, 1, 7}, /* map_rxlos[7] = OPRXLOS_PORT(X+7) */
+    },
+    .map_hard_rs0   = { {2, 0, 0}, /* map_hard_rs0[0] = RS0_SFP28_P(X)   */
+                        {2, 0, 2}, /* map_hard_rs0[1] = RS0_SFP28_P(X+1) */
+                        {2, 0, 4}, /* map_hard_rs0[2] = RS0_SFP28_P(X+2) */
+                        {2, 0, 6}, /* map_hard_rs0[3] = RS0_SFP28_P(X+3) */
+                        {2, 1, 0}, /* map_hard_rs0[4] = RS0_SFP28_P(X+4) */
+                        {2, 1, 2}, /* map_hard_rs0[5] = RS0_SFP28_P(X+5) */
+                        {2, 1, 4}, /* map_hard_rs0[6] = RS0_SFP28_P(X+6) */
+                        {2, 1, 6}, /* map_hard_rs0[7] = RS0_SFP28_P(X+7) */
+    },
+    .map_hard_rs1   = { {2, 0, 1}, /* map_hard_rs1[0] = RS1_SFP28_P(X)   */
+                        {2, 0, 3}, /* map_hard_rs1[1] = RS1_SFP28_P(X+1) */
+                        {2, 0, 5}, /* map_hard_rs1[2] = RS1_SFP28_P(X+2) */
+                        {2, 0, 7}, /* map_hard_rs1[3] = RS1_SFP28_P(X+3) */
+                        {2, 1, 1}, /* map_hard_rs1[4] = RS1_SFP28_P(X+4) */
+                        {2, 1, 3}, /* map_hard_rs1[5] = RS1_SFP28_P(X+5) */
+                        {2, 1, 5}, /* map_hard_rs1[6] = RS1_SFP28_P(X+6) */
+                        {2, 1, 7}, /* map_hard_rs1[7] = RS1_SFP28_P(X+7) */
+    },
+};
+
+
+/* PortType: QSFP / 6 port
+ * Platform: Gulmohar, Peony_SFP, Peony_Copper
+ */
+struct ioexp_map_s ioexp_map_6p_qsfp_type_1 = {
+
+    .chip_amount    = 3,
+    .data_width     = 2,
+
+    .map_present    = { {2, 1, 0}, /* map_present[0] = MOD_ABS_PORT(X)   */
+                        {2, 1, 1}, /* map_present[1] = MOD_ABS_PORT(X+1) */
+                        {2, 1, 2}, /* map_present[2] = MOD_ABS_PORT(X+2) */
+                        {2, 1, 3}, /* map_present[3] = MOD_ABS_PORT(X+3) */
+                        {2, 1, 4}, /* map_present[4] = MOD_ABS_PORT(X+4) */
+                        {2, 1, 5}, /* map_present[5] = MOD_ABS_PORT(X+5) */
+    },
+    .map_reset      = { {0, 1, 0}, /* map_reset[0] = QRESET_QSFP_N_P(X)   */
+                        {0, 1, 1}, /* map_reset[1] = QRESET_QSFP_N_P(X+1) */
+                        {0, 1, 2}, /* map_reset[2] = QRESET_QSFP_N_P(X+2) */
+                        {0, 1, 3}, /* map_reset[3] = QRESET_QSFP_N_P(X+3) */
+                        {0, 1, 4}, /* map_reset[4] = QRESET_QSFP_N_P(X+4) */
+                        {0, 1, 5}, /* map_reset[5] = QRESET_QSFP_N_P(X+5) */
+    },
+    .map_lpmod      = { {1, 0, 0}, /* map_lpmod[0] = LPMODE_QSFP_P(X)   */
+                        {1, 0, 1}, /* map_lpmod[1] = LPMODE_QSFP_P(X+1) */
+                        {1, 0, 2}, /* map_lpmod[2] = LPMODE_QSFP_P(X+2) */
+                        {1, 0, 3}, /* map_lpmod[3] = LPMODE_QSFP_P(X+3) */
+                        {1, 0, 4}, /* map_lpmod[4] = LPMODE_QSFP_P(X+4) */
+                        {1, 0, 5}, /* map_lpmod[5] = LPMODE_QSFP_P(X+5) */
+    },
+    .map_modsel     = { {0, 0, 0}, /* map_modsel[0] = MODSEL_QSFP_N_P(X)   */
+                        {0, 0, 1}, /* map_modsel[1] = MODSEL_QSFP_N_P(X+1) */
+                        {0, 0, 2}, /* map_modsel[2] = MODSEL_QSFP_N_P(X+2) */
+                        {0, 0, 3}, /* map_modsel[3] = MODSEL_QSFP_N_P(X+3) */
+                        {0, 0, 4}, /* map_modsel[4] = MODSEL_QSFP_N_P(X+4) */
+                        {0, 0, 5}, /* map_modsel[5] = MODSEL_QSFP_N_P(X+5) */
+    },
+};
+
 
 /* ========== Private functions ==========
  */
@@ -1171,23 +1381,55 @@ update_common_ioexp_init:
 int
 _is_channel_ready(struct ioexp_obj_s *self){
 
-    int buf     = 0;
-    int chip_id = 0;  /* Use first chip which be registered */
-    int data_id = 0;  /* Use first byte which be registered */
-    struct ioexp_addr_s *ioexp_addr = NULL;
+    int chip_id = 0;
+    int byte_id = 0;
+    int getval  = ERR_IOEXP_UNEXCPT; 
+    int chkval  = ERR_IOEXP_UNEXCPT;
+    char *emsg  = "ERR";
+    struct ioexp_addr_s *addr_p = NULL;
 
-    ioexp_addr = &(self->ioexp_map_p->map_addr[chip_id]);
-    if (!ioexp_addr){
-        SWPS_ERR("%s: config incorrect!\n", __func__);
-        return ERR_IOEXP_UNEXCPT;
+    for (chip_id=0; chip_id<(self->ioexp_map_p->chip_amount); chip_id++) {
+        addr_p = &(self->ioexp_map_p->map_addr[chip_id]);
+        if (!addr_p){
+            emsg = "IOEXP config incorrect";
+            goto err_is_channel_ready;
+        }
+        for (byte_id=0; byte_id<(self->ioexp_map_p->data_width); byte_id++) {
+            if (addr_p->conf_offset[byte_id] < 0) {
+                continue;
+            }
+            if ((addr_p->conf_default[byte_id]) != 0) {
+                goto go_is_channel_ready;
+            }
+        }
+        if (chip_id == ((self->ioexp_map_p->chip_amount) - 1)) {
+            SWPS_DEBUG("%s: no non-zero config", __func__);
+            break;
+        }
     }
-    buf = i2c_smbus_read_byte_data(_get_i2c_client(self, chip_id),
-                                   ioexp_addr->read_offset[data_id]);
-    if (buf >= 0){
+    chip_id = 0;
+    byte_id = 0;
+    
+go_is_channel_ready:
+    addr_p = &(self->ioexp_map_p->map_addr[chip_id]);
+    chkval = addr_p->conf_default[byte_id];
+    getval = i2c_smbus_read_byte_data(_get_i2c_client(self, chip_id),
+                                      addr_p->conf_offset[byte_id]);
+    
+    SWPS_DEBUG("%s: target info <ioexp>:%d <chip>:%d <byte>:%d <chkv>:%d <getv>:%d\n",
+               __func__, self->ioexp_id, chip_id, byte_id, chkval, getval);
+    
+    if ((getval >= 0) && (getval == chkval)) {
         return 1;
     }
     return 0;
+
+err_is_channel_ready:
+    SWPS_ERR("%s: %s <ioexp>:%d <chip>:%d <byte>:%d <chkv>:%d <getv>:%d\n", 
+             __func__, emsg, self->ioexp_id, chip_id, byte_id, chkval, getval);
+    return ERR_IOEXP_UNEXCPT;
 }
+
 
 int
 _ioexp_init_handler(struct ioexp_obj_s *self){
@@ -1395,8 +1637,6 @@ get_ioexp_map(int ioexp_type){
             return &ioexp_map_hudson32iga_p01p08_p17p24;
         case IOEXP_TYPE_HUDSON32IGA_P09P16:
             return &ioexp_map_hudson32iga_p09p16_p25p32;
-        case IOEXP_TYPE_CYPRESS_NABC:
-            return &ioexp_map_cypress_nabc;
         case IOEXP_TYPE_CYPRESS_7ABC:
             return &ioexp_map_cypress_7abc;
         case IOEXP_TYPE_TAHOE_5A:
@@ -1413,6 +1653,14 @@ get_ioexp_map(int ioexp_type){
             return &ioexp_map_maple_0abc;
         case IOEXP_TYPE_MAPLE_NABC:
             return &ioexp_map_maple_nabc;
+        case IOEXP_TYPE_GULMOHAR_NABC:
+            return &ioexp_map_gulmohar_nabc;
+        case IOEXP_TYPE_GULMOHAR_7ABC:
+            return &ioexp_map_gulmohar_7abc;
+        case IOEXP_TYPE_SFP_8P_LAYOUT_1:
+            return &ioexp_map_sfp_8p_layout_1;
+        case IOEXP_TYPE_QSFP_6P_LAYOUT_1:
+            return &ioexp_map_6p_qsfp_type_1;
         default:
             return NULL;
     }
@@ -1497,8 +1745,10 @@ setup_ioexp_public_cb(struct ioexp_obj_s *self,
             self->set_hard_rs0   = ioexp_set_not_support;
             self->set_hard_rs1   = ioexp_set_not_support;
             return 0;
-        case IOEXP_TYPE_CYPRESS_NABC:
+
         case IOEXP_TYPE_MAPLE_NABC:
+        case IOEXP_TYPE_GULMOHAR_NABC:
+        case IOEXP_TYPE_SFP_8P_LAYOUT_1:
             self->get_present    = common_get_present;
             self->get_tx_fault   = common_get_tx_fault;
             self->get_rxlos      = common_get_rxlos;
@@ -1515,6 +1765,7 @@ setup_ioexp_public_cb(struct ioexp_obj_s *self,
             self->set_hard_rs0   = common_set_hard_rs0;
             self->set_hard_rs1   = common_set_hard_rs1;
             return 0;
+
         case IOEXP_TYPE_MAGINOLIA_7AB:
         case IOEXP_TYPE_SPRUCE_7AB:
         case IOEXP_TYPE_REDWOOD_P01P08:
@@ -1527,6 +1778,8 @@ setup_ioexp_public_cb(struct ioexp_obj_s *self,
         case IOEXP_TYPE_SEQUOIA_NABC:
         case IOEXP_TYPE_LAVENDER_P65:
         case IOEXP_TYPE_MAPLE_0ABC:
+        case IOEXP_TYPE_GULMOHAR_7ABC:
+        case IOEXP_TYPE_QSFP_6P_LAYOUT_1:
             self->get_present    = common_get_present;
             self->get_tx_fault   = ioexp_get_not_support;
             self->get_rxlos      = ioexp_get_not_support;
@@ -1565,7 +1818,6 @@ setup_ioexp_private_cb(struct ioexp_obj_s *self,
         case IOEXP_TYPE_REDWOOD_P09P16:
         case IOEXP_TYPE_HUDSON32IGA_P01P08:
         case IOEXP_TYPE_HUDSON32IGA_P09P16:
-        case IOEXP_TYPE_CYPRESS_NABC:
         case IOEXP_TYPE_CYPRESS_7ABC:
         case IOEXP_TYPE_TAHOE_5A:
         case IOEXP_TYPE_TAHOE_6ABC:
@@ -1574,6 +1826,10 @@ setup_ioexp_private_cb(struct ioexp_obj_s *self,
         case CPLD_TYPE_COTTONWOOD:
         case IOEXP_TYPE_MAPLE_NABC:
         case IOEXP_TYPE_MAPLE_0ABC:
+        case IOEXP_TYPE_GULMOHAR_NABC:
+        case IOEXP_TYPE_GULMOHAR_7ABC:
+        case IOEXP_TYPE_SFP_8P_LAYOUT_1:
+        case IOEXP_TYPE_QSFP_6P_LAYOUT_1:
             self->init           = common_ioexp_init;
             self->check          = common_ioexp_check;
             self->update_all     = common_ioexp_update_all;
@@ -1600,11 +1856,6 @@ setup_i2c_client_one(struct ioexp_obj_s *self,
     struct ioexp_i2c_s *i2c_curr_p = NULL;
 
     int chan_id = self->ioexp_map_p->map_addr[chip_id].chan_id;
-    adap = i2c_get_adapter(chan_id);
-    if(!adap){
-        err_msg = "Can not get adap!";
-        goto err_ioexp_setup_i2c_1;
-    }
     client = kzalloc(sizeof(*client), GFP_KERNEL);
     if (!client){
         err_msg = "Can not kzalloc client!";
@@ -1614,6 +1865,11 @@ setup_i2c_client_one(struct ioexp_obj_s *self,
     if (!i2c_obj_p){
         err_msg = "Can not kzalloc i2c_obj_p!";
         goto err_ioexp_setup_i2c_2;
+    }
+    adap = i2c_get_adapter(chan_id);
+    if(!adap){
+        err_msg = "Can not get adap!";
+        goto err_ioexp_setup_i2c_3;
     }
     client->adapter = adap;
     client->addr = self->ioexp_map_p->map_addr[chip_id].chip_addr;
@@ -1631,6 +1887,8 @@ setup_i2c_client_one(struct ioexp_obj_s *self,
     }
     return 0;
 
+err_ioexp_setup_i2c_3:
+    kfree(i2c_obj_p);
 err_ioexp_setup_i2c_2:
     kfree(client);
 err_ioexp_setup_i2c_1:
@@ -1743,7 +2001,10 @@ err_create_ioexp_setup_i2c_fail:
     i2c_next_p = result_p->i2c_head_p;
     while (i2c_curr_p){
         i2c_next_p = i2c_curr_p->next;
-        kfree(i2c_curr_p->i2c_client_p);
+        if (i2c_curr_p->i2c_client_p) {
+            i2c_put_adapter(i2c_curr_p->i2c_client_p->adapter);
+            kfree(i2c_curr_p->i2c_client_p);
+        }
         kfree(i2c_curr_p);
         i2c_curr_p = i2c_next_p;
     }
@@ -1778,6 +2039,7 @@ create_ioexp_obj(int ioexp_id,
     ioexp_tail_p = ioexp_p;
     return 0;
 }
+EXPORT_SYMBOL(create_ioexp_obj);
 
 
 static int
@@ -1818,7 +2080,6 @@ init_ioexp_objs(void){
      *  -1: Detect topology error
      *  -2: SWPS internal error
      */
-
     struct ioexp_obj_s *curr_p  = ioexp_head_p;
 
     if (!curr_p) {
@@ -1835,6 +2096,7 @@ init_ioexp_objs(void){
     SWPS_DEBUG("%s: done.\n", __func__);
     return 0;
 }
+EXPORT_SYMBOL(init_ioexp_objs);
 
 
 void
@@ -1861,7 +2123,10 @@ clean_ioexp_objs(void){
         i2c_curr_p = ioexp_curr_p->i2c_head_p;
         while (i2c_curr_p) {
             i2c_next_p = i2c_curr_p->next;
-            kfree(i2c_curr_p->i2c_client_p);
+            if (i2c_curr_p->i2c_client_p) {
+                i2c_put_adapter(i2c_curr_p->i2c_client_p->adapter);
+                kfree(i2c_curr_p->i2c_client_p);
+            }
             kfree(i2c_curr_p);
             i2c_curr_p = i2c_next_p;
         }
@@ -1871,6 +2136,7 @@ clean_ioexp_objs(void){
     ioexp_tail_p = NULL;
     SWPS_DEBUG("%s: done.\n", __func__);
 }
+EXPORT_SYMBOL(clean_ioexp_objs);
 
 
 int
@@ -1888,6 +2154,7 @@ check_ioexp_objs(void){
     }
     return 0;
 }
+EXPORT_SYMBOL(check_ioexp_objs);
 
 
 struct ioexp_obj_s *
@@ -1905,6 +2172,7 @@ get_ioexp_obj(int ioexp_id){
     }
     return result_p;
 }
+EXPORT_SYMBOL(get_ioexp_obj);
 
 
 void
@@ -1917,7 +2185,7 @@ unlock_ioexp_all(void) {
         ioexp_curr_p = ioexp_curr_p->next;
     }
 }
-
+EXPORT_SYMBOL(unlock_ioexp_all);
 
 int
 lock_ioexp_all(void) {
@@ -1930,6 +2198,7 @@ lock_ioexp_all(void) {
     }
     return 0;
 }
+EXPORT_SYMBOL(lock_ioexp_all);
 
 
 int
@@ -1941,6 +2210,7 @@ check_channel_tier_1(void) {
     }
     return 0;
 }
+EXPORT_SYMBOL(check_channel_tier_1);
 
 
 static int
@@ -2037,10 +2307,11 @@ err_resync_ioexp_status_1:
     SWPS_ERR("%s: %s\n", __func__, emsg);
     return -1;
 }
+EXPORT_SYMBOL(resync_channel_tier_1);
 
 
-
-
+/* For build single module using (Ex: ONL platform) */
+//MODULE_LICENSE("GPL");
 
 
 

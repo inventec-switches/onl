@@ -11,14 +11,18 @@
 
 #include "x86_64_inventec_d6356_log.h"
 
+#define PSU_MODULE_INFO_SUPPORT	(0)
+#define FAN_STATUS_INFO_SUPPORT	(0)
+#define THERMAL_INFO_SUPPORT	(0)
+
 #define ONLP_NODE_MAX_INT_LEN	(8)
 #define ONLP_NODE_MAX_PATH_LEN	(64)
 
 #define INV_CPLD_COUNT		(2)
-#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/0-0055/"
-#define INV_CPLD2_PREFIX	"/sys/bus/i2c/devices/0-0077/"
-#define INV_PSOC_PREFIX		"/sys/devices/virtual/hwmon/hwmon1/"
-#define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
+#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/2-0077/"
+#define INV_CPLD2_PREFIX	"/sys/bus/i2c/devices/2-0033/"
+#define INV_PSOC_PREFIX		INV_CPLD_PREFIX
+#define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/2-0055/"
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
 
 #define INV_SFP_EEPROM_UPDATE	"/sys/class/swps/module/eeprom_update"

@@ -30,6 +30,7 @@ static char* devfiles__[THERMAL_MAX] =  /* must map with onlp_thermal_id */
     INV_CTMP_PREFIX"/temp3_%s",
     INV_CTMP_PREFIX"/temp4_%s",
     INV_CTMP_PREFIX"/temp5_%s",
+#if THERMAL_INFO_SUPPORT
     INV_PSOC_PREFIX"/temp1_input",
     INV_PSOC_PREFIX"/temp2_input",
     INV_PSOC_PREFIX"/temp3_input",
@@ -39,6 +40,7 @@ static char* devfiles__[THERMAL_MAX] =  /* must map with onlp_thermal_id */
     INV_PSOC_PREFIX"/thermal2_psu1",
     INV_PSOC_PREFIX"/thermal_psu2",
     INV_PSOC_PREFIX"/thermal2_psu2",
+#endif
 };
 
 /* Static values */
@@ -64,6 +66,7 @@ static onlp_thermal_info_t linfo[THERMAL_MAX] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
+#if THERMAL_INFO_SUPPORT
 	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_MAIN_BROAD), "Chassis Thermal Sensor 1", 0},
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
@@ -100,6 +103,7 @@ static onlp_thermal_info_t linfo[THERMAL_MAX] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         }
+#endif
 };
 
 /*

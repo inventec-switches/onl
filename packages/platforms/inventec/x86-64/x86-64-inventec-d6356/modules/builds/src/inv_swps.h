@@ -13,19 +13,20 @@
 #define SWP_POLLING_PERIOD    (300)  /* msec */
 #define SWP_POLLING_ENABLE    (1)
 #define SWP_AUTOCONFIG_ENABLE (1)
+static int block_polling = 0;
 
 /* Module information */
 #define SWP_AUTHOR            "Neil <liao.neil@inventec.com>"
 #define SWP_DESC              "Inventec port and transceiver driver"
-#define SWP_VERSION           "4.2.9"
+#define SWP_VERSION           "4.3.2"
 #define SWP_LICENSE           "GPL"
 
 /* Module status define */
 #define SWP_STATE_NORMAL      (0)
 #define SWP_STATE_I2C_DIE     (-91)
 
-#define INV_BATOI(a)	((a>='0'&&a<='9')?(a-'0'):(-1))
-#define INV_BATOX(a)	((a>='0'&&a<='9')?(a-'0'):((a>='a'&&a<='f')?(a-'a'+10):((a >='A'&&a<='F')?(a-'A'+10):-1)))
+#define INV_BATOI(a)    ((a>='0'&&a<='9')?(a-'0'):(-1))
+#define INV_BATOX(a)    ((a>='0'&&a<='9')?(a-'0'):((a>='a'&&a<='f')?(a-'a'+10):((a >='A'&&a<='F')?(a-'A'+10):-1)))
 
 /* [Note]:
  *  Functions and mechanism for auto-detect platform type is ready,
@@ -48,9 +49,14 @@
 #define PLATFORM_TYPE_LAVENDER_GA         (181)
 #define PLATFORM_TYPE_LAVENDER_ONL        (182)
 #define PLATFORM_TYPE_COTTONWOOD_RANGELEY (191)
-#define PLATFORM_TYPE_MAPLE               (201)
+#define PLATFORM_TYPE_MAPLE_GA            (201)
+#define PLATFORM_TYPE_GULMOHAR_GA         (202)
+#define PLATFORM_TYPE_PEONY_SFP_GA        (203)
+#define PLATFORM_TYPE_PEONY_COPPER_GA     (204)
+#define PLATFORM_TYPE_PEONY_AUTO          (205)
+#define PLATFORM_TYPE_MAPLE_B             (206)
 /* Current running platfrom */
-#define PLATFORM_SETTINGS           PLATFORM_TYPE_MAPLE
+#define PLATFORM_SETTINGS                 PLATFORM_TYPE_MAPLE_B
 
 /* Define platform flag and kernel version */
 #if (PLATFORM_SETTINGS == PLATFORM_TYPE_MAGNOLIA)
@@ -95,8 +101,24 @@
 #elif (PLATFORM_SETTINGS == PLATFORM_TYPE_COTTONWOOD_RANGELEY)
   #define SWPS_COTTONWOOD_RANGELEY  (1)
   #define SWPS_KERN_VER_AF_3_10     (1)
-#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_MAPLE)
-  #define SWPS_MAPLE                (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_MAPLE_GA)
+  #define SWPS_MAPLE_GA             (1)
+  #define SWPS_KERN_VER_AF_3_10     (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_MAPLE_B)
+  #define SWPS_MAPLE_B              (1)
+  #define SWPS_KERN_VER_AF_3_10     (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_GULMOHAR_GA)
+  #define SWPS_GULMOHAR             (1)
+  #define SWPS_KERN_VER_AF_3_10     (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_PEONY_SFP_GA)
+  #define SWPS_PEONY_SFP            (1)
+  #define SWPS_KERN_VER_AF_3_10     (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_PEONY_COPPER_GA)
+  #define SWPS_PEONY_COPPER         (1)
+  #define SWPS_KERN_VER_AF_3_10     (1)
+#elif (PLATFORM_SETTINGS == PLATFORM_TYPE_PEONY_AUTO)
+  #define SWPS_PEONY_SFP            (1)
+  #define SWPS_PEONY_COPPER         (1)
   #define SWPS_KERN_VER_AF_3_10     (1)
 #endif
 
@@ -143,7 +165,12 @@ struct inv_platform_s platform_map[] = {
     {PLATFORM_TYPE_LAVENDER_GA,          "Lavender_GA"         },
     {PLATFORM_TYPE_LAVENDER_ONL,         "Lavender_ONL"        },
     {PLATFORM_TYPE_COTTONWOOD_RANGELEY,  "Cottonwood_RANGELEY" },
-    {PLATFORM_TYPE_MAPLE,                "Maple"               },
+    {PLATFORM_TYPE_MAPLE_GA,             "Maple_GA"            },
+    {PLATFORM_TYPE_MAPLE_B,              "Maple_B"             },
+    {PLATFORM_TYPE_GULMOHAR_GA,          "Gulmohar_GA"         },
+    {PLATFORM_TYPE_PEONY_SFP_GA,         "Peony_SFP_GA"        },
+    {PLATFORM_TYPE_PEONY_COPPER_GA,      "Peony_Copper_GA"     },
+    {PLATFORM_TYPE_PEONY_AUTO,           "Peony_Auto_Detect"   },
 };
 
 
@@ -404,29 +431,29 @@ unsigned cypress_ga1_gpio_rest_mux = MUX_RST_GPIO_69_PAC9548;
 
 struct inv_ioexp_layout_s cypress_ga1_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
-    {0,  IOEXP_TYPE_CYPRESS_NABC,  { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {0,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {1,  IOEXP_TYPE_CYPRESS_NABC,  { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {1,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {2,  IOEXP_TYPE_CYPRESS_NABC,  { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {2,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {3,  IOEXP_TYPE_CYPRESS_NABC,  { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {3,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {4,  IOEXP_TYPE_CYPRESS_NABC,  { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {4,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {5,  IOEXP_TYPE_CYPRESS_NABC,  { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {5,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
     {6,  IOEXP_TYPE_CYPRESS_7ABC,  { {8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 7 A */
                                      {8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xc0}, {0xff, 0xc0}, },    /* addr[1] = I/O Expander 7 B */
@@ -503,29 +530,29 @@ unsigned cypress_ga2_gpio_rest_mux = MUX_RST_GPIO_FORCE_HEDERA;
 
 struct inv_ioexp_layout_s cypress_ga2_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
-    {0,  IOEXP_TYPE_CYPRESS_NABC,  { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {0,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {1,  IOEXP_TYPE_CYPRESS_NABC,  { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {1,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {2,  IOEXP_TYPE_CYPRESS_NABC,  { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {2,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {3,  IOEXP_TYPE_CYPRESS_NABC,  { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {3,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {4,  IOEXP_TYPE_CYPRESS_NABC,  { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {4,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {5,  IOEXP_TYPE_CYPRESS_NABC,  { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {5,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
     {6,  IOEXP_TYPE_CYPRESS_7ABC,  { {8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 7 A */
                                      {8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xc0}, {0xff, 0xc0}, },    /* addr[1] = I/O Expander 7 B */
@@ -602,29 +629,29 @@ unsigned cypress_b_gpio_rest_mux = MUX_RST_GPIO_FORCE_HEDERA;
 
 struct inv_ioexp_layout_s cypress_b_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
-    {0,  IOEXP_TYPE_CYPRESS_NABC,  { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {0,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {1,  IOEXP_TYPE_CYPRESS_NABC,  { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {1,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {2,  IOEXP_TYPE_CYPRESS_NABC,  { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {2,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {3,  IOEXP_TYPE_CYPRESS_NABC,  { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {3,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {4,  IOEXP_TYPE_CYPRESS_NABC,  { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {4,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
-    {5,  IOEXP_TYPE_CYPRESS_NABC,  { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
-                                     {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
-                                     {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    {5,  IOEXP_TYPE_SFP_8P_LAYOUT_1, { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                       {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                       {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
     },
     {6,  IOEXP_TYPE_CYPRESS_7ABC,  { {8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 7 A */
                                      {8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xc0}, {0xff, 0xc0}, },    /* addr[1] = I/O Expander 7 B */
@@ -1051,13 +1078,13 @@ struct inv_port_layout_s cottonwood_rangeley_port_layout[] = {
 #endif
 
 /* ===========================================================
- *   Maple Layout configuration
+ *   Maple Layout configuration (Old)
  * ===========================================================
  */
-#ifdef SWPS_MAPLE
-unsigned maple_gpio_rest_mux = MUX_RST_GPIO_69_PAC9548;
+#ifdef SWPS_MAPLE_GA
+unsigned maple_ga_gpio_rest_mux = MUX_RST_GPIO_505_PCA9548;
 
-struct inv_ioexp_layout_s maple_ioexp_layout[] = {
+struct inv_ioexp_layout_s maple_ga_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
     {0,  IOEXP_TYPE_MAPLE_0ABC,   { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 0 A */
                                     {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 0 B */
@@ -1089,7 +1116,7 @@ struct inv_ioexp_layout_s maple_ioexp_layout[] = {
     },
 };
 
-struct inv_port_layout_s maple_port_layout[] = {
+struct inv_port_layout_s maple_ga_port_layout[] = {
     /* Port_ID / Chan_ID / IOEXP_ID / IOEXP_VIRT_OFFSET / TRANSCEIVER_TYPE / BCM_CHIP_TYPE / LANE_ID */
     { 0,  18,  1,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  1} },
     { 1,  19,  1,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  2} },
@@ -1150,4 +1177,342 @@ struct inv_port_layout_s maple_port_layout[] = {
 };
 #endif
 
+/* ===========================================================
+ *   Maple Layout configuration (B version)
+ * ===========================================================
+ */
+#ifdef SWPS_MAPLE_B
+unsigned maple_b_gpio_rest_mux = MUX_RST_GPIO_69_PAC9548;
+
+struct inv_ioexp_layout_s maple_b_ioexp_layout[] = {
+    /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
+    {0,  IOEXP_TYPE_MAPLE_0ABC,   { { 6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0x00, 0x00}, },    /* addr[0] = I/O Expander 0 A */
+                                    { 6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0xff}, },    /* addr[1] = I/O Expander 0 B */
+                                    { 6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0x00, 0xff}, {0xff, 0xff}, }, }, /* addr[2] = I/O Expander 0 C */
+    },
+    {1,  IOEXP_TYPE_MAPLE_NABC,   { { 7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    { 7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    { 7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {2,  IOEXP_TYPE_MAPLE_NABC,   { { 8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    { 8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    { 8, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {3,  IOEXP_TYPE_MAPLE_NABC,   { { 9, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    { 9, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    { 9, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {4,  IOEXP_TYPE_MAPLE_NABC,   { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {5,  IOEXP_TYPE_MAPLE_NABC,   { {11, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    {11, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    {11, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {6,  IOEXP_TYPE_MAPLE_NABC,   { {12, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                    {12, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                    {12, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+};
+
+struct inv_port_layout_s maple_b_port_layout[] = {
+    /* Port_ID / Chan_ID / IOEXP_ID / IOEXP_VIRT_OFFSET / TRANSCEIVER_TYPE / BCM_CHIP_TYPE / LANE_ID */
+    { 1,  23,  1,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  2} },
+    { 2,  22,  1,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  1} },
+    { 3,  25,  1,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  4} },
+    { 4,  24,  1,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  3} },
+    { 5,  27,  1,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  6} },
+    { 6,  26,  1,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  5} },
+    { 7,  29,  1,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  8} },
+    { 8,  28,  1,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  7} },
+    { 9,  31,  2,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 14} },
+    {10,  30,  2,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 13} },
+    {11,  33,  2,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 16} },
+    {12,  32,  2,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 15} },
+    {13,  35,  2,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 22} },
+    {14,  34,  2,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 21} },
+    {15,  37,  2,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 24} },
+    {16,  36,  2,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 23} },
+    {17,  39,  3,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 30} },
+    {18,  38,  3,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 29} },
+    {19,  41,  3,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 32} },
+    {20,  40,  3,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 31} },
+    {21,  43,  3,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 34} },
+    {22,  42,  3,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 33} },
+    {23,  45,  3,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 36} },
+    {24,  44,  3,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 35} },
+    {25,  47,  4,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 42} },
+    {26,  46,  4,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 41} },
+    {27,  49,  4,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 44} },
+    {28,  48,  4,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 43} },
+    {29,  51,  4,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 50} },
+    {30,  50,  4,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 49} },
+    {31,  53,  4,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 52} },
+    {32,  52,  4,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 51} },
+    {33,  55,  5,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 58} },
+    {34,  54,  5,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 57} },
+    {35,  57,  5,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 60} },
+    {36,  56,  5,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 59} },
+    {37,  59,  5,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 62} },
+    {38,  58,  5,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 61} },
+    {39,  61,  5,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 64} },
+    {40,  60,  5,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 63} },
+    {41,  63,  6,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 66} },
+    {42,  62,  6,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 65} },
+    {43,  65,  6,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 68} },
+    {44,  64,  6,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 67} },
+    {45,  67,  6,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 70} },
+    {46,  66,  6,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 69} },
+    {47,  69,  6,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 72} },
+    {48,  68,  6,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 71} },
+    {49,  15,  0,  1, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 77, 78, 79, 80} },
+    {50,  14,  0,  0, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 85, 86, 87, 88} },
+    {51,  17,  0,  3, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 97, 98, 99,100} },
+    {52,  16,  0,  2, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 93, 94, 95, 96} },
+    {53,  19,  0,  5, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, {105,106,107,108} },
+    {54,  18,  0,  4, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, {113,114,115,116} },
+    {55,  21,  0,  7, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, {125,126,127,128} },
+    {56,  20,  0,  6, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, {121,122,123,124} },
+};
+#endif
+
+
+/* ==========================================
+ *   Gulmohar Layout configuration
+ * ==========================================
+ */
+#ifdef SWPS_GULMOHAR
+unsigned gulmohar_gpio_rest_mux = MUX_RST_GPIO_505_PCA9548;
+
+struct inv_ioexp_layout_s gulmohar_ioexp_layout[] = {
+    /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
+    {0,  IOEXP_TYPE_GULMOHAR_NABC,  { {2, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {2, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {2, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {1,  IOEXP_TYPE_GULMOHAR_NABC,  { {3, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {3, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {3, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {2,  IOEXP_TYPE_GULMOHAR_NABC,  { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {3,  IOEXP_TYPE_GULMOHAR_NABC,  { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {4,  IOEXP_TYPE_GULMOHAR_NABC,  { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {5,  IOEXP_TYPE_GULMOHAR_NABC,  { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[0] = I/O Expander N A */
+                                      {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xf3, 0xf3}, {0xf3, 0xf3}, },    /* addr[1] = I/O Expander N B */
+                                      {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {6,  IOEXP_TYPE_GULMOHAR_7ABC,  { {8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 7 A */
+                                      {8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xff}, },    /* addr[1] = I/O Expander 7 B */
+                                      {8, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xff, 0xff}, }, }, /* addr[2] = I/O Expander 7 C */
+    },
+};
+
+
+
+struct inv_port_layout_s gulmohar_port_layout[] = {
+    /* Port_ID / Chan_ID / IOEXP_ID / IOEXP_VIRT_OFFSET / TRANSCEIVER_TYPE / BCM_CHIP_TYPE / LANE_ID */
+    { 0,  10,  0,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  1} },
+    { 1,  11,  0,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  2} },
+    { 2,  12,  0,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  3} },
+    { 3,  13,  0,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  4} },
+    { 4,  14,  0,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  5} },
+    { 5,  15,  0,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  6} },
+    { 6,  16,  0,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  7} },
+    { 7,  17,  0,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  8} },
+    { 8,  18,  1,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, {  9} },
+    { 9,  19,  1,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 10} },
+    {10,  20,  1,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 11} },
+    {11,  21,  1,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 12} },
+    {12,  22,  1,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 21} },
+    {13,  23,  1,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 22} },
+    {14,  24,  1,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 23} },
+    {15,  25,  1,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 24} },
+    {16,  26,  2,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 33} },
+    {17,  27,  2,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 34} },
+    {18,  28,  2,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 35} },
+    {19,  29,  2,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 36} },
+    {20,  30,  2,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 37} },
+    {21,  31,  2,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 38} },
+    {22,  32,  2,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 39} },
+    {23,  33,  2,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 40} },
+    {24,  34,  3,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 41} },
+    {25,  35,  3,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 42} },
+    {26,  36,  3,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 43} },
+    {27,  37,  3,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 44} },
+    {28,  38,  3,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 49} },
+    {29,  39,  3,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 50} },
+    {30,  40,  3,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 51} },
+    {31,  41,  3,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 52} },
+    {32,  42,  4,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 53} },
+    {33,  43,  4,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 54} },
+    {34,  44,  4,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 55} },
+    {35,  45,  4,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 56} },
+    {36,  46,  4,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 65} },
+    {37,  47,  4,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 66} },
+    {38,  48,  4,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 67} },
+    {39,  49,  4,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 68} },
+    {40,  50,  5,  0, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 69} },
+    {41,  51,  5,  1, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 70} },
+    {42,  52,  5,  2, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 71} },
+    {43,  53,  5,  3, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 72} },
+    {44,  54,  5,  4, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 81} },
+    {45,  55,  5,  5, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 82} },
+    {46,  56,  5,  6, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 83} },
+    {47,  57,  5,  7, TRANSVR_TYPE_SFP,     BF_CHIP_TYPE_TOFINO, { 84} },
+    {48,  58,  6,  0, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, { 97, 98, 99,100} },
+    {49,  59,  6,  1, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, { 85, 86, 87, 88} },
+    {50,  60,  6,  2, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {101,102,103,104} },
+    {51,  61,  6,  3, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {105,106,107,108} },
+    {52,  62,  6,  4, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {109,110,111,112} },
+    {53,  63,  6,  5, TRANSVR_TYPE_QSFP_28, BF_CHIP_TYPE_TOFINO, {109,110,111,112} },
+};
+#endif
+
+
+/* ===========================================================
+ *   Peony-SFP Layout configuration
+ * ===========================================================
+ */
+#ifdef SWPS_PEONY_SFP
+unsigned peony_sfp_gpio_rest_mux = MUX_RST_CPLD_C0_A77_70_74_RST_ALL;
+
+struct inv_ioexp_layout_s peony_sfp_ioexp_layout[] = {
+    /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
+    {0,  IOEXP_TYPE_QSFP_6P_LAYOUT_1, { {4, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 0 A */
+                                        {4, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xff}, },    /* addr[1] = I/O Expander 0 B */
+                                        {4, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xff, 0xff}, }, }, /* addr[2] = I/O Expander 0 C */
+    },
+    {1,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {5, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {5, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {5, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {2,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {6, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {6, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {6, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {3,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {7, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {7, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {7, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {4,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {8, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {8, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {8, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {5,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {9, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {9, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {9, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+    {6,  IOEXP_TYPE_SFP_8P_LAYOUT_1,  { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[0] = I/O Expander N A */
+                                        {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xf0}, {0xff, 0xf0}, },    /* addr[1] = I/O Expander N B */
+                                        {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0x00, 0x00}, }, }, /* addr[2] = I/O Expander N C */
+    },
+};
+
+struct inv_port_layout_s peony_sfp_port_layout[] = {
+    /* Port_ID / Chan_ID / IOEXP_ID / IOEXP_VIRT_OFFSET / TRANSCEIVER_TYPE / BCM_CHIP_TYPE / LANE_ID */
+    { 0,  20,  1,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  1} },
+    { 1,  21,  1,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  2} },
+    { 2,  22,  1,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  3} },
+    { 3,  23,  1,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  4} },
+    { 4,  24,  1,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  5} },
+    { 5,  25,  1,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  6} },
+    { 6,  26,  1,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  7} },
+    { 7,  27,  1,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {  8} },
+    { 8,  28,  2,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 13} },
+    { 9,  29,  2,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 14} },
+    {10,  30,  2,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 15} },
+    {11,  31,  2,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 16} },
+    {12,  32,  2,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 21} },
+    {13,  33,  2,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 22} },
+    {14,  34,  2,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 23} },
+    {15,  35,  2,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 24} },
+    {16,  36,  3,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 29} },
+    {17,  37,  3,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 30} },
+    {18,  38,  3,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 31} },
+    {19,  39,  3,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 32} },
+    {20,  40,  3,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 33} },
+    {21,  41,  3,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 34} },
+    {22,  42,  3,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 35} },
+    {23,  43,  3,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 36} },
+    {24,  44,  4,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 65} },
+    {25,  45,  4,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 66} },
+    {26,  46,  4,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 67} },
+    {27,  47,  4,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 68} },
+    {28,  48,  4,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 69} },
+    {29,  49,  4,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 70} },
+    {30,  50,  4,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 71} },
+    {31,  51,  4,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 72} },
+    {32,  52,  5,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 97} },
+    {33,  53,  5,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 98} },
+    {34,  54,  5,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, { 99} },
+    {35,  55,  5,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {100} },
+    {36,  56,  5,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {105} },
+    {37,  57,  5,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {106} },
+    {38,  58,  5,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {107} },
+    {39,  59,  5,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {108} },
+    {40,  60,  6,  0, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {113} },
+    {41,  61,  6,  1, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {114} },
+    {42,  62,  6,  2, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {115} },
+    {43,  63,  6,  3, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {116} },
+    {44,  64,  6,  4, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {121} },
+    {45,  65,  6,  5, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {122} },
+    {46,  66,  6,  6, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {123} },
+    {47,  67,  6,  7, TRANSVR_TYPE_SFP,     BCM_CHIP_TYPE_TRIDENT_3, {124} },
+    {48,  12,  0,  0, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 49, 50, 51, 52} },
+    {49,  13,  0,  1, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 57, 58, 59, 60} },
+    {50,  14,  0,  2, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 61, 62, 63, 64} },
+    {51,  15,  0,  3, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 77, 78, 79, 80} },
+    {52,  16,  0,  4, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 85, 86, 87, 88} },
+    {53,  17,  0,  5, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 93, 94, 95, 96} },
+};
+#endif
+
+
+/* ===========================================================
+ *   Peony-Copper Layout configuration
+ * ===========================================================
+ */
+#ifdef SWPS_PEONY_COPPER
+unsigned peony_copper_gpio_rest_mux = MUX_RST_CPLD_C0_A77_70_74_RST_ALL;
+
+struct inv_ioexp_layout_s peony_copper_ioexp_layout[] = {
+    /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
+    {0,  IOEXP_TYPE_QSFP_6P_LAYOUT_1, { {10, 0x20, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xc0, 0xc0}, },    /* addr[0] = I/O Expander 0 A */
+                                        {10, 0x21, {0, 1}, {2, 3}, {6, 7}, {0xff, 0xff}, {0xc0, 0xff}, },    /* addr[1] = I/O Expander 0 B */
+                                        {10, 0x22, {0, 1}, {2, 3}, {6, 7}, {0xc0, 0xff}, {0xff, 0xff}, }, }, /* addr[2] = I/O Expander 0 C */
+    },
+};
+
+struct inv_port_layout_s peony_copper_port_layout[] = {
+    /* Port_ID / Chan_ID / IOEXP_ID / IOEXP_VIRT_OFFSET / TRANSCEIVER_TYPE / BCM_CHIP_TYPE / LANE_ID */
+    {48,  4,  0,  0, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 49, 50, 51, 52} },
+    {49,  5,  0,  1, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 57, 58, 59, 60} },
+    {50,  6,  0,  2, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 61, 62, 63, 64} },
+    {51,  7,  0,  3, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 77, 78, 79, 80} },
+    {52,  8,  0,  4, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 85, 86, 87, 88} },
+    {53,  9,  0,  5, TRANSVR_TYPE_QSFP_28, BCM_CHIP_TYPE_TRIDENT_3, { 93, 94, 95, 96} },
+};
+#endif
+
+
+
 #endif /* INV_SWPS_H */
+
+
+
+
+
+
+
+
+

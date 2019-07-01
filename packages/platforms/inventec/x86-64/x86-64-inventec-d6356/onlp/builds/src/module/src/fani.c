@@ -85,6 +85,7 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 {
     int   value, ret;
 
+#if FAN_STATUS_INFO_SUPPORT
     /* get fan present status */
     ret = onlp_file_read_int(&value, FAN_GPI_ON_MAIN_BOARD);
     if (ret < 0) {
@@ -97,6 +98,10 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 	info->status |= ONLP_FAN_STATUS_PRESENT;
 	info->status |= ONLP_FAN_STATUS_F2B;
     }
+#else
+    info->status |= ONLP_FAN_STATUS_PRESENT;
+    info->status |= ONLP_FAN_STATUS_F2B;
+#endif
 
     /* get front fan speed */
     ret = onlp_file_read_int(&value, devfiles__[fid]);
@@ -105,6 +110,12 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
     }
     info->rpm = value;
     info->percentage = (info->rpm * 100) / MAX_PSU_FAN_SPEED;
+
+#if (FAN_STATUS_INFO_SUPPORT==0)
+    if (value == 0) {
+	info->status |= ONLP_FAN_STATUS_FAILED;
+    }
+#endif
 
     snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "NA");
     snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "NA");

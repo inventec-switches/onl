@@ -568,6 +568,7 @@ int psus_control(int log_only)
 		}
 	    }
 	}
+        msleep(100);
     }
 
     if (log_only) {

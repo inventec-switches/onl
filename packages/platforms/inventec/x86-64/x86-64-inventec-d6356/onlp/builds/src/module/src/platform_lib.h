@@ -44,6 +44,7 @@ enum onlp_thermal_id {
     THERMAL_CPU_CORE_3,
     THERMAL_CPU_CORE_4,
     THERMAL_CPU_CORE_LAST,
+#if THERMAL_INFO_SUPPORT
     THERMAL_1_ON_MAIN_BROAD,
     THERMAL_2_ON_MAIN_BROAD,
     THERMAL_3_ON_MAIN_BROAD,
@@ -53,9 +54,10 @@ enum onlp_thermal_id {
     THERMAL_2_ON_PSU1,
     THERMAL_1_ON_PSU2,
     THERMAL_2_ON_PSU2,
+#endif
     THERMAL_MAX
 };
-#define CHASSIS_THERMAL_COUNT	(10)
+#define CHASSIS_THERMAL_COUNT	(5)
 
 enum onlp_fan_id {
     FAN_RESERVED = 0,

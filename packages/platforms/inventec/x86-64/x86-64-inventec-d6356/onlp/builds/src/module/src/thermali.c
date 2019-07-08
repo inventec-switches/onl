@@ -147,5 +147,10 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
         /* Set the onlp_oid_hdr_t and capabilities */
         return onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
     }
+#if THERMAL_INFO_SUPPORT
     return onlp_file_read_int(&info->mcelsius, devfiles__[local_id]);
+#else
+    info->mcelsius = 0;
+    return ONLP_STATUS_OK;
+#endif
 }

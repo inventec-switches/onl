@@ -160,7 +160,7 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
      */
     memset(data, 0, 256);
     path = sfp_get_port_path(port, "eeprom");
-    //printf("RYU: onlp_sfpi_eeprom_read(): port = %d, path = %s\n", port, path);
+    //printf("INV debug: onlp_sfpi_eeprom_read(): port = %d, path = %s\n", port, path);
     if (onlp_file_read(&data[0], 256, &len, path) < 0) {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;

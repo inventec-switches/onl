@@ -160,7 +160,6 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 	info->miin = value;
 	info->caps |= ONLP_PSU_CAPS_IIN;
     }
-
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
     sprintf(node_path, module_devfiles__[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
@@ -207,8 +206,10 @@ static onlp_psu_info_t pinfo[] =
 	{
 	    ONLP_PSU_ID_CREATE(PSU1_ID), "PSU-1", 0,
 	    {
+#if PSU_MODULE_INFO_SUPPORT
 		ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU1),
 		ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_PSU1),
+#endif
 		ONLP_FAN_ID_CREATE(FAN_1_ON_PSU1)
 	    }
 	},
@@ -217,8 +218,10 @@ static onlp_psu_info_t pinfo[] =
 	{
 	    ONLP_PSU_ID_CREATE(PSU2_ID), "PSU-2", 0,
 	    {
+#if PSU_MODULE_INFO_SUPPORT
 		ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU2),
 		ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_PSU2),
+#endif
 		ONLP_FAN_ID_CREATE(FAN_1_ON_PSU2)
 	    }
 	},

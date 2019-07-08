@@ -50,7 +50,7 @@ static char* devfiles__[FAN_MAX] =  /* must map with onlp_thermal_id */
 
 #define MAKE_FAN_INFO_NODE_ON_PSU(psu_id, fan_id) \
     { \
-	{ ONLP_FAN_ID_CREATE(FAN_##fan_id##_ON_PSU##psu_id), "Chassis PSU-"#psu_id " Fan "#fan_id, 0 }, \
+	{ ONLP_FAN_ID_CREATE(FAN_##fan_id##_ON_PSU##psu_id), "PSU-"#psu_id " Fan "#fan_id, 0 }, \
 	0x0, \
 	(ONLP_FAN_CAPS_F2B | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE), \
 	0, \
@@ -124,6 +124,7 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 }
 
 
+#if FAN_STATUS_INFO_SUPPORT
 static uint32_t
 _onlp_get_fan_direction_on_psu(void)
 {
@@ -184,6 +185,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
 
     return ONLP_STATUS_OK;
 }
+#endif
 
 /*
  * This function will be called prior to all of onlp_fani_* functions.
@@ -208,7 +210,11 @@ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
     {
 	case FAN_1_ON_PSU1:
 	case FAN_1_ON_PSU2:
+#if FAN_STATUS_INFO_SUPPORT
 	    rc = _onlp_fani_info_get_fan_on_psu(local_id, info);
+#else
+	    rc = ONLP_STATUS_OK;
+#endif
 	    break;
 	case FAN_1_ON_MAIN_BOARD:
 	case FAN_2_ON_MAIN_BOARD:
@@ -253,10 +259,16 @@ onlp_fani_percentage_set(onlp_oid_t id, int p)
 
     switch (fid)
     {
+#if PSU_MODULE_INFO_SUPPORT
 	case FAN_1_ON_PSU1:
 	    return psu_pmbus_info_set(PSU1_ID, "rpm_psu1", p);
 	case FAN_1_ON_PSU2:
 	    return psu_pmbus_info_set(PSU2_ID, "rpm_psu2", p);
+#else
+	case FAN_1_ON_PSU1:
+	case FAN_1_ON_PSU2:
+	    return ONLP_STATUS_OK;
+#endif
 	case FAN_1_ON_MAIN_BOARD:
 	case FAN_2_ON_MAIN_BOARD:
 	case FAN_3_ON_MAIN_BOARD:

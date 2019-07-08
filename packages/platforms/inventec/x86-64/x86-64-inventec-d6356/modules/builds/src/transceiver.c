@@ -1427,6 +1427,10 @@ _common_update_attr_all(struct transvr_obj_s *self,
         err_str = "_common_update_attr_wavelength";
         goto err_common_update_attr_all;
     }
+    if (_common_update_attr_eeprom(self, show_err) < 0) {
+        err_str = "_common_update_attr_eeprom";
+        goto err_common_update_attr_all;
+    }
     return 0;
 
 err_common_update_attr_all:

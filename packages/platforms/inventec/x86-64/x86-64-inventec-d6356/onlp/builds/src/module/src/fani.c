@@ -185,6 +185,20 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
 
     return ONLP_STATUS_OK;
 }
+#else
+static int
+_onlp_fani_info_get_fan_on_psu_na(int fid, onlp_fan_info_t* info)
+{
+    info->status |= ONLP_FAN_STATUS_PRESENT;
+
+    info->rpm = 0;
+    info->percentage = 0;
+
+    snprintf(info->model, ONLP_CONFIG_INFO_STR_MAX, "NA");
+    snprintf(info->serial, ONLP_CONFIG_INFO_STR_MAX, "NA");
+
+    return ONLP_STATUS_OK;
+}
 #endif
 
 /*
@@ -213,7 +227,7 @@ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
 #if FAN_STATUS_INFO_SUPPORT
 	    rc = _onlp_fani_info_get_fan_on_psu(local_id, info);
 #else
-	    rc = ONLP_STATUS_OK;
+	    rc = _onlp_fani_info_get_fan_on_psu_na(local_id, info);
 #endif
 	    break;
 	case FAN_1_ON_MAIN_BOARD:

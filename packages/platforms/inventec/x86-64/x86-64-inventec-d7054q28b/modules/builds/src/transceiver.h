@@ -809,4 +809,10 @@ void alarm_msg_2_user(struct transvr_obj_s *self, char *emsg);
 unsigned char *get_eeprom_update(void);
 void set_eeprom_update(unsigned char value[8]);
 
+uint8_t get_swplog_enable(void);
+void set_swplog_enable(unsigned char value);
+
+unsigned char swp_info_log_get_value(void);
+void swp_info_log_set_value(unsigned char value);
+
 #endif /* TRANSCEIVER_H */

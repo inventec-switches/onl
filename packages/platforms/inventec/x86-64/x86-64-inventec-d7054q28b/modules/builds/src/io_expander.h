@@ -51,7 +51,6 @@
 #define ERR_IOEXP_BADINPUT             (-105)
 #define ERR_IOEXP_UNEXCPT              (-199)
 
-
 #define SWPS_INFO(fmt, args...) printk( KERN_INFO "[SWPS] " fmt, ##args)
 #define SWPS_WARN(fmt, args...) printk( KERN_WARNING "[SWPS] " fmt, ##args)
 #define SWPS_ERR(fmt, args...)  printk( KERN_ERR  "[SWPS] " fmt, ##args)

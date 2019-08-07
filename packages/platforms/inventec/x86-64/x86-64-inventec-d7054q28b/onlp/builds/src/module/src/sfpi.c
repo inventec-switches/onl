@@ -50,7 +50,7 @@ static const int sfp_mux_index[NUM_OF_SFP_PORT] = {
 #endif
 };
 
-#define FRONT_PORT_TO_MUX_INDEX(port) (sfp_mux_index[port])
+#define FRONT_PORT_TO_MUX_INDEX(port)	(sfp_mux_index[port])
 
 static int
 sfp_node_read_int(char *node_path, int *value, int data_len)
@@ -167,43 +167,46 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
     return ONLP_STATUS_OK;
 }
 
+#define TRANSCEIVER_EEPROM_I2C_ADDR		(0x50)
+#define TRANSCEIVER_DOM_I2C_ADDR		(0x51)
+#define QSFP28_EEPROM_PAGE_SELECT_OFFSET	(127)
+#define QSFP_START_INDEX			(48)
+
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-#if 1
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
 
     memset(data, 0, 256);
     /* Read eeprom information into data[] */
-    if (onlp_i2c_read(bus, 0x50, 0x00, 256, data, 0) != 0)
+    if (onlp_i2c_read(bus, TRANSCEIVER_EEPROM_I2C_ADDR, 0x00, 256, data, 0) != 0)
     {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;
     }
     return ONLP_STATUS_OK;
-#else
-    char* path;
-    int len = 0;
-    /*
-     * Read the SFP eeprom into data[]
-     *
-     * Return MISSING if SFP is missing.
-     * Return OK if eeprom is read
-     */
-    memset(data, 0, 256);
-    path = sfp_get_port_path(port, "eeprom");
-    if (onlp_file_read(&data[0], 256, &len, path) < 0) {
-        AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    return ONLP_STATUS_OK;
-#endif
 }
 
 int
 onlp_sfpi_dom_read(int port, uint8_t data[256])
 {
-    AIM_LOG_INFO("N/A to read dom\r\n");
+    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+
+    memset(data, 0, 256);
+    /* Read eeprom information into data[] */
+    if (port > QSFP_START_INDEX) {
+        if (onlp_i2c_writeb(bus, TRANSCEIVER_EEPROM_I2C_ADDR, QSFP28_EEPROM_PAGE_SELECT_OFFSET, 1, ONLP_I2C_F_FORCE) < 0)
+	{
+	    AIM_LOG_INFO("%s:%d set EEPROM byte 127 for QSFP DOM read fail\n", __FUNCTION__, __LINE__);
+	    return ONLP_STATUS_E_INTERNAL;
+	}
+    }
+
+    if (onlp_i2c_read(bus, TRANSCEIVER_DOM_I2C_ADDR, 0x00, 256, data, 0) != 0)
+    {
+        AIM_LOG_ERROR("Unable to read dom from port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
     return ONLP_STATUS_OK;
 }
 

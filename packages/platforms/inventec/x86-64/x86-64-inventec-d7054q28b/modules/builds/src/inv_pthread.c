@@ -548,21 +548,21 @@ int psus_control(int log_only)
 		if (strstr(state, "normal")) {
 		    if (strncmp(psu_statep, state, strlen(state)) != 0) {
 			strcpy(psu_statep, state);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
+			//SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
 		    }
 		}
 		else
 		if (psu_voltin > PSU_VOLTIN_ACDC) {	/* AC PSUS */
 		    if (strncmp(psu_statep, state, strlen(state)) != 0) {
 			strcpy(psu_statep, state);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
+			//SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,state);
 		    }
 		    flag = 1;
 		}
 		else {					/* DC PSUS */
 		    if (strncmp(psu_statep, PSU_STATE_CHECKPSU, PSU_STATE_LEN_CHECKPSU) != 0) {
 			strcpy(psu_statep, PSU_STATE_CHECKPSU);
-			SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,PSU_STATE_CHECKPSU);
+			//SYSFS_LOG("[p_thread] %s: %s\n",psu_dev_group[i].psu_name,PSU_STATE_CHECKPSU);
 		    }
 		    flag = 1;
 		}

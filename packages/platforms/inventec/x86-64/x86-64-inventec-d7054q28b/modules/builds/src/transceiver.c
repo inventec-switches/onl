@@ -23,7 +23,6 @@
 #include "io_expander.h"
 #include "transceiver.h"
 
-
 /* ========== Register EEPROM address mapping ==========
  */
 struct eeprom_map_s eeprom_map_sfp = {
@@ -3898,6 +3897,21 @@ qsfp_set_rx_em(struct transvr_obj_s *self,
     return _qsfp_set_rx_em(self, input, 1);
 }
 
+static unsigned char swp_info_log_enable = 0;
+
+unsigned char
+swp_info_log_get_value(void)
+{
+    return swp_info_log_enable;
+}
+EXPORT_SYMBOL(swp_info_log_get_value);
+
+void
+swp_info_log_set_value(unsigned char value)
+{
+    swp_info_log_enable = value;
+}
+EXPORT_SYMBOL(swp_info_log_set_value);
 
 int
 common_transvr_dump(struct transvr_obj_s* self){
@@ -3905,6 +3919,9 @@ common_transvr_dump(struct transvr_obj_s* self){
     char *type_name = "Undefined";
 
     if (TRANSVR_INFO_DUMP_ENABLE != 1) {
+        return 0;
+    }
+    if (!swp_info_log_enable) {
         return 0;
     }
     switch (self->type) {
@@ -3967,6 +3984,9 @@ sfp_transvr_dump(struct transvr_obj_s* self) {
     if (TRANSVR_INFO_DUMP_ENABLE != 1) {
         return 0;
     }
+    if (!swp_info_log_enable) {
+        return 0;
+    }
     if (common_transvr_dump(self) < 0) {
         return -1;
     }
@@ -3983,6 +4003,9 @@ qsfp_transvr_dump(struct transvr_obj_s* self) {
     if (TRANSVR_INFO_DUMP_ENABLE != 1) {
         return 0;
     }
+    if (!swp_info_log_enable) {
+        return 0;
+    }
     if (common_transvr_dump(self) < 0) {
         return -1;
     }
@@ -3995,6 +4018,9 @@ qsfp_transvr_dump(struct transvr_obj_s* self) {
 int
 fake_transvr_dump(struct transvr_obj_s* self) {
 
+    if (!swp_info_log_enable) {
+        return 0;
+    }
     printk(KERN_INFO "[SWPS] Dump transceiver information: %s\n", self->swp_name);
     printk(KERN_INFO "       |- <Type>:FAKE\n");
     printk(KERN_INFO "       |- <VenderName>:FAKE_VENDER_NAME\n");
@@ -6917,7 +6943,9 @@ common_fsm_4_polling_mode(struct transvr_obj_s* self,
                    goto comfsm_action_4_disconnected;
 
                case STATE_TRANSVR_SWAPPED:       /* Case 1-4: UP -> SWAP */
-                   SWPS_INFO("Detect %s is swapped. <case>:1-4\n",self->swp_name);
+		   if (swp_info_log_enable) {
+			SWPS_INFO("Detect %s is swapped. <case>:1-4\n",self->swp_name);
+		   }
                    goto comfsm_action_4_reload_obj;
 
                case STATE_TRANSVR_UNEXCEPTED:    /* Case 1-5: UP -> UNEXPET */
@@ -6949,7 +6977,9 @@ common_fsm_4_polling_mode(struct transvr_obj_s* self,
                    goto comfsm_action_4_keep_state;
 
                case STATE_TRANSVR_SWAPPED:       /* Case 2-4: DOWN -> SWAP */
-                   SWPS_INFO("Detect %s is swapped. <case>:2-4\n",self->swp_name);
+		   if (swp_info_log_enable) {
+			SWPS_INFO("Detect %s is swapped. <case>:2-4\n",self->swp_name);
+		   }
                    goto comfsm_action_4_reload_obj;
 
                case STATE_TRANSVR_UNEXCEPTED:    /* Case 2-5: DOWN -> UNEXPET */
@@ -6988,7 +7018,9 @@ common_fsm_4_polling_mode(struct transvr_obj_s* self,
                    goto comfsm_action_4_disconnected;
 
                case STATE_TRANSVR_SWAPPED:       /* Case 3-4: UNEXPET -> SWAP */
-                   SWPS_INFO("Detect %s is swapped. <case>:3-4\n",self->swp_name);
+		   if (swp_info_log_enable) {
+			SWPS_INFO("Detect %s is swapped. <case>:3-4\n",self->swp_name);
+		   }
                    self->temp = EVENT_TRANSVR_EXCEP_SWAP;
                    goto comfsm_action_4_reload_obj;
 

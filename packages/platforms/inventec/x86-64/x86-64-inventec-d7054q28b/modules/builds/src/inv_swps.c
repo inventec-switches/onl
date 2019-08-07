@@ -281,6 +281,19 @@ set_eeprom_update(unsigned char value[8])
     memcpy(ueu_64.eeprom_update_8, value, 8);
 }
 
+unsigned char
+get_swplog_enable(void)
+{
+    return swp_info_log_get_value();
+}
+
+void
+set_swplog_enable(unsigned char value)
+{
+    swp_info_log_set_value(value);
+}
+
+
 /* ========== R/W Functions module control attribute ==========
  */
 static ssize_t
@@ -327,6 +340,13 @@ show_attr_eeprom_update(struct device *dev_p,
 		ueu_64.eeprom_update_8[5],ueu_64.eeprom_update_8[4],
 		ueu_64.eeprom_update_8[3],ueu_64.eeprom_update_8[2],
 		ueu_64.eeprom_update_8[1],ueu_64.eeprom_update_8[0]);
+}
+
+static ssize_t
+show_attr_swplog_enable(struct device *dev_p,
+                      struct device_attribute *attr_p,
+                      char *buf_p){
+    return snprintf(buf_p, 3, "%d\n\n", get_swplog_enable());
 }
 
 
@@ -464,6 +484,24 @@ store_attr_eeprom_update(struct device *dev_p,
 		ueu_64.eeprom_update_32[1] |= 1<<i;
 	    }
 	}
+    }
+    return count;
+}
+
+static ssize_t
+store_attr_swplog_enable(struct device *dev_p,
+			struct device_attribute *attr_p,
+			const char *buf_p,
+			size_t count) {
+    if (buf_p[0] == '0') {
+	set_swplog_enable(0);
+    }
+    else
+    if (buf_p[0] == '1') {
+	set_swplog_enable(1);
+    }
+    else {
+	SWPS_INFO("%s: Invalid value: %s\n", __func__, buf_p);
     }
     return count;
 }
@@ -1663,6 +1701,7 @@ static DEVICE_ATTR(reset_i2c,       S_IWUSR,         NULL,                      
 static DEVICE_ATTR(reset_swps,      S_IWUSR,         NULL,                      store_attr_reset_swps);
 static DEVICE_ATTR(auto_config,     S_IRUGO|S_IWUSR, show_attr_auto_config,     store_attr_auto_config);
 static DEVICE_ATTR(eeprom_update,   S_IRUGO|S_IWUSR, show_attr_eeprom_update,   store_attr_eeprom_update);
+static DEVICE_ATTR(swplog_enable,   S_IRUGO|S_IWUSR, show_attr_swplog_enable,   store_attr_swplog_enable);
 
 /* ========== Transceiver attribute: from eeprom ==========
  */
@@ -2607,6 +2646,10 @@ register_modctl_attr(struct device *device_p){
 	err_msg = "dev_attr_eeprom_update";
 	goto err_reg_modctl_attr;
     }
+    if (device_create_file(device_p, &dev_attr_swplog_enable) < 0) {
+	err_msg = "dev_attr_swplog_enable";
+	goto err_reg_modctl_attr;
+    }
     return 0;
 
 err_reg_modctl_attr:
@@ -2972,6 +3015,9 @@ err_init_swps_common_1:
     return -1;
 }
 
+/*
+ * defined in transceiver.c
+ */
 
 static int __init
 swp_module_init(void){
@@ -3001,6 +3047,7 @@ swp_module_init(void){
         goto err_init_topology;
     }
     SWPS_INFO("Inventec switch-port module V.%s initial success.\n", SWP_VERSION);
+
     return 0;
 
 
@@ -3044,9 +3091,3 @@ MODULE_LICENSE(SWP_LICENSE);
 
 module_init(swp_module_init);
 module_exit(swp_module_exit);
-
-
-
-
-
-

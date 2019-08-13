@@ -45,10 +45,8 @@ static DECLARE_DELAYED_WORK(swp_polling, swp_polling_worker);
 
 static int reset_i2c_topology(void);
 
-static union {
-    unsigned int eeprom_update_32[2];
-    unsigned char eeprom_update_8[8];
-} ueu_64;
+#define EEPROM_UPDATE_PORT_NAME	(32)
+static unsigned char eeprom_update_port[EEPROM_UPDATE_PORT_NAME];
 
 static int
 __swp_match(struct device *dev,
@@ -100,6 +98,7 @@ sscanf_2_int(const char *buf) {
     return -EBFONT;
 }
 
+#if 0
 static unsigned long long int
 sscanf_2_ullint(const char *buf, size_t count) {
 
@@ -139,7 +138,7 @@ sscanf_2_ullint(const char *buf, size_t count) {
     }
     return -EBFONT;
 }
-
+#endif
 
 static int
 sscanf_2_binary(const char *buf) {
@@ -272,13 +271,13 @@ _update_auto_config_2_trnasvr(void) {
 unsigned char *
 get_eeprom_update(void)
 {
-    return &ueu_64.eeprom_update_8[0];
+    return eeprom_update_port;
 }
 
 void
-set_eeprom_update(unsigned char value[8])
+set_eeprom_update(unsigned char value[EEPROM_UPDATE_PORT_NAME])
 {
-    memcpy(ueu_64.eeprom_update_8, value, 8);
+    snprintf(eeprom_update_port, EEPROM_UPDATE_PORT_NAME, "port%s updated\n", value);
 }
 
 unsigned char
@@ -335,11 +334,7 @@ static ssize_t
 show_attr_eeprom_update(struct device *dev_p,
 		struct device_attribute *attr_p,
 		char *buf_p){
-    return snprintf(buf_p, 20, "0x%02x%02x%02x%02x%02x%02x%02x%02x\n",
-		ueu_64.eeprom_update_8[7],ueu_64.eeprom_update_8[6],
-		ueu_64.eeprom_update_8[5],ueu_64.eeprom_update_8[4],
-		ueu_64.eeprom_update_8[3],ueu_64.eeprom_update_8[2],
-		ueu_64.eeprom_update_8[1],ueu_64.eeprom_update_8[0]);
+    return snprintf(buf_p, EEPROM_UPDATE_PORT_NAME, "%s\n", eeprom_update_port);
 }
 
 static ssize_t
@@ -460,31 +455,19 @@ store_attr_eeprom_update(struct device *dev_p,
 			struct device_attribute *attr_p,
 			const char *buf_p,
 			size_t count) {
+    struct transvr_obj_s *transvr_obj;
+    char port[16] = { 0 };
+    int addr, value;
 
-    union {
-	unsigned long long int input_val_64;
-	unsigned int input_val_32[2];
-    } uiv;
-    int i;
-    uiv.input_val_64 = sscanf_2_ullint(buf_p, count);
-    if (uiv.input_val_64 == 0){
-	for (i = 0; i < 8; i++) {
-	    ueu_64.eeprom_update_8[i] = 0;
-	}
+    //SWPS_INFO("RYU: store_attr_eeprom_update(): %s, %d\n", buf_p, count);
+    sscanf(buf_p, "%s %d %d", port, &addr, &value);
+    //SWPS_INFO("RYU: store_attr_eeprom_update(%s): %d, %d\n", port,addr,value);
+    transvr_obj = _get_transvr_obj(port);
+    if (transvr_obj) {
+	*(transvr_obj->eeprom + addr) = (uint8_t)value;
+	//SWPS_INFO("RYU: store_attr_eeprom_update(%s): %d %d\n", port, addr, *(transvr_obj->eeprom + addr));
     }
-    else
-    if (uiv.input_val_64 > 0) {
-	for (i = 0; i < 32; i++) {
-	    if (uiv.input_val_32[0] & 1<<i) {
-		ueu_64.eeprom_update_32[0] |= 1<<i;
-	    }
-	}
-	for (i = 0; i < 32; i++) {
-	    if (uiv.input_val_32[1] & 1<<i) {
-		ueu_64.eeprom_update_32[1] |= 1<<i;
-	    }
-	}
-    }
+
     return count;
 }
 

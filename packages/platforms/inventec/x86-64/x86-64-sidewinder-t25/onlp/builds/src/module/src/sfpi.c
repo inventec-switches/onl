@@ -175,7 +175,7 @@ onlp_sfpi_presence_bitmap_get(onlp_sfp_bitmap_t* dst)
 int
 onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 {
-#if 0
+#if 1
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
 
     memset(data, 0, 256);
@@ -250,7 +250,7 @@ onlp_sfpi_dev_readb(int port, uint8_t devaddr, uint8_t addr)
 int
 onlp_sfpi_dev_writeb(int port, uint8_t devaddr, uint8_t addr, uint8_t value)
 {
-#if 0
+#if 1
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
 
     /* Read eeprom information into data[] */
@@ -290,6 +290,17 @@ onlp_sfpi_dev_readw(int port, uint8_t devaddr, uint8_t addr)
 int
 onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
 {
+#if 1
+    int bus = FRONT_PORT_TO_MUX_INDEX(port);
+
+    /* Read eeprom information into data[] */
+    int ret = onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
+    if (ret != 0)  {
+        AIM_LOG_ERROR("Unable to write byte to port(%d)\r\n", port);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+    return ONLP_STATUS_OK;
+#else
     int bus = FRONT_PORT_TO_MUX_INDEX(port);
     int ret = onlp_i2c_writew(bus, devaddr, addr, value, ONLP_I2C_F_FORCE);
 
@@ -297,7 +308,7 @@ onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
 	char str[32];
 
 	sprintf(str, "port%d %d %d", port, addr, value);
-	if (onlp_file_write((uint8_t*)str, 8, INV_SFP_EEPROM_UPDATE) < 0) {
+	if (onlp_file_write((uint8_t*)str, 32, INV_SFP_EEPROM_UPDATE) < 0) {
 	    AIM_LOG_ERROR("Unable to write eeprom_update for port(%d)\r\n", port);
 	    return ONLP_STATUS_E_INTERNAL;
 	}
@@ -305,6 +316,7 @@ onlp_sfpi_dev_writew(int port, uint8_t devaddr, uint8_t addr, uint16_t value)
     }
     AIM_LOG_ERROR("Unable to read eeprom_update from port(%d)\r\n", port);
     return ONLP_STATUS_E_INTERNAL;
+#endif
 }
 
 int

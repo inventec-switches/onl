@@ -45,8 +45,10 @@ static DECLARE_DELAYED_WORK(swp_polling, swp_polling_worker);
 
 static int reset_i2c_topology(void);
 
+#ifdef INV_EEPROM_CACHE_SUPPORT
 #define EEPROM_UPDATE_PORT_NAME	(32)
 static unsigned char eeprom_update_port[EEPROM_UPDATE_PORT_NAME];
+#endif
 
 static int
 __swp_match(struct device *dev,
@@ -268,6 +270,7 @@ _update_auto_config_2_trnasvr(void) {
     return retval;
 }
 
+#ifdef INV_EEPROM_CACHE_SUPPORT
 unsigned char *
 get_eeprom_update(void)
 {
@@ -279,6 +282,7 @@ set_eeprom_update(unsigned char value[EEPROM_UPDATE_PORT_NAME])
 {
     snprintf(eeprom_update_port, EEPROM_UPDATE_PORT_NAME, "port%s updated\n", value);
 }
+#endif
 
 unsigned char
 get_swplog_enable(void)
@@ -330,12 +334,14 @@ show_attr_auto_config(struct device *dev_p,
     return snprintf(buf_p, 8, "%d\n", auto_config);
 }
 
+#ifdef INV_EEPROM_CACHE_SUPPORT
 static ssize_t
 show_attr_eeprom_update(struct device *dev_p,
 		struct device_attribute *attr_p,
 		char *buf_p){
     return snprintf(buf_p, EEPROM_UPDATE_PORT_NAME, "%s\n", eeprom_update_port);
 }
+#endif
 
 static ssize_t
 show_attr_swplog_enable(struct device *dev_p,
@@ -450,6 +456,7 @@ store_attr_auto_config(struct device *dev_p,
     return count;
 }
 
+#ifdef INV_EEPROM_CACHE_SUPPORT
 static ssize_t
 store_attr_eeprom_update(struct device *dev_p,
 			struct device_attribute *attr_p,
@@ -470,6 +477,7 @@ store_attr_eeprom_update(struct device *dev_p,
 
     return count;
 }
+#endif
 
 static ssize_t
 store_attr_swplog_enable(struct device *dev_p,
@@ -1160,6 +1168,7 @@ show_attr_auto_tx_disable(struct device *dev_p,
                                   buf_p);
 }
 
+#ifdef INV_EEPROM_CACHE_SUPPORT
 static ssize_t
 show_attr_eeprom(struct device *dev_p,
                           struct device_attribute *attr_p,
@@ -1173,6 +1182,7 @@ show_attr_eeprom(struct device *dev_p,
                                   tobj_p->get_eeprom,
                                   buf_p);
 }
+#endif
 
 /* ========== Store functions: transceiver (R/W) attribute ==========
  */
@@ -1683,7 +1693,9 @@ static DEVICE_ATTR(status,          S_IRUGO,         show_attr_status,          
 static DEVICE_ATTR(reset_i2c,       S_IWUSR,         NULL,                      store_attr_reset_i2c);
 static DEVICE_ATTR(reset_swps,      S_IWUSR,         NULL,                      store_attr_reset_swps);
 static DEVICE_ATTR(auto_config,     S_IRUGO|S_IWUSR, show_attr_auto_config,     store_attr_auto_config);
+#ifdef INV_EEPROM_CACHE_SUPPORT
 static DEVICE_ATTR(eeprom_update,   S_IRUGO|S_IWUSR, show_attr_eeprom_update,   store_attr_eeprom_update);
+#endif
 static DEVICE_ATTR(swplog_enable,   S_IRUGO|S_IWUSR, show_attr_swplog_enable,   store_attr_swplog_enable);
 
 /* ========== Transceiver attribute: from eeprom ==========
@@ -1721,7 +1733,9 @@ static DEVICE_ATTR(if_lane,         S_IRUGO,         show_attr_if_lane,         
 static DEVICE_ATTR(soft_rx_los,     S_IRUGO,         show_attr_soft_rx_los,     NULL);
 static DEVICE_ATTR(soft_tx_fault,   S_IRUGO,         show_attr_soft_tx_fault,   NULL);
 static DEVICE_ATTR(wavelength,      S_IRUGO,         show_attr_wavelength,      NULL);
+#ifdef INV_EEPROM_CACHE_SUPPORT
 static DEVICE_ATTR(eeprom,          S_IRUGO,         show_attr_eeprom,          NULL);
+#endif
 static DEVICE_ATTR(tx_eq,           S_IRUGO|S_IWUSR, show_attr_tx_eq,           store_attr_tx_eq);
 static DEVICE_ATTR(rx_am,           S_IRUGO|S_IWUSR, show_attr_rx_am,           store_attr_rx_am);
 static DEVICE_ATTR(rx_em,           S_IRUGO|S_IWUSR, show_attr_rx_em,           store_attr_rx_em);
@@ -2392,10 +2406,12 @@ register_transvr_sfp_attr(struct device *device_p){
         err_attr = "dev_attr_soft_rs1";
         goto err_transvr_sfp_attr;
     }
+#ifdef INV_EEPROM_CACHE_SUPPORT
     if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
         err_attr = "dev_attr_eeprom";
         goto err_transvr_sfp_attr;
     }
+#endif
     return 0;
 
 err_transvr_sfp_attr:
@@ -2437,10 +2453,12 @@ register_transvr_qsfp_attr(struct device *device_p){
         err_attr = "soft_tx_fault";
         goto err_transvr_qsfp_attr;
     }
+#ifdef INV_EEPROM_CACHE_SUPPORT
     if (device_create_file(device_p, &dev_attr_eeprom) < 0) {
         err_attr = "dev_attr_eeprom";
         goto err_transvr_qsfp_attr;
     }
+#endif
     return 0;
 
 err_transvr_qsfp_attr:
@@ -2625,10 +2643,12 @@ register_modctl_attr(struct device *device_p){
         err_msg = "dev_attr_auto_config";
         goto err_reg_modctl_attr;
     }
+#ifdef INV_EEPROM_CACHE_SUPPORT
     if (device_create_file(device_p, &dev_attr_eeprom_update) < 0) {
 	err_msg = "dev_attr_eeprom_update";
 	goto err_reg_modctl_attr;
     }
+#endif
     if (device_create_file(device_p, &dev_attr_swplog_enable) < 0) {
 	err_msg = "dev_attr_swplog_enable";
 	goto err_reg_modctl_attr;

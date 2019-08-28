@@ -1,0 +1,1 @@
+!include $ONL_TEMPLATES/platform-modules.yml ARCH=armel VENDOR=inventec BASENAME=arm-inventec-d2428 KERNELS="onl-kernel-4.4-lts-armel-iproc-all:armel"

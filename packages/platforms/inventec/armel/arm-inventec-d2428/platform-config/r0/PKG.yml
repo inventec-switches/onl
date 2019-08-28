@@ -1,0 +1,1 @@
+!include $ONL_TEMPLATES/platform-config-platform.yml ARCH=armel VENDOR=inventec BASENAME=arm-inventec-d2428 REVISION=r0

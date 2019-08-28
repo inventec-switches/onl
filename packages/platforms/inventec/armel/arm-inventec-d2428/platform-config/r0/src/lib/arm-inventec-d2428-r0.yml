@@ -1,0 +1,30 @@
+---
+
+######################################################################
+#
+# platform-config for D2428
+#
+######################################################################
+
+arm-inventec-d2428-r0:
+  flat_image_tree:
+    kernel:
+      <<: *armel-iproc-4-4-kernel
+    dtb:
+      =: arm-inventec-d2428.dtb
+      package: onl-platform-build-arm-inventec-d2428-r0:armel
+
+    itb:
+      <<: *armel-itb
+
+  loader:
+    device: /dev/sda
+    ##partition: /dev/sda1
+    loadaddr: 0x70000000
+    nos_bootcmds: *usb2_bootcmds
+
+    environment:
+    - device: /dev/mtd8
+      env_offset: 0x00000000
+      env_size: 0x00002000
+      sector_size: 0x00010000

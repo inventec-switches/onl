@@ -1,0 +1,276 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/dts-v1/;
+
+#include "dts/bcm-helix4.dtsi"
+
+/ {
+	model = "Broadcom HX4 SVK (BCM956340K)";
+	compatible = "brcm,bcm956340k", "brcm,helix4";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
+		i2c-controller0 = &i2c0;
+		i2c-controller1 = &i2c1;
+	};
+	
+	chosen {
+		bootargs = "console=ttyS0,115200n8 maxcpus=2 mem=496M";
+	};
+};
+	
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&gmac0 {
+	status = "okay";	
+};
+
+&gmac1 {
+	status = "okay";	
+};
+	
+&usbphy0 {
+	dr_mode = "host";
+	/delete-property/ vbus-gpio;
+	/delete-property/ usbdev-gpio;
+	status = "okay";		
+};
+
+&ehci0 {
+	status = "okay";		
+};
+
+&usbd {
+	status = "okay";		
+};
+
+&gpio_cca {
+	status = "okay";		
+};
+
+&pcie0 {
+	status = "okay";		
+};
+
+&pcie1 {
+	status = "okay";		
+};
+
+&i2c0 {
+	status = "okay";	
+	eeprom@0x50 {
+		compatible = "atmel,24c01";
+		reg = <0x50>;
+		pagesize = <8>;
+	};
+	cpld@1,0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "inventec,inv_cpld";
+		label = "cpld";
+		reg = <0x55>;
+	};
+
+	temp@49 {
+		compatible = "ti,tmp75";
+		reg = <0x49>;
+	};
+
+	temp@4a {
+		compatible = "ti,tmp75";
+		reg = <0x4A>;
+	};
+
+	temp@4f {
+		compatible = "ti,tmp75";
+		reg = <0x4f>;
+	};
+
+	for_ddr3@54 {
+		compatible = "at,24c512";
+		reg = <0x54>;
+		label = "for_ddr3";
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	
+	poe@20 {
+		compatible = "microsemi,pd69200";
+		reset-gpio = <&gpio_cca 1 GPIO_ACTIVE_LOW>;
+		reg = <0x20>;
+		label = "poe";
+	};
+	
+	psu1@58 {
+		compatible = "pmbus";
+		reg = <0x58>;
+		label = "psu1";
+	};
+	
+	psu2@59 {
+		compatible = "pmbus";
+		reg = <0x59>;
+		label = "psu2";
+	};
+	
+	i2c-switch@71 {
+		compatible = "ti,pca9548";
+		reg = <0x71>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		deselect-on-exit;
+
+		// SFP 1
+		i2c@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0>;
+		};
+
+		// SFP 2
+		i2c@1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <1>;
+		};
+
+		// SFP 3
+		i2c@2 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <2>;
+		};
+
+		// SFP 4
+		i2c@3 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <3>;
+		};
+	};
+};
+	
+&nand {	
+	status = "okay";
+	nandcs@1 {
+		compatible = "brcm,nandcs";
+		reg = <0>;
+		nand-on-flash-bbt;
+		/*nand-bus-width = <8>;*/
+		nand-ecc-strength = <24>;
+		nand-ecc-step-size = <1024>;
+		brcm,nand-oob-sector-size = <27>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		
+		partition@0 {
+			label = "nrootfs";
+			reg = <0x0 0x50000000>;
+		};
+		partition@1 {
+			label = "ncustfs";
+			reg = <0x50000000 0x50000000>;
+		};
+	};
+};
+
+&qspi {
+	status = "okay";
+	flash: m25p80@0 {
+		compatible = "macronix,mx25l25635f", "jedec,spi-nor";
+		cmdlist = <0x01FCF003 0x006F803F 0x003F0011 0x802104E7>;			dt_flash_info =  <0xC22019 0x0000 0x10000 0x200 0x100>;
+		read_dummy = [00 08 00 08 02 08 03 0A 03 0A];
+		asp_pwd = [00];
+		spi-rx-bus-width = <1>;
+		spi-tx-bus-width = <1>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		m25p,fast-read = <1>;
+		spi-max-frequency = <62500000>;
+		reg = <0x0>;
+		partition@0 {
+			label = "boot";
+			reg = <0x00000000 0x000c0000>;
+			/*read-only;*/
+		};
+		partition@1 {
+			label = "env";
+			reg = <0x000c0000 0x00040000>;
+		};
+		partition@2 {
+			label = "system";
+			reg = <0x00100000 0x00f00000>;
+		};
+		partition@3 {
+			label = "dtb";
+			reg = <0x01000000 0x00f00000>;
+		};
+	};
+};
+
+
+&mdio_int {
+	status = "okay";
+};		
+
+&mdio_ext {
+	status = "okay";
+};
+	
+&hwrng {
+	status = "okay";
+};
+
+&iproc_wdt {
+	status = "okay";
+};
+
+&dmac0 {
+	status = "okay";
+};	
+
+&iproc_cmicd {
+	status = "okay";
+};
+

@@ -1,0 +1,36 @@
+From 19690eca3a42a3f92f7538364b8eb6ba7df0bfc9 Mon Sep 17 00:00:00 2001
+From: Vic Ye <ye.vic@inventec.com>
+Date: Thu, 29 Aug 2019 14:47:06 +0800
+Subject: [PATCH 6/7] inv_mgmt_setting.patch
+
+---
+ .../ethernet/broadcom/gmac/src/shared/bcmiproc_phy5461s.c   | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/drivers/net/ethernet/broadcom/gmac/src/shared/bcmiproc_phy5461s.c b/drivers/net/ethernet/broadcom/gmac/src/shared/bcmiproc_phy5461s.c
+index 216563d..adf126e 100644
+--- a/drivers/net/ethernet/broadcom/gmac/src/shared/bcmiproc_phy5461s.c
++++ b/drivers/net/ethernet/broadcom/gmac/src/shared/bcmiproc_phy5461s.c
+@@ -528,6 +528,19 @@ phy5461_reset_setup(uint eth_num, uint phyaddr)
+     tmp |= MII_CTRL_AE;
+ 	phy5461_wr_reg(eth_num, phyaddr, PHY_1000X_MII_CTRLr_FLAGS, PHY_1000X_MII_CTRLr_BANK, PHY_1000X_MII_CTRLr_ADDR, &tmp);
+ 
++    //Write setting on 09h
++    iproc_mii_write(MII_DEV_EXT, phyaddr, 0x09, 0x0700);
++    //Read 09h
++    //phy5461_rd_reg(eth_num, phyaddr, 0x00, 0x00, 0x09, &tmp);
++    //printf("[INVENTEC] 09h data: 0x%04x\n", tmp);
++
++    //Write 1ch (shadow 01101) LED2 set to 0011
++    iproc_mii_write(MII_DEV_EXT, phyaddr, 0x1c, 0xb430);
++    //Read 1ch(shadow 01101)
++    //iproc_mii_write(MII_DEV_EXT, phyaddr, 0x1c, 0x3400);
++    //phy5461_rd_reg(eth_num, phyaddr, 0x00, 0x0d, 0x1c, &tmp);
++    //printf("[INVENTEC] 1ch 01101 data: 0x%04x\n", tmp);
++
+     return;
+ }
+ 
+-- 
+2.1.4
+

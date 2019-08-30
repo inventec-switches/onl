@@ -46,6 +46,13 @@ default:
       =: kernel-3.2-lts-arm-iproc-all.bin.gz
       <<: *arm-iproc-kernel-package
 
+    armel-iproc-4-4-kernel-package: &armel-iproc-4-4-kernel-package
+      package: onl-kernel-4.4-lts-armel-iproc-all:armel
+
+    armel-iproc-4-4-kernel: &armel-iproc-4-4-kernel
+      =: kernel-4.4-lts-armel-iproc-all.bin.gz
+      <<: *armel-iproc-4-4-kernel-package
+
     armel-iproc-4-14-kernel-package: &armel-iproc-4-14-kernel-package
       package: onl-kernel-4.14-lts-armel-iproc-all:armel
 

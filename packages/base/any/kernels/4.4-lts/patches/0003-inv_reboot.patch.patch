@@ -1,0 +1,43 @@
+From 92533490023c710c614fd06e101919a5b40b4e1f Mon Sep 17 00:00:00 2001
+From: Vic Ye <ye.vic@inventec.com>
+Date: Thu, 29 Aug 2019 14:32:26 +0800
+Subject: [PATCH 5/7] inv_reboot.patch
+
+---
+ arch/arm/mach-iproc/board_bu.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/arch/arm/mach-iproc/board_bu.c b/arch/arm/mach-iproc/board_bu.c
+index 3b90eed..42f795c 100644
+--- a/arch/arm/mach-iproc/board_bu.c
++++ b/arch/arm/mach-iproc/board_bu.c
+@@ -8,6 +8,7 @@
+ #include <linux/of_platform.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/soc/bcm/xgs-iproc-wrap-idm-dmu.h>
++#include <linux/gpio.h>
+ 
+ #define DMU_CRU_RESET_BASE 0x200
+ 
+@@ -102,6 +103,18 @@ static void xgs_iproc_restart(enum reboot_mode mode, const char *cmd)
+ 	/* set iproc_reset_n to 0 */
+ 	reg = readl(reg_addr);
+ 	reg &= ~((u32) 1 << 1);
++
++	/* GPIO pull low for cpld reset system and MAC when sw reboot */
++	int ret;
++	ret = gpio_request(11, "GPIO7");
++	if (ret<0){
++    		printk("%s: gpio_request failed for gpio %d\n",__func__, 7);
++	}
++	else{
++    		gpio_direction_output(11, 0);
++    		gpio_set_value(11,0);
++	}
++	gpio_free(11);
+ 			
+ 	writel(reg, reg_addr);
+ 	
+-- 
+2.1.4
+

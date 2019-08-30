@@ -1,0 +1,59 @@
+From 6a38d6e3a9756bde39609c5f3dd526604509e999 Mon Sep 17 00:00:00 2001
+From: Vic Ye <ye.vic@inventec.com>
+Date: Thu, 29 Aug 2019 12:50:25 +0800
+Subject: [PATCH 4/7] set_usb_host_mode.patch
+
+---
+ drivers/usb/phy/phy-xgs-iproc.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/usb/phy/phy-xgs-iproc.c b/drivers/usb/phy/phy-xgs-iproc.c
+index 780f2ce..a9c545c 100644
+--- a/drivers/usb/phy/phy-xgs-iproc.c
++++ b/drivers/usb/phy/phy-xgs-iproc.c
+@@ -154,6 +154,7 @@ static int xgs_iproc_usb_phy_mode(struct iproc_usb_priv *iproc_usb_data)
+     if (val & 1) {
+         usb_mode = IPROC_USB_MODE_DEVICE;
+     }
++
+ #elif defined(CONFIG_MACH_SB2)
+     /* u-boot enable this bit to indicate usb in host mode */
+     val = readl_relaxed(IPROC_WRAP_TOP_STRAP_CTRL_ADDR(wrap_base));
+@@ -605,6 +606,7 @@ static int xgs_iproc_usb_phy_probe(struct platform_device *pdev)
+         goto err1;
+     }
+ 
++#if 0    
+     gpio_pin = of_get_named_gpio_flags(dn, "vbus-gpio", 0, &flags);
+     
+     if (gpio_pin < 0) {
+@@ -621,7 +623,9 @@ static int xgs_iproc_usb_phy_probe(struct platform_device *pdev)
+     }
+ 
+     usb_mode = xgs_iproc_usb_phy_mode(iproc_usb_data);
+-
++#endif
++   
++    usb_mode = IPROC_USB_MODE_HOST;
+     iproc_usb_data->usb_mode = usb_mode;
+     iproc_usb_data->phy.dev = dev;
+     iproc_usb_data->phy.flags = usb_mode;
+@@ -676,12 +680,15 @@ static int xgs_iproc_usb_phy_probe(struct platform_device *pdev)
+         goto err2;
+ 
+     /* supply power for USB device connected to the host */
++#if 0
+     if (usb_mode != IPROC_USB_MODE_DEVICE) {
+         if (gpio_active_low)
+             __gpio_set_value(gpio_pin, 0);
+ 	else
+             __gpio_set_value(gpio_pin, 1);
+     }
++#endif
++
+     gpio_free(gpio_pin);
+ 
+     return 0;
+-- 
+2.1.4
+

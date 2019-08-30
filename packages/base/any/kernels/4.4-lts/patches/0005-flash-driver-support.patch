@@ -1,0 +1,5768 @@
+From 2dcb1b6ffc5ab72bdc76ff14dd6e07169a2e7f61 Mon Sep 17 00:00:00 2001
+From: Vic Ye <ye.vic@inventec.com>
+Date: Fri, 30 Aug 2019 08:48:40 +0800
+Subject: [PATCH 7/7] flash driver support
+
+---
+ .../devicetree/bindings/mtd/mx25-spi-nor.txt       |  160 ++
+ drivers/mtd/devices/m25p80-iproc.c                 |   16 +-
+ drivers/mtd/mtdchar.c                              |  181 ++
+ drivers/mtd/mtdcore.c                              |  253 ++
+ drivers/mtd/mtdpart.c                              |  174 ++
+ drivers/mtd/spi-nor/Kconfig                        |   11 +
+ drivers/mtd/spi-nor/Makefile                       |    1 +
+ drivers/mtd/spi-nor/sfdp.c                         |  589 ++++
+ drivers/mtd/spi-nor/spi-nor-iproc.c                | 2834 +++++++++++++++++++-
+ drivers/mtd/spi-nor/spi-nor.c                      |    1 +
+ drivers/spi/spi.c                                  |    2 +-
+ include/linux/mtd/dt_cmdlist.h                     |  132 +
+ include/linux/mtd/mtd.h                            |   57 +
+ include/linux/mtd/sfdp.h                           |  425 +++
+ include/linux/mtd/spi-nor.h                        |  236 +-
+ include/linux/spi/spi.h                            |   47 +
+ include/uapi/mtd/mtd-abi.h                         |   49 +
+ 17 files changed, 5050 insertions(+), 118 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/mtd/mx25-spi-nor.txt
+ create mode 100644 drivers/mtd/spi-nor/sfdp.c
+ create mode 100644 include/linux/mtd/dt_cmdlist.h
+ create mode 100644 include/linux/mtd/sfdp.h
+
+diff --git a/Documentation/devicetree/bindings/mtd/mx25-spi-nor.txt b/Documentation/devicetree/bindings/mtd/mx25-spi-nor.txt
+new file mode 100644
+index 0000000..ef418e8
+--- /dev/null
++++ b/Documentation/devicetree/bindings/mtd/mx25-spi-nor.txt
+@@ -0,0 +1,160 @@
++* Macronix SPI NOR Flash Interface
++
++The Nor Flash connects to the host controller is represented as child nodes and 
++supports with 1-, 2- and 4-bits width.
++
++Required properties:
++  - compatible : Should be "macronix,<Part Number>", "jedec,spi-nor"
++		<Part Number>:  Maconix Chip part number, like: mx25l51245g.
++  - cmdlist : Use to indicate the valid commands  of the connected
++		serial NOR Flash.
++  - dt_flash_info : Tell ID, Extended ID, Sector size/number and 
++		page size.
++  - read_dummy : The read dummy cycles and its corresponding values
++		in the Configuratin Register are formed in five pairs of 
++		bytes for each read mode.
++  - asp_pwd : Indicate the methods of protection provided in the 
++		connected SPI NOR Flash.
++		
++Optional properties:
++  - spi-tx-bus-width : The bus width (number of data wires) that
++		is used for MOSI. Defaults to 1 if not present.
++  - spi-rx-bus-width : The bus width (number of data wires) that
++		is used for MISO. Defaults to 1 if not present.
++		
++See bindings/spi/spi-bus.txt for more information.
++
++The SPI NOR Flash must be a child of the spi host controller node 
++and must have a compatible property with "jedec,spi-nor" for Generic 
++compatibility.
++
++Example:
++spi_host_controller: spi_host_controller@43c00000 {
++	......
++	flash@0 {
++		compatible = "macronix,mx25l51245g", "jedec,spi-nor";
++		cmdlist = <0x01FCF003 0x006F83FB 0x003F0011 0x802104E7>;
++		dt_flash_info =  <0xC2201A 0x0000 0x10000 0x400 0x100>;
++		read_dummy = [00 08 00 08 02 08 03 0A 03 0A];
++		asp_pwd = [01];		
++		spi-rx-bus-width = <4>;
++		spi-tx-bus-width = <4>;
++
++		......
++	};
++};
++The following are the part of device tree to reference 
++with related Macronix Serial NOR Flash.
++
++--------------------------------------------------------
++Part Number: mx25u25635f
++--------------------------------------------------------
++compatible = "macronix,mx25u25635f", "jedec,spi-nor";
++cmdlist = <0x000CF003 0x006F803F 0x003F0011 0x800104A7>;
++dt_flash_info =  <0xC22539 0x0000 0x10000 0x200 0x100>;
++read_dummy = [00 08 00 08 02 08 02 08 02 08];
++asp_pwd = [00];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25u12873f
++--------------------------------------------------------
++compatible = "macronix,mx25u12873f", "jedec,spi-nor";
++cmdlist = <0x0000F003 0x0000903B 0x002A0001 0x803100E7>;		
++dt_flash_info =  <0xC22538 0x0000 0x10000 0x100 0x100>;
++read_dummy = [FF 08 FF 08 FF 04 FF 08 FF 06];	
++asp_pwd = [00];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25r6435f
++--------------------------------------------------------
++compatible = "macronix,mx25r6435f", "jedec,spi-nor";
++cmdlist = <0x0000F003 0x00008038 0x002A0001 0x80010085>;
++dt_flash_info =  <0xC22817 0x0000 0x10000 0x80 0x100>;
++read_dummy = [FF 08 FF 08 FF 04 FF 08 FF 06];
++asp_pwd = [00];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l51245g
++--------------------------------------------------------
++compatible = "macronix,mx25l51245g", "jedec,spi-nor";
++cmdlist = <0x01FCF003 0x006F83FB 0x003F0011 0x802104E7>;
++dt_flash_info =  <0xC2201A 0x0000 0x10000 0x400 0x100>;
++read_dummy = [00 08 00 08 02 08 03 0A 03 0A];
++asp_pwd = [01];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l51237g
++--------------------------------------------------------
++compatible = "macronix,mx25l51237g", "jedec,spi-nor";		
++cmdlist = <0x01FCF003 0x006F83FB 0x003F0011 0x802104E7>;		
++dt_flash_info =  <0xC2201a 0x0000 0x10000 0x400 0x100>;
++read_dummy = [00 08 00 08 02 08 00 08 02 08];	
++asp_pwd = [01];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l25673g
++--------------------------------------------------------
++compatible = "macronix,mx25l25673g", "jedec,spi-nor";	
++cmdlist = <0x0154F003 0x006F813B 0x003F0011 0x802104E7>;		
++dt_flash_info =  <0xC22019 0x0000 0x10000 0x200 0x100>;
++read_dummy = [00 08 00 08 01 08 00 08 03 0A];	
++asp_pwd = [00];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l25635f
++--------------------------------------------------------
++compatible = "macronix,mx25l25635f", "jedec,spi-nor";	
++cmdlist = <0x01FCF003 0x006F803F 0x003F0011 0x802104E7>;		
++dt_flash_info =  <0xC22019 0x0000 0x10000 0x200 0x100>;
++read_dummy = [00 08 00 08 02 08 03 0A 03 0A];	
++asp_pwd = [00];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l12850f
++--------------------------------------------------------
++compatible = "macronix,mx25l12850f", "jedec,spi-nor";
++cmdlist = <0x0000F003 0x0001003B 0x002A0001 0x00010007>;		
++dt_flash_info =  <0xC22018 0x0000 0x10000 0x100 0x100>;
++read_dummy = [FF 08 FF 08 FF 04 FF 08 FF 06];	
++asp_pwd = [00];
++dummy_io_sel = [01];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;	
++
++--------------------------------------------------------
++Part Number: mx25l6435e
++--------------------------------------------------------
++compatible = "macronix,mx25l6435e", "jedec,spi-nor";
++cmdlist = <0x00007003 0x0000900B 0x002A0001 0x803100E7>;		
++dt_flash_info =  <0xC22017 0x0000 0x10000 0x80 0x100>;
++read_dummy = [FF 08 FF 08 FF 04 FF 08 1F 08];
++asp_pwd = [00];
++dummy_io_sel = [01];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
++
++--------------------------------------------------------
++Part Number: mx25l6406e
++--------------------------------------------------------
++compatible = "macronix,mx25l6406e", "jedec,spi-nor";
++cmdlist = <0x00007003 0x00008018 0x00280000 0x00000007>;
++dt_flash_info =  <0xC22017 0x0000 0x10000 0x80 0x100>;
++read_dummy = [FF 08 FF 08 FF 00 FF 00 FF 00];
++asp_pwd = [00];
++dummy_io_sel = [01];
++spi-rx-bus-width = <4>;
++spi-tx-bus-width = <4>;
+\ No newline at end of file
+diff --git a/drivers/mtd/devices/m25p80-iproc.c b/drivers/mtd/devices/m25p80-iproc.c
+index 2a30040..ca45add 100644
+--- a/drivers/mtd/devices/m25p80-iproc.c
++++ b/drivers/mtd/devices/m25p80-iproc.c
+@@ -42,6 +42,7 @@ static int m25p80_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
+ 
+ static void m25p_addr2cmd(struct spi_nor *nor, unsigned int addr, unsigned int len, u8 *cmd)
+ {
++	int i;
+  u16 addr_width = nor->addr_width;
+ 
+ #ifdef CONFIG_M25PXX_STAY_IN_3BYTE_MODE
+@@ -52,10 +53,8 @@ static void m25p_addr2cmd(struct spi_nor *nor, unsigned int addr, unsigned int l
+ #endif /* CONFIG_M25PXX_STAY_IN_3BYTE_MODE */
+ 
+ 	/* opcode is in cmd[0] */
+-	cmd[1] = addr >> (addr_width * 8 -  8);
+-	cmd[2] = addr >> (addr_width * 8 - 16);
+-	cmd[3] = addr >> (addr_width * 8 - 24);
+-	cmd[4] = addr >> (addr_width * 8 - 32);	
++	for (i = 1; i <= nor->addr_width; i++)
++		cmd[i] = addr >> (nor->addr_width * 8 - i * 8);
+ }
+ 
+ static int m25p_cmdsz(struct spi_nor *nor, unsigned int addr)
+@@ -251,6 +250,14 @@ static int m25p_remove(struct spi_device *spi)
+ 	return mtd_device_unregister(&flash->spi_nor.mtd);
+ }
+ 
++static void m25p_shutdown(struct spi_device *spi)
++{
++	struct m25p *flash = spi_get_drvdata(spi);
++
++	spi_nor_shutdown(&flash->spi_nor);
++}
++
++
+ /*
+  * Do NOT add to this array without reading the following:
+  *
+@@ -314,6 +321,7 @@ static struct spi_driver m25p80_driver = {
+ 	.id_table	= m25p_ids,
+ 	.probe	= m25p_probe,
+ 	.remove	= m25p_remove,
++	.shutdown = m25p_shutdown,
+ 
+ 	/* REVISIT: many of these chips have deep power-down modes, which
+ 	 * should clearly be entered on suspend() to minimize power use.
+diff --git a/drivers/mtd/mtdchar.c b/drivers/mtd/mtdchar.c
+index 6d19835..b0a179b 100644
+--- a/drivers/mtd/mtdchar.c
++++ b/drivers/mtd/mtdchar.c
+@@ -810,6 +810,187 @@ static int mtdchar_ioctl(struct file *file, u_int cmd, u_long arg)
+ 		break;
+ 	}
+ 
++	/* --------------- Macronix ASP MODE ------------------------*/
++	/* issue WPSEL */
++	case MEMASPLOCK:
++		ret = mtd_mxc_asplock(mtd);
++		break;
++
++	/*
++	 * check security register[7:7], lock register bit[2:1]
++	 * return value: 0: BP, 1:ASP w/o PWD, 2:ASP w/ PWD
++	 */
++	case MEMQRYLOCKMODE:
++		ret = mtd_mxc_qry_lockmode(mtd);
++		break;
++	/* write password and then set lock register[2:2] */
++	case MEMSETPWD:
++	{
++		struct asp_info_user aspinfo;
++
++		if (copy_from_user(&aspinfo, argp, sizeof(aspinfo)))
++			return -EFAULT;
++		ret = mtd_mxc_set_pwd(mtd, aspinfo.pwd);
++		break;
++	}
++	/* issue PASSULK and check spblb and lock spb, after set spb, use SPBLK to lock device with password again */
++	case MEMPWDLOCKSPB:
++	{
++		struct asp_info_user aspinfo;
++		if (copy_from_user(&aspinfo, argp, sizeof(aspinfo)))
++			return -EFAULT;
++		ret = mtd_mxc_pwd_lockspb(mtd, aspinfo.start, aspinfo.length, aspinfo.pwd);
++		break;
++	}
++	/* issue PASSULK and check spblb and unlock spb, after set spb, use SPBLK to lock device with password again */
++	case MEMPWDUNLOCKSPB:
++	{
++		struct asp_info_user aspinfo;
++		if (copy_from_user(&aspinfo, argp, sizeof(aspinfo)))
++			return -EFAULT;
++		ret = mtd_mxc_pwd_unlockspb(mtd, aspinfo.start, aspinfo.length, aspinfo.pwd);
++		break;
++	}
++	/* verify password and issue PASSULK then check spblb */
++	case MEMPWDAUTH:
++	{
++		struct asp_info_user aspinfo;
++		if (copy_from_user(&aspinfo, argp, sizeof(aspinfo)))
++			return -EFAULT;
++		ret = mtd_mxc_pwd_auth(mtd, aspinfo.pwd);
++		break;
++	}
++	/* issue PSBLK to lock device with password again */
++	case MEMSPBLK:
++		ret = mtd_mxc_pwd_spblk(mtd);
++		break;
++
++	case MEMDPBLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_dpb_lock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMDPBUNLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_dpb_unlock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMDPBISLOCKED:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_dpb_is_locked(mtd, einfo.start, einfo.length);
++		break;
++	}
++	/* --------------- Macronix Single Block Lock Protection ------------------------*/
++	case MEMSINGLELOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_single_lock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMSINGLEUNLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_single_unlock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMSINGLEISLOCKED:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_single_is_locked(mtd, einfo.start, einfo.length);
++		break;
++	}
++	/* --------------- Macronix Permanent Block Lock Protection ------------------------*/
++	case MEMPERMLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_perm_lock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMPERMUNLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_perm_unlock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMPERMISLOCKED:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_perm_is_locked(mtd, einfo.start, einfo.length);
++		break;
++	}
++	/* --------------- Macronix Block Write Lock Protection ------------------------*/
++	case MEMBWLLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_bwl_lock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMBWLUNLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_bwl_unlock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMBWLISLOCKED:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_bwl_is_locked(mtd, einfo.start, einfo.length);
++		break;
++	}
++	/* --------------- Macronix Read Lock Protection ------------------------*/
++	case MEMRDLOCKLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_rdlock_lock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMRDLOCKUNLOCK:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_rdlock_unlock(mtd, einfo.start, einfo.length);
++		break;
++	}
++	case MEMRDLOCKISLOCKED:
++	{
++		struct erase_info_user einfo;
++		if (copy_from_user(&einfo, argp, sizeof(einfo)))
++			return -EFAULT;
++		ret = mtd_mxc_rdlock_is_locked(mtd, einfo.start, einfo.length);
++		break;
++	}
++	/* --------------------------------------------------------------*/
++
+ 	/* Legacy interface */
+ 	case MEMGETOOBSEL:
+ 	{
+diff --git a/drivers/mtd/mtdcore.c b/drivers/mtd/mtdcore.c
+index ffa2884..bacc5d6 100644
+--- a/drivers/mtd/mtdcore.c
++++ b/drivers/mtd/mtdcore.c
+@@ -1143,6 +1143,259 @@ int mtd_block_markbad(struct mtd_info *mtd, loff_t ofs)
+ }
+ EXPORT_SYMBOL_GPL(mtd_block_markbad);
+ 
++/* NOR Advanced Sector Protection for Macronix and similar */
++int mtd_mxc_asplock(struct mtd_info *mtd)
++{
++	if (!mtd->_asp_lock)
++		return -EOPNOTSUPP;
++
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	
++	return mtd->_asp_lock(mtd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_asplock);
++
++int mtd_mxc_qry_lockmode(struct mtd_info *mtd)
++{
++	if (!mtd->_qry_lockmode)
++		return -EOPNOTSUPP;
++	return mtd->_qry_lockmode(mtd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_qry_lockmode);
++
++int mtd_mxc_set_pwd(struct mtd_info *mtd, uint64_t pwd)
++{
++	if (!mtd->_set_pwd)
++		return -EOPNOTSUPP;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_set_pwd(mtd, pwd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_set_pwd);
++
++int mtd_mxc_pwd_lockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
++{
++	if (!mtd->_pwd_lockspb)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_pwd_lockspb(mtd, ofs, len, pwd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_pwd_lockspb);
++
++int mtd_mxc_pwd_unlockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
++{
++	if (!mtd->_pwd_unlockspb)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_pwd_unlockspb(mtd, ofs, len, pwd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_pwd_unlockspb);
++
++int mtd_mxc_pwd_auth(struct mtd_info *mtd, uint64_t pwd)
++{
++	if (!mtd->_pwd_lockspb)
++		return -EOPNOTSUPP;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_pwd_auth(mtd, pwd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_pwd_auth);
++
++int mtd_mxc_pwd_spblk(struct mtd_info *mtd)
++{
++	if (!mtd->_pwd_spblk)
++		return -EOPNOTSUPP;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_pwd_spblk(mtd);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_pwd_spblk);
++
++int mtd_mxc_dpb_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_dpb_lock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_dpb_lock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_dpb_lock);
++
++int mtd_mxc_dpb_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_dpb_unlock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_dpb_unlock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_dpb_unlock);
++
++int mtd_mxc_dpb_is_locked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_dpb_is_locked)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_dpb_is_locked(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_dpb_is_locked);
++int mtd_mxc_single_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_single_lock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_single_lock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_single_lock);
++
++int mtd_mxc_single_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_single_unlock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_single_unlock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_single_unlock);
++
++int mtd_mxc_single_is_locked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_single_is_locked)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_single_is_locked(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_single_is_locked);
++int mtd_mxc_perm_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_perm_lock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_perm_lock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_perm_lock);
++
++int mtd_mxc_perm_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_perm_unlock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_perm_unlock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_perm_unlock);
++
++int mtd_mxc_perm_is_locked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_perm_is_locked)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_perm_is_locked(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_perm_is_locked);
++int mtd_mxc_bwl_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_bwl_lock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_bwl_lock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_bwl_lock);
++
++int mtd_mxc_bwl_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_bwl_unlock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_bwl_unlock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_bwl_unlock);
++
++int mtd_mxc_bwl_is_locked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_bwl_is_locked)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_bwl_is_locked(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_bwl_is_locked);
++
++int mtd_mxc_rdlock_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_rdlock_lock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_rdlock_lock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_rdlock_lock);
++
++int mtd_mxc_rdlock_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_rdlock_unlock)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_rdlock_unlock(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_rdlock_unlock);
++
++int mtd_mxc_rdlock_is_locked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	if (!mtd->_rdlock_is_locked)
++		return -EOPNOTSUPP;
++	if (ofs < 0 || ofs >= mtd->size || len > mtd->size - ofs)
++		return -EINVAL;
++	if (!(mtd->flags & MTD_WRITEABLE))
++		return -EROFS;
++	return mtd->_rdlock_is_locked(mtd, ofs, len);
++}
++EXPORT_SYMBOL_GPL(mtd_mxc_rdlock_is_locked);
++
++
+ /*
+  * default_mtd_writev - the default writev method
+  * @mtd: mtd device description object pointer
+diff --git a/drivers/mtd/mtdpart.c b/drivers/mtd/mtdpart.c
+index f8ba153..3a99c08 100644
+--- a/drivers/mtd/mtdpart.c
++++ b/drivers/mtd/mtdpart.c
+@@ -273,6 +273,124 @@ static int part_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
+ 	return part->master->_is_locked(part->master, ofs + part->offset, len);
+ }
+ 
++/* --------------- Macronix ASP MODE ------------------------*/
++static int part_asp_lock(struct mtd_info *mtd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_asp_lock(part->master);
++}
++static int part_qry_lockmode(struct mtd_info *mtd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_qry_lockmode(part->master);
++}
++static int part_set_pwd(struct mtd_info *mtd, uint64_t pwd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_set_pwd(part->master, pwd);
++}
++static int part_pwd_unlockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_pwd_unlockspb(part->master, ofs + part->offset, len, pwd);
++}
++static int part_pwd_lockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_pwd_lockspb(part->master, ofs + part->offset, len, pwd);
++}
++static int part_pwd_auth(struct mtd_info *mtd, uint64_t pwd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_pwd_auth(part->master, pwd);
++}
++static int part_pwd_spblk(struct mtd_info *mtd)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_pwd_spblk(part->master);
++}
++static int part_dpb_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_dpb_lock(part->master, ofs + part->offset, len);
++}
++static int part_dpb_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_dpb_unlock(part->master, ofs + part->offset, len);
++}
++static int part_dpb_islocked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_dpb_is_locked(part->master, ofs + part->offset, len);
++}
++/* --------------- Macronix Single Block Protection ---------------------*/
++static int part_single_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_single_lock(part->master, ofs + part->offset, len);
++}
++static int part_single_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_single_unlock(part->master, ofs + part->offset, len);
++}
++static int part_single_islocked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_single_is_locked(part->master, ofs + part->offset, len);
++}
++/* --------------- Macronix Permanent Block Protection ---------------------*/
++static int part_perm_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_perm_lock(part->master, ofs + part->offset, len);
++}
++static int part_perm_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_perm_unlock(part->master, ofs + part->offset, len);
++}
++static int part_perm_islocked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_perm_is_locked(part->master, ofs + part->offset, len);
++}
++/* --------------- Macronix Block Write Lock Protection ---------------------*/
++static int part_bwl_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_bwl_lock(part->master, ofs + part->offset, len);
++}
++static int part_bwl_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_bwl_unlock(part->master, ofs + part->offset, len);
++}
++static int part_bwl_islocked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_bwl_is_locked(part->master, ofs + part->offset, len);
++}
++/* --------------- Macronix Read Lock Protection ---------------------*/
++static int part_rdlock_lock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_rdlock_lock(part->master, ofs + part->offset, len);
++}
++static int part_rdlock_unlock(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_rdlock_unlock(part->master, ofs + part->offset, len);
++}
++static int part_rdlock_islocked(struct mtd_info* mtd, loff_t ofs, uint64_t len)
++{
++	struct mtd_part *part = PART(mtd);
++	return part->master->_rdlock_is_locked(part->master, ofs + part->offset, len);
++}
++/* ------------------------------------------------------------------ */
++
++
+ static void part_sync(struct mtd_info *mtd)
+ {
+ 	struct mtd_part *part = PART(mtd);
+@@ -438,6 +556,62 @@ static struct mtd_part *allocate_partition(struct mtd_info *master,
+ 		slave->mtd._is_locked = part_is_locked;
+ 	if (master->_block_isreserved)
+ 		slave->mtd._block_isreserved = part_block_isreserved;
++      /* --------------- Macronix ASP MODE ------------------------*/
++
++      if (master->_asp_lock)
++      	slave->mtd._asp_lock = part_asp_lock;
++      if (master->_qry_lockmode)
++      	slave->mtd._qry_lockmode = part_qry_lockmode;
++      if (master->_set_pwd)
++      	slave->mtd._set_pwd = part_set_pwd;
++      if (master->_pwd_unlockspb)
++      	slave->mtd._pwd_unlockspb = part_pwd_unlockspb;
++      if (master->_pwd_lockspb)
++      	slave->mtd._pwd_lockspb = part_pwd_lockspb;
++      if (master->_pwd_auth)
++      	slave->mtd._pwd_auth = part_pwd_auth;
++      if (master->_pwd_spblk)
++      	slave->mtd._pwd_spblk = part_pwd_spblk;
++      if (master->_dpb_lock)
++      	slave->mtd._dpb_lock = part_dpb_lock;
++      if (master->_dpb_unlock)
++      	slave->mtd._dpb_unlock = part_dpb_unlock;
++      if (master->_dpb_is_locked)
++      	slave->mtd._dpb_is_locked = part_dpb_islocked;
++
++      /* --------------- Macronix Single Lock Protection---------------------*/
++      if (master->_single_lock)
++      	slave->mtd._single_lock = part_single_lock;
++      if (master->_single_unlock)
++      	slave->mtd._single_unlock = part_single_unlock;
++      if (master->_single_is_locked)
++      	slave->mtd._single_is_locked = part_single_islocked;
++
++      /* --------------- Macronix Permanent Lock Protection---------------------*/
++      if (master->_perm_lock)
++      	slave->mtd._perm_lock = part_perm_lock;
++      if (master->_perm_unlock)
++      	slave->mtd._perm_unlock = part_perm_unlock;
++      if (master->_perm_is_locked)
++      	slave->mtd._perm_is_locked = part_perm_islocked;
++
++      /* --------------- Macronix Block Write Lock Protection---------------------*/
++      if (master->_bwl_lock)
++      	slave->mtd._bwl_lock = part_bwl_lock;
++      if (master->_bwl_unlock)
++      	slave->mtd._bwl_unlock = part_bwl_unlock;
++      if (master->_bwl_is_locked)
++      	slave->mtd._bwl_is_locked = part_bwl_islocked;
++
++      /* --------------- Macronix Block Write Lock Protection---------------------*/
++      if (master->_rdlock_lock)
++      	slave->mtd._rdlock_lock = part_rdlock_lock;
++      if (master->_rdlock_unlock)
++      	slave->mtd._rdlock_unlock = part_rdlock_unlock;
++      if (master->_rdlock_is_locked)
++      	slave->mtd._rdlock_is_locked = part_rdlock_islocked;
++      /* -------------------------------------------------------------------------*/
++
+ 	if (master->_block_isbad)
+ 		slave->mtd._block_isbad = part_block_isbad;
+ 	if (master->_block_markbad)
+diff --git a/drivers/mtd/spi-nor/Kconfig b/drivers/mtd/spi-nor/Kconfig
+index 1ffb3fe..c643963 100644
+--- a/drivers/mtd/spi-nor/Kconfig
++++ b/drivers/mtd/spi-nor/Kconfig
+@@ -51,6 +51,17 @@ menuconfig MTD_SPI_NOR_IPROC
+ 	  This is the framework for the SPI NOR which can be used by the SPI
+ 	  device drivers and the SPI-NOR device driver.
+ 
++config MTD_SPI_NOR_SFDP
++	bool "Probe Serial Flash Discoverable Parameters"
++	default y
++	help
++	  SFDP includes the most detailed information of SPI NOR flash memory.
++	  It can be used to detect flash and get devices' parameters.
++
++	  Attention that there are many flash flags can not covered by SFDP such
++	  as SST_WRITE, USE_FSR, SPI_NOR_NO_FR and SECT_4K_PMC. Please do not
++	  enable this option if your device is highly related with these flags.
++	  
+ if MTD_SPI_NOR_IPROC
+ 
+ config M25PXX_STAY_IN_3BYTE_MODE
+diff --git a/drivers/mtd/spi-nor/Makefile b/drivers/mtd/spi-nor/Makefile
+index fdf4dbc..5c62f0c 100644
+--- a/drivers/mtd/spi-nor/Makefile
++++ b/drivers/mtd/spi-nor/Makefile
+@@ -2,4 +2,5 @@ obj-$(CONFIG_MTD_SPI_NOR)	+= spi-nor.o
+ obj-$(CONFIG_MTD_SPI_NOR_IPROC)	+= spi-nor-iproc.o
+ obj-$(CONFIG_SPI_FSL_QUADSPI)	+= fsl-quadspi.o
+ obj-$(CONFIG_SPI_NXP_SPIFI)	+= nxp-spifi.o
++obj-$(CONFIG_MTD_SPI_NOR_SFDP) += sfdp.o
+ 
+diff --git a/drivers/mtd/spi-nor/sfdp.c b/drivers/mtd/spi-nor/sfdp.c
+new file mode 100644
+index 0000000..5bc48eb
+--- /dev/null
++++ b/drivers/mtd/spi-nor/sfdp.c
+@@ -0,0 +1,589 @@
++/*
++ * Copyright (C) 2017 Macronix International Co., LTD.
++ *
++ * This code is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/mtd/sfdp.h>
++#include <linux/spi/spi.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/cfi.h>
++
++#define SFDP_SPINOR_OP_PP4_1_1_1	0x12	/* Page program 111, (up to 256 bytes) */
++#define SFDP_SPINOR_OP_PP4_1_1_4	0x34	/* Page program 114, (up to 256 bytes) */
++#define SFDP_SPINOR_OP_PP4_1_4_4	0x3E	/* Page program 144, (up to 256 bytes) */
++
++#define SFDP_SPINOR_OP_SE4K_4B		0x21	/* Sector erase (usually 4KiB) */
++#define SFDP_SPINOR_OP_BE32K_4B		0x5c	/* Sector erase (usually 32KiB) */
++#define SFDP_SPINOR_OP_BE64K_4B		0xdc	/* Sector erase (usually 64KiB) */
++
++#define	MAX_CMD_SIZE	6
++#define DEFAULT_PAGE_SZ 256
++
++#define GET_SFDP_PTR(SFDP) ((SFDP[0]) | (SFDP[1]) << 8 | (SFDP[2]) << 16)
++static struct sfdp_info *sfdp_entry;
++
++/*
++ * Read SFDP ia an fundamental but important command for doing
++ * flash scan and probe.
++ */
++static int sfdp_read(loff_t from, size_t len,
++			void *buf)
++{	
++	struct spi_transfer t[2];
++	struct spi_message m;
++	int cnt;
++	u8	command[MAX_CMD_SIZE];
++
++	spi_message_init(&m);
++	memset(t, 0, (sizeof t));
++
++	command[0] = 0x5a;
++
++	for( cnt = 0; cnt < 3; cnt++)
++		command[3 - cnt] = ((u8 *)&from)[cnt];
++
++	t[0].tx_buf = command;
++	t[0].len = 1 + 3 + 1;//1Byte CMD + 3Bbytes ADDR + 1Byte Dummy
++	spi_message_add_tail(&t[0], &m);
++
++	t[1].rx_buf = buf;
++	t[1].rx_nbits = SPI_NBITS_SINGLE;
++	t[1].len = len;
++	spi_message_add_tail(&t[1], &m);
++
++	spi_sync(sfdp_entry->spi, &m);
++
++	return 0;
++}
++#ifdef CONFIG_DYNAMIC_DEBUG
++static void addr_4b_cmd_show(void)
++{
++	struct jedec_param_addr_4b_cmd *param_addr_4b_cmd =
++			&sfdp_entry->param_addr_4b_cmd;
++
++	if (param_addr_4b_cmd) {
++		printk(KERN_INFO
++			"-------------------------------------------------- \n"
++			"SFDP JEDEC 4-Byte Instruction parameter display\n"
++			"-------------------------------------------------- \n");
++
++		if (param_addr_4b_cmd->rd_4b_mode_support &
++			(SFDP_NR_111_4B | SFDP_FR_111_4B | SFDP_FR_112_4B |
++ 			 SFDP_FR_122_4B | SFDP_FR_114_4B | SFDP_FR_144_4B)) {
++
++			printk(KERN_INFO "support for 4-byte addressing read\n");
++
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_NR_111_4B)
++				printk(KERN_INFO "    mode 1-1-1 NR, opcode= 13h\n");
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_111_4B)
++				printk(KERN_INFO "    mode 1-1-1 FR, opcode= 0Ch\n");
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_112_4B)
++				printk(KERN_INFO "    mode 1-1-2 FR, opcode= 3Ch\n");
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_122_4B)
++				printk(KERN_INFO "    mode 1-2-2 FR, opcode= BCh\n");
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_114_4B)
++				printk(KERN_INFO "    mode 1-1-4 FR, opcode= 6Ch\n");
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_144_4B)
++				printk(KERN_INFO "    mode 1-4-4 FR, opcode= ECh\n");
++		}
++		if (param_addr_4b_cmd->pgm_4b_mode_support &
++			(SFDP_PP_111_4B | SFDP_PP_114_4B | SFDP_PP_144_4B)) {
++
++			printk(KERN_INFO "support for 4-byte addressing write\n");
++
++			if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_111_4B)
++				printk(KERN_INFO "    mode 1-1-1, opcode= 12h\n");
++			if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_114_4B)
++				printk(KERN_INFO "    mode 1-1-4, opcode= 34h\n");
++			if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_144_4B)
++				printk(KERN_INFO "    mode 1-4-4, opcode= 3Eh\n");
++		}
++		if (param_addr_4b_cmd->ers_4b_mode_support &
++			(SFDP_ERS_1_4B | SFDP_ERS_2_4B | SFDP_ERS_3_4B | SFDP_ERS_4_4B)) {
++
++			int i;
++			printk(KERN_INFO "support for 4-byte addressing erase\n");
++
++			for (i = 0; i < MX_ERASE_TYPE_NUM; i++) {
++				switch (param_addr_4b_cmd->e_type_opcode[i]) {
++				case SFDP_SPINOR_OP_BE64K_4B:
++					printk(KERN_INFO "    erase 64K Bytes: opcode= %02Xh\n",
++						param_addr_4b_cmd->e_type_opcode[i]);
++					break;
++				case SFDP_SPINOR_OP_BE32K_4B:
++					printk(KERN_INFO "    erase 32K Bytes: opcode= %02Xh\n",
++						param_addr_4b_cmd->e_type_opcode[i]);
++					break;
++				case SFDP_SPINOR_OP_SE4K_4B:
++					printk(KERN_INFO "    erase  4K Bytes: opcode= %02Xh\n",
++						param_addr_4b_cmd->e_type_opcode[i]);
++					break;
++				}
++			}
++		}
++		if (param_addr_4b_cmd->dtr_111_support)
++			printk(KERN_INFO "support for 4-byte addressing 1-1-1 dtr read\n");
++		if (param_addr_4b_cmd->dtr_122_support)
++			printk(KERN_INFO "support for 4-byte addressing 1-2-2 dtr read\n");
++		if (param_addr_4b_cmd->dtr_144_support)
++			printk(KERN_INFO "support for 4-byte addressing 1-4-4 dtr read\n");
++
++		if (param_addr_4b_cmd->rddpb_support)
++			printk(KERN_INFO "support for dynamic protection read,    opcode= E0h\n");
++		if (param_addr_4b_cmd->wrdpb_support)
++			printk(KERN_INFO "support for dynamic protection program, opcode= E1h\n");
++		if (param_addr_4b_cmd->rdspb_support)
++			printk(KERN_INFO "support for Solid   protection read,    opcode= E2h\n");
++		if (param_addr_4b_cmd->wrspb_support)
++			printk(KERN_INFO "support for solid   protection program, opcode= E3h\n");
++	}
++}
++static void mx_show(void)
++{	
++	struct vendor_param_flash *param_flash =
++			&sfdp_entry->param_flash;
++
++	if (param_flash) {
++		printk(KERN_INFO
++			"-------------------------------------------------- \n"
++			"SFDP Macronix Flash parameter display\n"
++			"-------------------------------------------------- \n");
++
++		printk(KERN_INFO "Vcc supply voltage: %d.%d%d%d ~ %d.%d%d%d\n",
++				param_flash->vcc_supply_min_volt / 0x1000,
++				(param_flash->vcc_supply_min_volt % 0x1000)/0x100,
++				(param_flash->vcc_supply_min_volt % 0x100)/0x10,
++				(param_flash->vcc_supply_min_volt % 0x10),
++				param_flash->vcc_supply_max_volt / 0x1000,
++				(param_flash->vcc_supply_max_volt % 0x1000)/0x100,
++				(param_flash->vcc_supply_max_volt % 0x100)/0x10,
++				(param_flash->vcc_supply_max_volt % 0x10));
++		if (param_flash->hw_reset_support)
++			printk(KERN_INFO "support for H/W Reset# pin\n");
++		if (param_flash->hw_hold_support)
++			printk(KERN_INFO "support for H/W Hold# pin\n");
++		if (param_flash->dpd_support)
++			printk(KERN_INFO "support for deep power down mode\n");
++		if (param_flash->sw_reset_support)
++			printk(KERN_INFO "support for S/W reset: 66h then %02Xh\n",
++					param_flash->sw_reset_opcode);
++		if (param_flash->pgm_susp_resu_support)
++			printk(KERN_INFO "support for program suspend/resume\n");
++		if (param_flash->ers_susp_resu_support)
++			printk(KERN_INFO "support for erase suspend/resume\n");
++		if (param_flash->wrap_around_rd_support)
++			printk(KERN_INFO
++				"support for wrap-around read mode, "
++				"opcode= %02Xh, length= %s\n",
++				param_flash->wrap_around_rd_opcode,
++				param_flash->wrap_around_rd_len == 0x08 ? "8B":
++				param_flash->wrap_around_rd_len == 0x16 ? "8B& 16B":
++				param_flash->wrap_around_rd_len == 0x32 ? "8B& 16B& 32B":
++				param_flash->wrap_around_rd_len == 0x64 ? "8B& 16B& 32B& 64B":"");
++
++		if (param_flash->indi_bl_support) {
++			printk(KERN_INFO "support for individual block lock, "
++					"opcode= %02Xh, %s, default status: %s\n",
++					param_flash->indi_bl_opcode,
++					param_flash->indi_bl_bit ? "non-volatile" : "volatile",
++					param_flash->indi_bl_def_stat ? "un-protect" : "protect");
++		}
++		if (param_flash->secure_otp_support)
++			printk(KERN_INFO "support for Secured OTP mode\n");
++		if (param_flash->rd_lock_support)
++			printk(KERN_INFO "support for Read Lock mode\n");
++		if (param_flash->perment_lock_support)
++			printk(KERN_INFO "support for Permanent Lock mode\n");
++	}
++}
++static void jedec_show(void)
++{
++	struct jedec_param *j_param = &sfdp_entry->j_param;
++	struct sfdp_chip_info *chip = &sfdp_entry->chip;
++	int i;
++	printk(KERN_INFO
++		"-------------------------------------------------- \n"
++		"[DW 00~08] SFDP JEDEC parameter display\n"
++		"-------------------------------------------------- \n"
++		);
++
++	printk(KERN_INFO "flash desity: %dKbits, %dMbits\n", 
++		chip->sz >> (10 - 3), chip->sz >> (20 - 3));
++	printk(KERN_INFO "write granularity: %d\n", chip->write_sz);
++	printk(KERN_INFO "wren opcode: %02X\n", chip->wren_opcode);
++	if (j_param->be_4k_opcode != 0xFF)
++		printk(KERN_INFO "4K-Byte erase opcode: %02X\n", j_param->be_4k_opcode);
++
++	/* indicating the device support for mult-io fast rad or not */
++	if (j_param->fr_support & (SFDP_FR_112 | SFDP_FR_122 | SFDP_FR_114 | SFDP_FR_144))
++		printk(KERN_INFO "support for multi-io fast read-\n");
++	if (j_param->fr_support & SFDP_FR_112)
++		printk(KERN_INFO "    mode 1-1-2: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++				j_param->fr_112_opcode, j_param->fr_112_param & 0x1F,
++				(j_param->fr_112_param & 0xE0)>>5);
++	if (j_param->fr_support & SFDP_FR_122)
++		printk(KERN_INFO "    mode 1-2-2: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++				j_param->fr_122_opcode, j_param->fr_122_param & 0x1F,
++				(j_param->fr_122_param & 0xE0)>>5);
++	if (j_param->fr_support & SFDP_FR_114)
++		printk(KERN_INFO "    mode 1-1-4: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++				j_param->fr_114_opcode, j_param->fr_114_param & 0x1F,
++				(j_param->fr_114_param & 0xE0)>>5);
++	if (j_param->fr_support & SFDP_FR_144)
++		printk(KERN_INFO "    mode 1-4-4: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++				j_param->fr_144_opcode, j_param->fr_144_param & 0x1F,
++				(j_param->fr_144_param & 0xE0)>>5);
++
++	if (j_param->fr_222_support)
++		printk(KERN_INFO "    mode 2-2-2: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++			j_param->fr_222_opcode, j_param->fr_222_param & 0x1F, (j_param->fr_222_param & 0xE0)>>5);
++	if (j_param->fr_444_support)
++		printk(KERN_INFO "    mode 4-4-4: opcode= %02Xh, dummy clk= %u, mode bits= %u\n",
++			j_param->fr_444_opcode, j_param->fr_444_param & 0x1F, (j_param->fr_444_param & 0xE0)>>5);
++
++	for (i = 0; i < SFDP_ERASE_TYPE_NUM; i++) {
++		if (j_param->e_type[i].size_power)
++			printk(KERN_INFO "erase type: %d, opcode: %02Xh, size: %llu KByte\n",
++				i + 1, j_param->e_type[i].opcode, (long long unsigned)1 << (j_param->e_type[i].size_power - 10));
++	}
++
++	if (chip->sfdp_ver >= 16) {
++		printk(KERN_INFO
++			"-------------------------------------------------- \n"
++			"[DW 09~15] SFDP JEDEC parameter display\n"
++			"-------------------------------------------------- \n");
++		printk(KERN_INFO "page size: %d Bytes\n", 1 << j_param->page_sz);
++		printk(KERN_INFO "read status register opcode: %02Xh\n",
++				chip->rdsr_opcode);
++
++		if (!j_param->susp_resu_suport)
++			printk(KERN_INFO "supports suspend and resume of both program and erase\n");
++		if (!j_param->dpd_suport)
++			printk(KERN_INFO "supports deep power down mode\n");
++		if (j_param->soft_rst_support)
++			printk(KERN_INFO "SFDP: supports software reset mode\n");
++		printk(KERN_INFO "Enter 4-byte addressing mode: %02X\n",
++				j_param->enter_4byte_addr_mode);
++		printk(KERN_INFO "Exit 4-byte addressing mode: %03X\n",
++				j_param->exit_4byte_addr_mode);
++	}
++
++	addr_4b_cmd_show();
++}
++#endif
++static void addr_4b_cmd_scan(void)
++{
++	struct jedec_param_addr_4b_cmd *param_addr_4b_cmd = 
++		&sfdp_entry->param_addr_4b_cmd;	
++	struct sfdp_chip_info *chip = &sfdp_entry->chip;
++	int i;	
++	if (param_addr_4b_cmd) {
++		if (param_addr_4b_cmd->rd_4b_mode_support &&
++				param_addr_4b_cmd->ers_4b_mode_support &&
++				param_addr_4b_cmd->pgm_4b_mode_support) {
++			chip->addr_4b_cmd_support = 1;
++		}
++		if (chip->addr_4b_cmd_support) {
++			/* set 4-byte addressing read */
++			if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_144_4B) {
++				chip->rd_opcode = 0xEC;
++				if (!(sfdp_entry->j_param.fr_support & SFDP_FR_144))
++					chip->read_dummy = 6;
++				else
++					chip->read_dummy = sfdp_entry->j_param.fr_144_param & SFDP_FR_DUMMY_MASK;
++			} else if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_114_4B) {
++				chip->rd_opcode = 0x6C;
++				if (!(sfdp_entry->j_param.fr_support & SFDP_FR_114))
++					chip->read_dummy = 8;
++				else
++					chip->read_dummy = sfdp_entry->j_param.fr_114_param & SFDP_FR_DUMMY_MASK;
++			} else if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_112_4B) {
++				chip->rd_opcode = 0x3C;
++				if (!(sfdp_entry->j_param.fr_support & SFDP_FR_112))
++					chip->read_dummy = 8;
++				else
++					chip->read_dummy = sfdp_entry->j_param.fr_112_param & SFDP_FR_DUMMY_MASK;
++			} else if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_FR_111_4B) {
++				chip->rd_opcode = 0x0C;
++				chip->read_dummy = 8;
++
++			}else if (param_addr_4b_cmd->rd_4b_mode_support & SFDP_NR_111_4B) {
++				chip->rd_opcode = 0x13;
++				chip->read_dummy = 0;
++			}
++
++			/* set 4-byte addressing program */
++			if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_144_4B) {
++				chip->pgm_opcode = SFDP_SPINOR_OP_PP4_1_4_4;
++			} else if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_114_4B) {
++				chip->pgm_opcode = SFDP_SPINOR_OP_PP4_1_1_4;
++			} else if (param_addr_4b_cmd->pgm_4b_mode_support & SFDP_PP_111_4B) {
++				chip->pgm_opcode = SFDP_SPINOR_OP_PP4_1_1_1;
++			}
++
++
++		/* set 4-byte addressing erase */
++
++#ifdef CONFIG_MTD_SPI_NOR_USE_4K_SECTORS
++			for (i = 0; i < MX_ERASE_TYPE_NUM; i++) {
++				if ((param_addr_4b_cmd->ers_4b_mode_support & (1<<i))
++						&& param_addr_4b_cmd->e_type_opcode[i] == SFDP_SPINOR_OP_SE4K_4B) {
++					chip->ers_4k_4b_opcode = SFDP_SPINOR_OP_SE4K_4B;
++					break;
++				}
++			}
++			if (i == MX_ERASE_TYPE_NUM) {
++				dev_info(&sfdp_entry->spi->dev, "device did not support 4K Sector erase for 4-byte addressing mode\n");
++			} else
++				chip->ers_sz = 4096;
++#endif
++			/* use the largest sector as erase unit */
++			if (chip->ers_opcode != SFDP_SPINOR_OP_SE4K_4B) {
++				for (i = 0; i < SFDP_ERASE_TYPE_NUM; i++) {
++					if (param_addr_4b_cmd->ers_4b_mode_support & (1 << i)) {
++						if (param_addr_4b_cmd->e_type_opcode[i] == SFDP_SPINOR_OP_BE64K_4B) {
++							chip->ers_opcode = SFDP_SPINOR_OP_BE64K_4B;
++							chip->ers_sz = 65536;
++							break;
++						} else if (param_addr_4b_cmd->e_type_opcode[i] == SFDP_SPINOR_OP_BE32K_4B) {
++							if (32768 > chip->ers_sz) {
++								chip->ers_opcode = SFDP_SPINOR_OP_BE32K_4B;
++								chip->ers_sz = 32768;
++							}
++						} else if (param_addr_4b_cmd->e_type_opcode[i] == SFDP_SPINOR_OP_SE4K_4B) {
++							if (4096 > chip->ers_sz) {
++								chip->ers_opcode = SFDP_SPINOR_OP_SE4K_4B;
++								chip->ers_sz = 4096;
++							}
++						}
++					}
++				}
++			}
++		}
++	}
++}
++static void jedec_scan(void)
++{
++	struct jedec_param *j_param = &sfdp_entry->j_param;
++	struct sfdp_chip_info *chip = &sfdp_entry->chip;
++	int i;
++	u8 addr_num, power;
++
++	dev_info(&sfdp_entry->spi->dev, "probing JEDEC parameter .... ...\n");
++
++	chip->write_sz = (j_param->f_param & 0x04) ? 64 : 1;
++
++	if (j_param->flash_density & 0x80000000)
++		chip->sz = 1 << ((j_param->flash_density & 0x7FFFFFFF) - 3);
++	else
++		chip->sz = (j_param->flash_density + 1) >> 3;
++
++	if ((j_param->f_param & 0x18) == 0x18)
++		chip->wren_opcode = 0x50;
++	else
++		chip->wren_opcode = 0x06;
++
++	/* Get the max. size of sector/block */
++	for (i = 0, power = 0; i < SFDP_ERASE_TYPE_NUM; i++) {
++		if (j_param->e_type[i].size_power > power) {
++			power = j_param->e_type[i].size_power;			
++		}
++	}
++	chip->max_sector_sz = 1 << power;
++#ifdef CONFIG_MTD_SPI_NOR_USE_4K_SECTORS
++	if (j_param->be_4k_opcode != 0xFF) {
++		chip->ers_4k_opcode = j_param->be_4k_opcode;
++	} else {
++		for (i = 0; i < SFDP_ERASE_TYPE_NUM; i++)
++			if (j_param->e_type[i].size_power == 12)
++				break;
++		chip->ers_4k_opcode = (i < SFDP_ERASE_TYPE_NUM) ? j_param->e_type[i].opcode : 0;
++	}
++	if (!chip->ers_4k_opcode)
++		dev_info(&sfdp_entry->spi->dev, "device did not support 4K Sector erase\n");	
++#endif
++
++	/* use the largest sector as erase unit */
++	if (!chip->ers_opcode) {
++		for (i = 0, power = 0; i < SFDP_ERASE_TYPE_NUM; i++) {
++			if (j_param->e_type[i].size_power > power) {
++				power = j_param->e_type[i].size_power;
++				chip->ers_opcode = j_param->e_type[i].opcode;
++			}
++		}
++		if (chip->ers_opcode)
++			chip->ers_sz = 1 << power;
++	}
++	/* setting read mode from jedec parameter table */
++	if (j_param->fr_support & SFDP_FR_144) {
++		chip->rd_opcode = j_param->fr_144_opcode;
++		chip->read_dummy = j_param->fr_144_param & SFDP_FR_DUMMY_MASK;
++	} else if (j_param->fr_support & SFDP_FR_114) {
++		chip->rd_opcode = j_param->fr_114_opcode;
++		chip->read_dummy = j_param->fr_114_param & SFDP_FR_DUMMY_MASK;
++	} else if (j_param->fr_support & SFDP_FR_122) {
++		chip->rd_opcode = j_param->fr_122_opcode;
++		chip->read_dummy = j_param->fr_122_param & SFDP_FR_DUMMY_MASK;
++	} else if (j_param->fr_support & SFDP_FR_112) {
++		chip->rd_opcode = j_param->fr_112_opcode;
++		chip->read_dummy = j_param->fr_112_param & SFDP_FR_DUMMY_MASK;
++	} else {
++		chip->rd_opcode = 0x03;
++		chip->read_dummy = 0;
++	}
++
++	addr_num = (j_param->fr_support >> 1) & 0x03;
++	switch (addr_num) {
++		case 0:
++		case 1:
++			chip->addr_width = 3;
++			break;
++		case 2:
++			chip->addr_width = 4;
++			break;
++		default:
++			chip->addr_width = 0;
++			break;
++	}
++
++	/**
++	 * Most of JEDEC 1.6 parameters are no use to mtd.
++	 * They are reserved in the struct 'j_param'
++	 * for future usage.
++	 */
++	chip->page_sz = DEFAULT_PAGE_SZ;
++	if (chip->sfdp_ver >= 16) {
++		chip->page_sz = 1 << j_param->page_sz;
++		chip->sr_busy_bit7_support = !!(j_param->sr_busy & 0x02);
++		chip->rdsr_opcode = chip->sr_busy_bit7_support ? 0x70 : 0x05;
++		chip->en_dpd_opcode = j_param->en_dpd_opcode;
++		chip->ex_dpd_opcode = j_param->ex_dpd_opcode;
++		chip->susp_opcode = j_param->susp_opcode;
++		chip->resu_opcode = j_param->resu_opcode;
++
++		chip->dpd_support = !j_param->dpd_suport;
++		chip->sw_rst_support = !!(j_param->soft_rst_support & 0x18);
++		chip->sw_rst_f0_support = !!(j_param->soft_rst_support & 0x08);
++		chip->pgm_susp_resu_support = !j_param->susp_resu_suport;
++		chip->ers_susp_resu_support = !j_param->susp_resu_suport;
++
++		chip->en_4b_wo_wren_support = j_param->enter_4byte_addr_mode & 0x01;
++		chip->en_4b_w_wren_support = !!(j_param->enter_4byte_addr_mode & 0x02);
++		chip->ex_4b_wo_wren_support = j_param->exit_4byte_addr_mode & 0x01;
++		chip->ex_4b_w_wren_support = !!(j_param->exit_4byte_addr_mode & 0x02);
++		chip->ear_support = !!(j_param->enter_4byte_addr_mode & 0x04);
++		chip->en4b_support = (j_param->enter_4byte_addr_mode & 0x03) ||
++			(j_param->exit_4byte_addr_mode & 0x03);
++		chip->soft_rst = j_param->soft_rst_support;
++	}
++	/* JEDEC Address 4-byte Command */
++	addr_4b_cmd_scan();
++}
++
++static void dts_scan(void)
++{
++	struct vendor_param_flash *param_flash = &sfdp_entry->param_flash;
++	struct sfdp_chip_info *chip = &sfdp_entry->chip;	
++
++	/* get macronix parameters */	
++	if (param_flash) {
++		chip->pgm_susp_resu_support = param_flash->pgm_susp_resu_support;
++		chip->ers_susp_resu_support = param_flash->ers_susp_resu_support;
++		chip->secure_otp_suppport = param_flash->secure_otp_support;
++		chip->rd_lock_support = param_flash->rd_lock_support;
++		chip->perm_lock_support = param_flash->perment_lock_support;
++		chip->sw_rst_support = param_flash->sw_reset_support;
++		chip->dpd_support = param_flash->dpd_support;
++		chip->indi_bl_support = param_flash->indi_bl_support;
++		chip->indi_bl_opcode = param_flash->indi_bl_opcode;
++	}
++}
++/*
++ * Check if the SPI NOR is SFDP compliant, returns 0 if it is, 1 otherwise.
++ */
++int sfdp_probe(struct sfdp_info *sfdp, u8 id)
++{
++	struct param_header_info *j_header = NULL;	
++	struct header_info *header = &sfdp->sfdp_header;
++	u32 ptr, len;
++	int ret = 0, i, j;
++
++	sfdp_entry = sfdp;
++
++	ret = sfdp_read(0, 4, &header->signature);
++	if (ret || header->signature != SFDP_SIGNATURE) {
++		dev_err(&sfdp_entry->spi->dev,
++				"the device did not support SFDP, since signature is mismatched: %08X\n",
++				header->signature);
++		return 1;
++	}
++	ret = sfdp_read(4, 4, &header->minor_rev);
++	if (ret)
++		return 1;
++
++	ret = sfdp_read(8,
++			sizeof(header->param_header[0]) * (header->num_of_param_header + 1),
++			header->param_header);
++	ptr = GET_SFDP_PTR(header->param_header[0].pointer);
++
++	if (ret || !ptr) {
++		dev_err(&sfdp_entry->spi->dev, "the pointer of the first parameter header is '0''\n");
++		return 1;
++	}
++
++	/* get JEDEC and manufacture parameter header */
++	for (i = 0, j = 0; i <= header->num_of_param_header; i++) {
++		switch (header->param_header[i].id) {
++		case PARAM_ID_JEDEC:
++			j_header = &header->param_header[i];
++			if (!j_header || !j_header->major_rev)
++				return 1;
++			ptr = GET_SFDP_PTR(j_header->pointer);
++			len = j_header->length * 4; /* unit: byte */
++			if (sfdp_read(ptr, len, &sfdp->j_param))
++				return 1;
++			sfdp_entry->chip.sfdp_ver = j_header->major_rev * 10 + j_header->minor_rev;
++			break;
++		case PARAM_ID_MXIC:						
++			ptr = GET_SFDP_PTR(header->param_header[i].pointer);
++			len = header->param_header[i].length * 4; /* unit: byte */
++			ret = sfdp_read(ptr, len, &sfdp_entry->param_flash);
++			if (ret)
++				return 1;			
++			break;
++		case PARAM_ID_ADDR_4B_CMD:			
++			ptr = GET_SFDP_PTR(header->param_header[i].pointer);
++			len = header->param_header[i].length * 4; /* unit: byte */
++			ret = sfdp_read(ptr, len, &sfdp_entry->param_addr_4b_cmd);
++			if (ret)
++				return 1;			
++			break;
++		}
++	}
++	
++	jedec_scan();
++#ifdef CONFIG_DYNAMIC_DEBUG	
++		jedec_show();
++#endif
++
++	/*
++	 * Get SFDP info from each Manufacture
++	 */
++	switch(id) {
++		case CFI_MFR_MACRONIX:
++			dts_scan();
++#ifdef CONFIG_DYNAMIC_DEBUG
++				mx_show();
++#endif
++			break;
++		default:
++		   	break;
++	}
++	dev_info(&sfdp_entry->spi->dev, "SFDP %u.%u compliant done!\n",
++			header->major_rev, header->minor_rev);
++	return 0;
++}
++EXPORT_SYMBOL_GPL(sfdp_probe);
+diff --git a/drivers/mtd/spi-nor/spi-nor-iproc.c b/drivers/mtd/spi-nor/spi-nor-iproc.c
+index 7d93d18..c93c518 100644
+--- a/drivers/mtd/spi-nor/spi-nor-iproc.c
++++ b/drivers/mtd/spi-nor/spi-nor-iproc.c
+@@ -18,6 +18,15 @@
+ #include <linux/of_platform.h>
+ #include <linux/spi/flash.h>
+ #include <linux/mtd/spi-nor.h>
++#include <linux/spi/spi.h>
++
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	#include <linux/of.h>
++	#include <linux/mtd/sfdp.h>
++	#include <linux/mtd/dt_cmdlist.h>
++#endif
++
++#define OFFSET_16_MB 0x1000000
+ 
+ /* Define max times to check status register before we give up. */
+ 
+@@ -64,8 +73,11 @@ struct flash_info {
+ #define	SPI_NOR_DUAL_READ	0x20    /* Flash supports Dual Read */
+ #define	SPI_NOR_QUAD_READ	0x40    /* Flash supports Quad Read */
+ #define	USE_FSR			0x80	/* use flag status register */
++#define	SPI_NOR_FLASH_LOCK	0x100	/* Flash protection support */
+ };
+ 
++static int write_sr_cr(struct spi_nor *nor, u16 val);
++
+ #define JEDEC_MFR(info)	((info)->id[0])
+ 
+ static const struct flash_info *spi_nor_match_id(const char *name);
+@@ -78,11 +90,15 @@ static const struct flash_info *spi_nor_match_id(const char *name);
+ static int read_sr(struct spi_nor *nor)
+ {
+ 	int ret;
+-	u8 val;
+-
+-	ret = nor->read_reg(nor, SPINOR_OP_RDSR, &val, 1);
++	u8 val, opcode = SPINOR_OP_RDSR;
++	
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.rdsr_opcode)
++		opcode = nor->sfdp.rdsr_opcode;
++#endif
++	ret = nor->read_reg(nor, opcode, &val, 1);
+ 	if (ret < 0) {
+-		pr_err("error %d reading SR\n", (int) ret);
+++		pr_err("error %d reading SR\n", ret);
+ 		return ret;
+ 	}
+ 
+@@ -116,9 +132,11 @@ static int read_fsr(struct spi_nor *nor)
+ static int read_cr(struct spi_nor *nor)
+ {
+ 	int ret;
+-	u8 val;
++	u8 val, opcode;
+ 
+-	ret = nor->read_reg(nor, SPINOR_OP_RDCR, &val, 1);
++	opcode = (nor->jedec_id == CFI_MFR_MACRONIX) ? 
++			SPINOR_OP_RDCR_MX : SPINOR_OP_RDCR;
++	ret = nor->read_reg(nor, opcode, &val, 1);
+ 	if (ret < 0) {
+ 		dev_err(nor->dev, "error %d reading CR\n", ret);
+ 		return ret;
+@@ -139,7 +157,7 @@ static inline int spi_nor_read_dummy_cycles(struct spi_nor *nor)
+ 	case SPI_NOR_DUAL:
+ 	case SPI_NOR_QUAD:
+ 		return 8;
+-	case SPI_NOR_NORMAL:
++	default:
+ 		return 0;
+ 	}
+ 	return 0;
+@@ -161,7 +179,12 @@ static inline int write_sr(struct spi_nor *nor, u8 val)
+  */
+ static inline int write_enable(struct spi_nor *nor)
+ {
+-	return nor->write_reg(nor, SPINOR_OP_WREN, NULL, 0);
++	u8 opcode = SPINOR_OP_WREN;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.wren_opcode)
++		opcode = nor->sfdp.wren_opcode;
++#endif
++	return nor->write_reg(nor, opcode, NULL, 0);
+ }
+ 
+ /*
+@@ -177,6 +200,58 @@ static inline struct spi_nor *mtd_to_spi_nor(struct mtd_info *mtd)
+ 	return mtd->priv;
+ }
+ 
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++/*
++ * Dummy Cycles calculation for different type of read mode.
++ * It only could be used to SFDP module with device tree
++ * (property name: read_dummy)
++ * rd_dmy[0]: fast read 1_1_1
++ * rd_dmy[1]: fast read 1_1_2
++ * rd_dmy[2]: fast read 1_2_2
++ * rd_dmy[3]: fast read 1_1_4
++ * rd_dmy[4]: fast read 1_4_4
++ */
++static int spi_nor_read_dummy_cycles_w_cr(struct spi_nor *nor,
++		struct dt_rd_dmy* rd_dmy, enum flash_protocol rd_prot)
++{
++	int sr, cr, ret = 0;
++	u8 is_cr_bit7, is_cr_bit6;
++	if (!nor->read_dummy)
++		return 0;
++
++	sr = read_sr(nor);
++	if (sr < 0)
++		return sr;
++	cr = read_cr(nor);
++	if (cr < 0)
++		return cr;
++
++	if (rd_prot <= PROT_1_4_4) {	
++		if (rd_dmy[rd_prot].cr_value != 0xFF) {
++			write_enable(nor);
++			is_cr_bit7 = ((rd_dmy[rd_prot].cr_value & 0x0F) == 0x0F);
++			is_cr_bit6 = ((rd_dmy[rd_prot].cr_value & 0xF0) == 0xF0);
++			if (is_cr_bit7) {
++				cr &= 0x7F;
++				cr |= (rd_dmy[rd_prot].cr_value & 0x10) << 3;
++			} else if (is_cr_bit6) {
++				cr &= 0xBF;
++				cr |= (rd_dmy[rd_prot].cr_value & 0x01) << 6;
++			} else {
++				cr &= 0x3F;
++				cr |= (rd_dmy[rd_prot].cr_value & 0x03) << 6;
++			}
++			ret = write_sr_cr(nor, (cr << 8) | sr);
++			if (ret < 0)
++				return ret;
++		}
++	} else {
++		return 0;
++	}
++	return rd_dmy[rd_prot].dummy;
++}
++#endif
++
+ /* Enable/disable 4-byte addressing mode. */
+ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
+ 			    int enable)
+@@ -185,6 +260,12 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
+ 	bool need_wren = false;
+ 	u8 cmd;
+ 
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (enable && nor->sfdp.en_4b_w_wren_support)
++		need_wren = true;
++	if (!enable && nor->sfdp.ex_4b_w_wren_support)
++		need_wren = true;
++#endif
+ 	switch (JEDEC_MFR(info)) {
+ 	case SNOR_MFR_MICRON:
+ 		/* Some Micron need WREN command; all will accept it */
+@@ -199,20 +280,37 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
+ 		if (need_wren)
+ 			write_disable(nor);
+ 
+-		return status;
++		if (status < 0)
++			return status;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++		if (enable && 
++				(!nor->sfdp.en4b_support && nor->sfdp.sfdp_ver < 16)) {
++			int cr = read_cr(nor);
++			if (cr < 0)
++				return cr;
++			nor->sfdp.ear_support = !(cr & 0x20);
++		}
++		break;
++#endif
+ 	default:
+ 		/* Spansion style */
+ 		nor->cmd_buf[0] = enable << 7;
+ 		return nor->write_reg(nor, SPINOR_OP_BRWR, nor->cmd_buf, 1);
+ 	}
++
++	return 0;
+ }
+ static inline int spi_nor_sr_ready(struct spi_nor *nor)
+ {
+ 	int sr = read_sr(nor);
+ 	if (sr < 0)
+ 		return sr;
+-	else
+-		return !(sr & SR_WIP);
++
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.sr_busy_bit7_support)
++		return !!(sr & BIT(7));
++#endif
++	return !(sr & SR_WIP);
+ }
+ 
+ static inline int spi_nor_fsr_ready(struct spi_nor *nor)
+@@ -273,6 +371,82 @@ static int spi_nor_wait_till_ready(struct spi_nor *nor)
+ }
+ 
+ /*
++ * read_ear - Get the extended address register value
++ */
++static int read_ear(struct spi_nor *nor, struct flash_info *info)
++{
++	int ret;
++	u8 val;
++	u8 code;
++	
++	switch (JEDEC_MFR(info)) {
++		case CFI_MFR_AMD:
++			code = SPINOR_OP_BRRD;
++			break;
++		case CFI_MFR_ST:
++		case CFI_MFR_MACRONIX:
++			code = SPINOR_OP_RDEAR;
++			break;
++		default: return -EINVAL;
++	}
++
++	ret = nor->read_reg(nor, code, &val, 1);
++	if (ret < 0)
++		return ret;
++
++	return val;
++}
++/*
++ * Update Extended Address Register. 
++ */
++static int write_ear(struct spi_nor *nor, u32 addr)
++{
++	u8 code;
++	u8 ear;
++	int ret;
++	struct mtd_info *mtd = &nor->mtd;
++
++	/* Wait until finished previous write command. */
++	if (spi_nor_wait_till_ready(nor))
++		return 1;
++
++	if (mtd->size <= (OFFSET_16_MB))
++		return 0;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (!nor->sfdp.ear_support)
++		return 0;
++#endif
++
++	addr = addr % (u32) mtd->size;
++	ear = addr >> 24;
++
++	if (ear == nor->curbank)
++		return 0;	
++
++	switch (nor->jedec_id) {
++		case CFI_MFR_AMD:
++			code = SPINOR_OP_BRWR;
++			break;
++		case CFI_MFR_MACRONIX:
++		case CFI_MFR_ST:
++			write_enable(nor);
++			code = SPINOR_OP_WREAR;
++			break;
++		default: return -EINVAL;
++	}
++
++	nor->cmd_buf[0] = ear;
++
++	ret = nor->write_reg(nor, code, nor->cmd_buf, 1);
++	if (ret < 0)
++		return ret;
++
++	nor->curbank = ear;
++
++	return 0;
++}
++
++/*
+  * Erase the whole flash memory
+  *
+  * Returns 0 if successful, non-zero otherwise.
+@@ -371,6 +545,16 @@ static int spi_nor_erase(struct mtd_info *mtd, struct erase_info *instr)
+ 			if ( addr >= 0x1000000 )
+ 				set_4byte(nor, nor->priv1, 1);
+ #endif /* CONFIG_M25PXX_STAY_IN_3BYTE_MODE */
++
++			if (nor->addr_width == 3) {				
++				ret = write_ear(nor, addr);
++				if (ret)
++					goto erase_err;
++			}
++			ret = spi_nor_wait_till_ready(nor);
++			if (ret)
++				goto erase_err;
++
+ 			
+ 			write_enable(nor);
+ 
+@@ -411,6 +595,189 @@ erase_err:
+ 	return ret;
+ }
+ 
++static inline uint16_t min_lockable_sectors(struct spi_nor *nor,
++					    uint16_t n_sectors)
++{
++	uint16_t lock_granularity;
++
++	/*
++	 * Revisit - SST (not used by us) has the same JEDEC ID as micron but
++	 * protected area table is similar to that of spansion.
++	 */
++	lock_granularity = max(1, n_sectors/M25P_MAX_LOCKABLE_SECTORS);
++	if (nor->jedec_id == CFI_MFR_ST || nor->jedec_id == CFI_MFR_MACRONIX)	/* Micron & Macronix*/
++		lock_granularity = 1;
++
++	return lock_granularity;
++}
++
++static inline uint32_t get_protected_area_start(struct spi_nor *nor,
++						uint8_t lock_bits)
++{
++	u16 n_sectors;
++	u32 sector_size;
++	uint64_t mtd_size;
++	struct mtd_info *mtd = &nor->mtd;
++
++	n_sectors = nor->n_sectors;
++	sector_size = nor->sector_size;
++	mtd_size = mtd->size;	
++
++	return mtd_size - (1<<(lock_bits-1)) *
++		min_lockable_sectors(nor, n_sectors) * sector_size;
++}
++
++static uint8_t min_protected_area_including_offset(struct spi_nor *nor,
++						   uint32_t offset)
++{
++	uint8_t lock_bits, lockbits_limit;
++
++	/*
++	 * Revisit - SST (not used by us) has the same JEDEC ID as micron but
++	 * protected area table is similar to that of spansion.
++	 * Mircon has 4 block protect bits.
++	 */
++	lockbits_limit = 7;
++	if (nor->jedec_id == CFI_MFR_ST || nor->jedec_id == CFI_MFR_MACRONIX)	/* Micron & MACRONIX*/
++		lockbits_limit = 15;
++
++	for (lock_bits = 1; lock_bits < lockbits_limit; lock_bits++) {
++		if (offset >= get_protected_area_start(nor, lock_bits))
++			break;
++	}
++	return lock_bits;
++}
++
++static int write_sr_modify_protection(struct spi_nor *nor, uint8_t status,
++				      uint8_t lock_bits)
++{
++	uint8_t status_new, bp_mask;
++	u16 val;
++
++	status_new = status & ~SR_BP_BIT_MASK;
++	bp_mask = (lock_bits << SR_BP_BIT_OFFSET) & SR_BP_BIT_MASK;
++
++	/* Micron & Macronix*/
++	if (nor->jedec_id == CFI_MFR_ST) {
++		/* To support chips with more than 896 sectors (56MB) */
++		status_new &= ~SR_BP3;
++
++		/* Protected area starts from top */
++		status_new &= ~SR_BP_TB;
++
++		if (lock_bits > 7)
++			bp_mask |= SR_BP3;
++	}
++	if (nor->jedec_id == CFI_MFR_MACRONIX) {
++		/* To support chips with more than 896 sectors (56MB) */
++		status_new &= ~SR_BP3_MX;
++
++		if (lock_bits > 7)
++			bp_mask |= SR_BP3_MX;
++
++		if (write_enable(nor))
++			return 1;
++	}
++
++	status_new |= bp_mask;
++
++	write_enable(nor);
++
++	/* For spansion flashes */
++	if (nor->jedec_id == CFI_MFR_AMD) {
++		val = read_cr(nor) << 8;
++		val |= status_new;
++		if (write_sr_cr(nor, val) < 0)
++			return 1;
++	} else {
++		if (write_sr(nor, status_new) < 0)
++			return 1;
++	}
++	return 0;
++}
++
++static uint8_t bp_bits_from_sr(struct spi_nor *nor, uint8_t status)
++{
++	uint8_t ret;
++
++	ret = (((status) & SR_BP_BIT_MASK) >> SR_BP_BIT_OFFSET);
++	if (nor->jedec_id == CFI_MFR_MACRONIX)
++		ret |= ((status & SR_BP3_MX) >> (SR_BP_BIT_OFFSET));
++	else if (nor->jedec_id == 0x20)
++		ret |= ((status & SR_BP3) >> (SR_BP_BIT_OFFSET + 1));
++
++	return ret;
++}
++
++static int nor_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
++{
++	int ret;
++	uint8_t status;
++	uint8_t lock_bits;
++	
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	status = read_sr(nor);
++
++	lock_bits = min_protected_area_including_offset(nor, ofs);
++
++	/* Only modify protection if it will not unlock other areas */
++	if (lock_bits > bp_bits_from_sr(nor, status))
++		ret = write_sr_modify_protection(nor, status, lock_bits);
++	else
++		dev_err(nor->dev, "trying to unlock already locked area\n");
++	return ret;
++}
++static int nor_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
++{
++	int ret;	
++	uint8_t status;
++	uint8_t lock_bits;
++	
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	status = read_sr(nor);
++
++	lock_bits = min_protected_area_including_offset(nor, ofs+len) - 1;
++
++	/* Only modify protection if it will not lock other areas */
++	if (lock_bits < bp_bits_from_sr(nor, status))
++		ret = write_sr_modify_protection(nor, status, lock_bits);
++	else
++		dev_err(nor->dev, "trying to lock already unlocked area\n");
++	return ret;
++}
++static int nor_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
++{
++	int ret;	
++	uint32_t protected_area_start;
++	uint8_t status;	
++	
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	status = read_sr(nor);
++
++	protected_area_start = get_protected_area_start(nor,
++						bp_bits_from_sr(nor, status));
++
++	if (ofs >= protected_area_start)
++		ret = MTD_IS_LOCKED;
++	else if (ofs + len - 1 < protected_area_start)
++		ret = MTD_IS_UNLOCKED;
++	else
++		ret = MTD_IS_PARTIALLY_LOCKED;
++	return ret;
++}
++
+ static void stm_get_locked_range(struct spi_nor *nor, u8 sr, loff_t *ofs,
+ 				 uint64_t *len)
+ {
+@@ -513,114 +880,1681 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
+ }
+ 
+ /*
+- * Unlock a region of the flash. See stm_lock() for more info
++ * Check if a region of the flash is (completely) locked. See stm_lock() for
++ * more info.
+  *
+- * Returns negative on errors, 0 on success.
++ * Returns 1 if entire region is locked, 0 if any portion is unlocked, and
++ * negative on errors.
+  */
+-static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
++static int stm_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
+ {
+-	struct mtd_info *mtd = &nor->mtd;
+-	uint8_t status_old, status_new;
+-	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
+-	u8 shift = ffs(mask) - 1, pow, val;
++	int status;
+ 
+-	status_old = read_sr(nor);
++	status = read_sr(nor);
++	if (status < 0)
++		return status;
+ 
+-	/* Cannot unlock; would unlock larger region than requested */
+-	if (stm_is_locked_sr(nor, ofs - mtd->erasesize, mtd->erasesize,
+-			     status_old))
+-		return -EINVAL;
++	return stm_is_locked_sr(nor, ofs, len, status);
++}
+ 
+-	/*
+-	 * Need largest pow such that:
+-	 *
+-	 *   1 / (2^pow) >= (len / size)
+-	 *
+-	 * so (assuming power-of-2 size) we do:
+-	 *
+-	 *   pow = floor(log2(size / len)) = log2(size) - ceil(log2(len))
+-	 */
+-	pow = ilog2(mtd->size) - order_base_2(mtd->size - (ofs + len));
+-	if (ofs + len == mtd->size) {
+-		val = 0; /* fully unlocked */
+-	} else {
+-		val = mask - (pow << shift);
+-		/* Some power-of-two sizes are not supported */
+-		if (val & ~mask)
+-			return -EINVAL;
++static int spi_nor_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_LOCK);
++	if (ret)
++		return ret;
++
++	ret = nor->flash_lock(nor, ofs, len);
++
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_UNLOCK);
++	return ret;
++}
++
++static int spi_nor_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_UNLOCK);
++	if (ret)
++		return ret;
++
++	ret = nor->flash_unlock(nor, ofs, len);
++
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_LOCK);
++	return ret;
++}
++
++static int spi_nor_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_UNLOCK);
++	if (ret)
++		return ret;
++
++	ret = nor->flash_is_locked(nor, ofs, len);
++
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_LOCK);
++	return ret;
++}
++
++static void addr2cmd(u8 addr_len, loff_t ofs, u8 *cmd)
++{
++	int cnt;
++	for( cnt = 0; cnt < addr_len; cnt++)
++		cmd[addr_len - cnt] = ((u8 *)&ofs)[cnt];
++}
++static int read_reg_w_addr(struct spi_nor *nor, u8 opcode, 
++		loff_t ofs, u8 ofs_len, u8 *val, int len, int dmy_len)
++{	
++	struct spi_device *spi = nor->spi;
++	u8 command[15];
++	int ret;
++
++	command[0] = opcode;
++	if (ofs_len)
++		addr2cmd(ofs_len, ofs, command);
++
++	ret = spi_write_then_read(spi, command, 1 + ofs_len + dmy_len, val, len);
++	if (ret < 0)
++		dev_err(&spi->dev, "error %d reading reg %x\n", ret, opcode);
++
++	return ret;
++}
++static int write_reg_w_addr(struct spi_nor *nor, u8 opcode, 
++		loff_t ofs, u8 ofs_len, u8 *buf, int len)
++{		
++	u8 command[20] = {0};
++
++	command[0] = opcode;
++	if (ofs_len)
++		addr2cmd(ofs_len, ofs, command);
++	if (len)
++		memcpy(&command[1 + ofs_len], buf, len);
++
++	return spi_write(nor->spi, command, 1 + ofs_len + len);
++}
++/* read security register, TX: 1B cmd, RX: 1B read data */
++static int spi_nor_rdscur(struct spi_nor *nor, u8 *val)
++{
++	return nor->read_reg(nor, SPINOR_OP_RDSCUR, val, 1);
++}
++/* write scurity register*/
++static int spi_nor_wrscur(struct spi_nor *nor)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_WRSCUR, NULL, 0);
++	if (ret)
++		return ret;
++	return spi_nor_wait_till_ready(nor);
++}
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++/*
++ * Read the status register, returning its value in the location
++ * Return the status register value.
++ * Returns negative if error occurred.
++ */
++static int mult_io_read(struct spi_nor *nor, loff_t from, size_t len,
++		size_t *retlen, u_char *buf)
++{
++	struct spi_transfer x[3];
++	struct spi_message m;
++	u8 num_x = 1;
++	unsigned dummy = nor->read_dummy;
++	u8 command[30];
++	int ret;
++	u8 nbits;
++	
++	memset(x, 0, sizeof(x));
++	memset(command, 0, sizeof(command));
++
++	command[0] = nor->read_opcode;
++	addr2cmd(nor->addr_width, from, command);
++
++	x[0].len = 1;
++	x[0].tx_buf = command;
++	x[0].tx_nbits = nor->rd_cmd_nbits;
++
++	if (nor->addr_width) {
++		switch (nor->dummy_io_sel) {
++			case 1:	nbits = nor->rd_data_nbits;	break;
++			case 2: nbits = nor->rd_addr_nbits;	break;
++			case 3: nbits = nor->rd_cmd_nbits;	break;
++			default: nbits = nor->rd_data_nbits; break;
++		}
++		switch (nbits) {
++			case 1:	dummy /= 8;	break;
++			case 2: dummy /= 4; break;
++			case 4: dummy /= 2; break;
++			default:			break;
++		}
++		if (nor->rd_cmd_nbits == nor->rd_addr_nbits) {
++			x[0].len += nor->addr_width + dummy;
++		} else {
++			x[1].len = nor->addr_width + dummy;
++			x[1].tx_buf = &command[1];
++			x[1].tx_nbits = nor->rd_addr_nbits;
++			num_x++;
++		}
++	}
++
++	x[num_x].len = len;
++	x[num_x].rx_buf = buf;
++	x[num_x].rx_nbits = nor->rd_data_nbits;
++
++	spi_message_init_with_transfers(&m, x, num_x + 1);
++	ret = spi_sync(nor->spi, &m);	     
++	*retlen = m.actual_length - (1 + nor->addr_width) - dummy;
++	return ret;
++}
++static void mult_io_write(struct spi_nor *nor, loff_t to, size_t len,
++		size_t *retlen, const u_char *buf)
++{	
++	struct spi_transfer x[3];
++	struct spi_message m;
++	u8 command[6] = {0};
++	u8 num_x = 1;
++
++	memset(x, 0, sizeof(x));	
++
++	command[0] = nor->program_opcode;
++	addr2cmd(nor->addr_width, to, command);
++
++	x[0].len = 1;
++	x[0].tx_buf = command;
++	x[0].tx_nbits = nor->pgm_cmd_nbits;
++
++	if (nor->addr_width) {
++		if (nor->pgm_cmd_nbits == nor->pgm_addr_nbits) {
++			x[0].len += nor->addr_width;
++		} else {
++			x[1].len = nor->addr_width;
++			x[1].tx_buf = &command[1];
++			x[1].tx_nbits = nor->pgm_addr_nbits;
++			num_x++;
++		}
++	}
++	x[num_x].len = len;
++	x[num_x].tx_buf = buf;
++	x[num_x].tx_nbits = nor->pgm_data_nbits;
++
++	spi_message_init_with_transfers(&m, x, num_x + 1);
++	spi_sync(nor->spi, &m);	
++	*retlen += m.actual_length - (1 + nor->addr_width);
++}
++static int spi_nor_wrlcr(struct spi_nor *nor, u8 val)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = nor->write_reg(nor, SPINOR_OP_WRLCR, &val, 1);
++	if (ret)
++		return ret;
++	return spi_nor_wait_till_ready(nor);
++}
++static int spi_nor_rrlcr(struct spi_nor *nor, u8 *val)
++{
++	return nor->read_reg(nor, SPINOR_OP_RRLCR, val, 1);
++}
++static int spi_nor_rdlock_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 val;
++	int ret;
++	if (ofs > 7)
++		return 0;
++
++	if (len + ofs > 8)
++		len = 8 - ofs;
++	ret = spi_nor_rrlcr(nor, &val);
++	if (ret)
++		return ret;
++
++	val |= (0xFF >> (8 - len)) << ofs;
++	return spi_nor_wrlcr(nor, val);
++}
++static int spi_nor_rdlock_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 val;
++	int ret;
++	if (ofs > 7)
++		return 0;
++
++	if (len + ofs > 8)
++		len = 8 - ofs;
++	ret = spi_nor_rrlcr(nor, &val);
++	if (ret)
++		return ret;
++
++	val &= ~((0xFF >> (8 - len)) << ofs);
++	return spi_nor_wrlcr(nor, val);
++}
++static int spi_nor_rdlock_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 val, val_temp;
++	int ret;
++	if (ofs > 7)
++		return 0;
++
++	if (len + ofs > 8)
++		len = 8 - ofs;
++
++	ret = spi_nor_rrlcr(nor, &val);
++	if (ret)
++		return ret;
++
++	val_temp = (0xFF >> (8 - len)) << ofs;
++	if ((val & val_temp) == val_temp)
++		return val_temp ? MTD_IS_LOCKED : MTD_IS_UNLOCKED;
++
++	return MTD_IS_PARTIALLY_LOCKED;
++}
++/* Gang block lock (GBLK) */
++static int spi_nor_gblk(struct spi_nor *nor)
++{
++	return nor->write_reg(nor, SPINOR_OP_GBLK, NULL, 0);
++}
++/* Gan block unlock (GBULK) */
++static int spi_nor_gbulk(struct spi_nor *nor)
++{
++	return nor->write_reg(nor, SPINOR_OP_GBULK, NULL, 0);
++}
++/* Read electronic signature (RES) */
++static int spi_nor_rdes(struct spi_nor *nor, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDES, 0, 3, val, 1, 0);
++}
++/* Read electronic manufacturer ID */
++static int spi_nor_rdems(struct spi_nor * nor, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDEMS, 0, 3, val, 2, 0);
++}
++/* Read electronic manufacturer ID 2xIO*/
++static int spi_nor_rdems2(struct spi_nor * nor, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDEMS2, 0, 3, val, 2, 0);
++}
++/* Read electronic manufacturer ID 4xIO*/
++static int spi_nor_rdems4(struct spi_nor * nor, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDEMS4, 0, 3, val, 2, 0);
++}
++/*
++ * software reset, return the device to its default power-on state
++ */
++static int spi_nor_sw_rst(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.sfdp_ver >= 16 &&
++			nor->sfdp.sw_rst_f0_support)
++		return nor->write_reg(nor, 0xF0, NULL, 0);
++#endif
++	ret = nor->write_reg(nor, SPINOR_OP_SWRESETEN, NULL, 0);
++	if (ret)
++		return ret;
++	return nor->write_reg(nor, SPINOR_OP_SWRESET, NULL, 0);
++
++}
++/*
++ * Deep power down / Release deep power down
++ */
++static int spi_nor_dp(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 opcode = SPINOR_OP_DP;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.en_dpd_opcode)
++		opcode = nor->sfdp.en_dpd_opcode;
++#endif
++	return nor->write_reg(nor, opcode, NULL, 0);
++}
++static int spi_nor_rdp(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 opcode = SPINOR_OP_RDP;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.ex_dpd_opcode)
++		opcode = nor->sfdp.ex_dpd_opcode;
++#endif
++	return nor->write_reg(nor, opcode, NULL, 0);
++}
++/*
++ * Power suspend and resume.
++ */
++static int spi_nor_suspend(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 opcode = SPINOR_OP_SUSP;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.susp_opcode)
++		opcode = nor->sfdp.susp_opcode;
++#endif
++	return nor->write_reg(nor, opcode, NULL, 0);
++}
++
++static void spi_nor_resume(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 opcode = SPINOR_OP_RESU;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	if (nor->sfdp.resu_opcode)
++		opcode = nor->sfdp.resu_opcode;
++#endif
++	nor->write_reg(nor, opcode, NULL, 0);
++}
++static inline int spi_nor_ensa(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	return nor->write_reg(nor, SPINOR_OP_ENSA, NULL, 0);
++}
++static inline int spi_nor_exsa(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	return nor->write_reg(nor, SPINOR_OP_EXSA, NULL, 0);
++}
++static inline int spi_nor_esry(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	return nor->write_reg(nor, SPINOR_OP_ESRY, NULL, 0);
++}
++static inline int spi_nor_dsry(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	return nor->write_reg(nor, SPINOR_OP_DSRY, NULL, 0);
++}
++static inline int spi_nor_eqio(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	return nor->write_reg(nor, SPINOR_OP_EQIO, NULL, 0);
++}
++static inline int spi_nor_rstqio(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 cmd = SPINOR_OP_RSTQIO;
++
++	struct spi_message	m;
++	struct spi_transfer	t = {
++			.tx_buf		= &cmd,
++			.len		= 1,
++			.tx_nbits = 4
++		};
++	spi_message_init_with_transfers(&m, &t, 1);
++	return spi_sync(nor->spi, &m);
++}
++/*
++ * Write an address range to the nor chip.  Data must be written in
++ * FLASH_PAGESIZE chunks.  The address range may be any size provided
++ * it is within the physical boundaries.
++ */
++static void spi_nor_do_write(struct spi_nor *nor, loff_t to, size_t len,
++			size_t *retlen, const u_char *buf)
++{
++	u32 page_offset, page_size, i;
++
++	spi_nor_wait_till_ready(nor);
++
++	write_enable(nor);
++
++	page_offset = to & (nor->page_size - 1);
++
++	/* do all the bytes fit onto one page? */
++	if (page_offset + len <= nor->page_size) {
++		nor->write(nor, to, len, retlen, buf);
++	} else {
++		/* the size of data remaining on the first page */
++		page_size = nor->page_size - page_offset;
++		nor->write(nor, to, page_size, retlen, buf);
++
++		/* write everything in nor->page_size chunks */
++		for (i = page_size; i < len; i += page_size) {
++			page_size = len - i;
++			if (page_size > nor->page_size)
++				page_size = nor->page_size;
++
++			spi_nor_wait_till_ready(nor);
++			write_enable(nor);
++
++			nor->write(nor, to + i, page_size, retlen, buf + i);
++		}
++	}
++}
++/*
++ * Read/Write manufacture or user protection area (One Time Program).
++ * Enter security OTP mode before access, and exit after access.
++ * The OTP area can be locked to prevent any modification, and there
++ * is no way to unlock it.
++ */
++static int spi_nor_otp(struct mtd_info *mtd, loff_t addr, size_t len,
++		size_t *retlen, u_char *buf, enum spi_nor_ops ops)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	u8 val;
++
++	ret = spi_nor_lock_and_prep(nor, ops);
++	if (ret)
++		return ret;
++
++	/* enter security OTP */
++	ret = nor->write_reg(nor, SPINOR_OP_ENSO, NULL, 0);
++	if (ret) {
++		spi_nor_unlock_and_unprep(nor, ops);
++		return ret;
++	}
++
++	if (ops == SPI_NOR_OPS_READ)
++		nor->read(nor, addr, len, retlen, buf);
++
++	else { /* ops == SPI_NOR_OPS_WRITE */
++
++		/* exit if OTP has been locked */
++		ret = spi_nor_rdscur(nor, &val);
++		if (ret || val & 0x3) {
++			spi_nor_unlock_and_unprep(nor, ops);
++			return ret;
++		}
++		spi_nor_do_write(nor, addr, len, retlen, buf);
++	}
++
++	/* eixt security OTP */
++	nor->write_reg(nor, SPINOR_OP_EXSO, NULL, 0);
++
++	spi_nor_unlock_and_unprep(nor, ops);
++	return 0;
++}
++
++static int spi_nor_get_fact_prot_info(struct mtd_info *mtd, size_t len,
++				size_t *retlen, struct otp_info *buf)
++{
++	/*
++	 * Factor area stores electronical serial number (ESN).
++	 * And the area can not be modified.
++	 */
++	buf->start  = 0;
++	buf->length = 0x10;
++	buf->locked = 1;
++	return 0;
++}
++
++static int spi_nor_read_fact_prot_reg(struct mtd_info *mtd, loff_t from,
++				size_t len, size_t *retlen, u_char *buf)
++{
++	if (from < 0 || from + len > 0x10)
++		return -EINVAL;
++	return spi_nor_otp(mtd, from, len, retlen, buf, SPI_NOR_OPS_READ);
++}
++
++static int spi_nor_get_user_prot_info(struct mtd_info *mtd, size_t len,
++				size_t *retlen, struct otp_info *buf)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 val;
++	int ret;
++
++	buf->start  = 0x10;
++	if (mtd->size > 0x800000) {
++	    /* The OTP size are 0x200 if the device exceeds 8MiB. */
++	    buf->length = 0x1f0;
++	} else {
++	    buf->length = 0x30;
++	}
++	ret = spi_nor_rdscur(nor, &val);
++	if (ret)
++		return ret;
++	buf->locked = (val & 0x03) ? 1 : 0;
++	return 0;
++}
++
++static int spi_nor_read_user_prot_reg(struct mtd_info *mtd, loff_t from,
++				size_t len, size_t *retlen, u_char *buf)
++{
++	if (from < 0x10 || from + len > 0x40 ||
++		(mtd->size > 0x800000 && from + len > 0x200)) {
++		return -EINVAL;
++	}
++	return spi_nor_otp(mtd, from, len, retlen, buf, SPI_NOR_OPS_READ);
++}
++
++static int spi_nor_write_user_prot_reg(struct mtd_info *mtd, loff_t to,
++				size_t len, size_t *retlen, u_char *buf)
++{
++	if (to < 0x10 || to + len > 0x40 ||
++		(mtd->size > 0x800000 && to + len > 0x200)) {
++		return -EINVAL;
++	}
++	return spi_nor_otp(mtd, to, len, retlen, buf, SPI_NOR_OPS_WRITE);
++}
++
++/*
++ * Write LDSO bit (Lock-Down Security OTP) to 1.
++ */
++static int spi_nor_lock_user_prot_reg(struct mtd_info *mtd, loff_t from,
++				size_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u8 val;
++	int ret;
++
++	ret = spi_nor_rdscur(nor, &val);
++	if (ret)
++		return ret;
++
++	if (val & 0x02)
++		return 0;
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_LOCK);
++	if (ret)
++		return ret;
++
++	write_enable(nor);
++	ret = spi_nor_wrscur(nor);
++	if (ret)
++		goto err;
++
++	ret = spi_nor_rdscur(nor, &val);
++	if (ret)
++		goto err;
++
++	ret = (val & 0x02) ? 0 : -EINVAL;
++
++err:
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_LOCK);
++	return ret;
++}
++#endif
++/* ---------------------- ASP Interface implement ---------------------- */
++/* write lock register, TX: 1B cmd + 2B write data */
++static int spi_nor_wrlr(struct spi_nor *nor, u16 val)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_WRLR, (u8 *)&val, 2);
++	if (ret)
++		return ret;
++	return spi_nor_wait_till_ready(nor);
++}
++/* read lock register, TX: 1B cmd, RX: 1B read data */
++static int spi_nor_rdlr(struct spi_nor *nor, u16 *val)
++{
++	return nor->read_reg(nor, SPINOR_OP_RDLR, (u8 *)val, 2);
++}
++/* cut ofs to boundary point */
++static int set_boundary(struct mtd_info *mtd, loff_t *ofs_s, loff_t *ofs_e, u8 islocked)
++{
++	loff_t ofs, bdy_size, mod, wp64k_first, wp64k_last;
++
++	if (*ofs_s >= mtd->size)
++		return -EINVAL;
++
++	if (*ofs_e >= mtd->size)
++		*ofs_e = mtd->size - 1;
++
++	/* check ofs */
++	ofs = *ofs_s;
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
++
++	bdy_size = (*ofs_s < wp64k_first || *ofs_s >= wp64k_last) ? MX_4KB : MX_64KB;
++	mod = do_div(ofs, bdy_size);
++	if (mod)
++		*ofs_s += bdy_size - mod;
++
++	ofs = *ofs_e;
++	bdy_size = (*ofs_e <= wp64k_first || *ofs_e > wp64k_last) ? MX_4KB : MX_64KB;
++	mod = do_div(ofs, bdy_size);
++	if (mod && mod != (bdy_size - 1))
++		*ofs_e -= mod + 1;
++	else if (!mod)
++		(*ofs_e)--;
++
++	if ((*ofs_s > *ofs_e && !islocked) || *ofs_s >= mtd->size || (*ofs_e) >= mtd->size )
++		return -EINVAL;
++
++	return 0;
++}
++/* write solid protection bit, TX: 1B cmd + 4B addr + 1B write data */
++static int spi_nor_wrspb(struct spi_nor *nor, loff_t ofs)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_WRSPB, ofs, nor->addr_width, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* read solid protection bit, TX: 1B cmd + 4B addr + 1B write data */
++static int spi_nor_rdspblk(struct spi_nor *nor, loff_t ofs, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDSPB, ofs, nor->addr_width, val, 1, 0);
++}
++/* write dynamic protection bit, TX: 1B cmd + 4B addr + 1B write data */
++static int spi_nor_wrdpb(struct spi_nor *nor, loff_t ofs, u8 val)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_WRDPB, ofs, nor->addr_width, &val, 1);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* read dynamic protection bit, TX: 1B cmd + 4B addr, RX: 1B read data */
++static int spi_nor_rddpb(struct spi_nor *nor, loff_t ofs, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDDPB, ofs, nor->addr_width, val, 1, 0);
++}
++static int spi_nor_rdblk(struct spi_nor *nor, loff_t ofs, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDBLOCK, ofs, nor->addr_width, val, 1, 0);
++}
++/* read block write lock protection status */
++static int spi_nor_rdbwl(struct spi_nor *nor, loff_t ofs, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDSPB, ofs, 3, val, 1, 1);
++}
++/* read permanent lock status */
++static int spi_nor_rdplock(struct spi_nor *nor, loff_t ofs, u8 *val)
++{
++	return read_reg_w_addr(nor, SPINOR_OP_RDPLOCK, ofs, nor->addr_width, val, 1, 0);
++}
++/*
++ * Single lock: volatile lock used on E-series chips.
++ */
++static int spi_nor_sblk(struct spi_nor *nor, loff_t ofs)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_SBLK, ofs, nor->addr_width, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++static int spi_nor_sbulk(struct spi_nor *nor, loff_t ofs)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_SBULK, ofs, nor->addr_width, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* permanent lock */
++static int spi_nor_plock(struct spi_nor *nor, loff_t ofs)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_PLOCK, ofs, nor->addr_width, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* block write lock protection */
++static int spi_nor_bwlp(struct spi_nor *nor, loff_t ofs)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++	ret = write_reg_w_addr(nor, SPINOR_OP_BWLP, ofs, nor->addr_width, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++static int spi_nor_asp_is_locked_check(struct spi_nor *nor, loff_t ofs_s, loff_t ofs_e, enum MX_ASP_MODE ASP_MODE)
++{
++	loff_t bdy_size, ofs_s_org = ofs_s, wp64k_first = MX_WP64K_FIRST, wp64k_last = MX_WP64K_LAST(nor->mtd.size);
++	u8 val_old, val;
++	int ret;
++
++	for (val = 0; ofs_s <= ofs_e; ofs_s += bdy_size) {
++		bdy_size = (ofs_s < wp64k_first || ofs_s >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		switch (ASP_MODE) {
++		case ASP_SPB:	ret = spi_nor_rdspblk(nor, ofs_s, &val);		break;
++		case ASP_DPB:	ret = spi_nor_rddpb(nor, ofs_s, &val);		break;
++		case ASP_SB:	ret = spi_nor_rdblk(nor, ofs_s, &val);		break;
++		case ASP_BWL:	ret = spi_nor_rdbwl(nor, ofs_s, &val);		break;
++		case ASP_PERM:	ret = spi_nor_rdplock(nor, ofs_s, &val);		break;
++		default: return -EINVAL;
++		}
++		if (ret)
++			return ret;
++
++		if (ofs_s == ofs_s_org)
++			val_old = val;
++
++		if (val_old != val)
++			return MTD_IS_PARTIALLY_LOCKED;
++
++	}
++	return !val ? MTD_IS_UNLOCKED : MTD_IS_LOCKED;
++}
++/* only for dpb lock/unlock and spb lock*/
++static int spi_nor_asp_mode_set(struct spi_nor *nor, loff_t ofs_s, loff_t ofs_e, enum MX_ASP_MODE ASP_MODE)
++{
++	u8 val_lock = 0xFF, val_unlock = 0x00;
++	int ret;
++	loff_t bdy_size, wp64k_first = MX_WP64K_FIRST, wp64k_last = MX_WP64K_LAST(nor->mtd.size);
++
++	for (; ofs_s <= ofs_e; ofs_s += bdy_size) {
++		bdy_size = (ofs_s < wp64k_first || ofs_s >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		switch (ASP_MODE) {
++			case ASP_DPB_LOCK:		ret = spi_nor_wrdpb(nor, ofs_s, val_lock);		break;
++			case ASP_DPB_UNLOCK:	ret = spi_nor_wrdpb(nor, ofs_s, val_unlock);	break;
++			case ASP_SPB_LOCK:		ret = spi_nor_wrspb(nor, ofs_s);				break;
++			case ASP_SBLK:			ret = spi_nor_sblk(nor, ofs_s);					break;
++			case ASP_SBULK:			ret = spi_nor_sbulk(nor, ofs_s);				break;
++			case ASP_PLOCK:         ret = spi_nor_plock(nor, ofs_s);				break;
++			case ASP_BWL_LOCK:		ret = spi_nor_bwlp(nor, ofs_s);					break;
++			default:
++				return -EINVAL;
++		}		
++	}
++	return 0;
++}
++static int spi_nor_wpsel(struct spi_nor *nor)
++{
++	int ret;
++	u8 val;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_WPSEL, NULL, 0);
++	if (ret)
++		return ret;
++
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	ret = spi_nor_rdscur(nor, &val);
++	if (ret)
++		return ret;
++	if (!(val & WPSEL_MASK)) {
++		dev_err(nor->dev, "ERROR: command WPSEL failed, WPSEL: 0\n");
++		return -EINVAL;
++	}
++	return ret;
++}
++
++/* read  spb lock register, TX: 1B cmd, RX: 1B read data */
++static int spi_nor_rdspblklk(struct spi_nor *nor, u8 *val)
++{
++	return nor->read_reg(nor, SPINOR_OP_RDSPBLK, val, 1);
++}
++/* spb lock set, TX: 1B cmd */
++static int spi_nor_spblk(struct spi_nor *nor)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_SPBLK, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* chip un protection */
++static int flash_unlock(struct spi_nor *nor)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_CPULK, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++
++static int spi_nor_singleblock_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	loff_t ofs_s, ofs_e;
++	u8 wpsel;
++
++	ret = spi_nor_rdscur(nor, &wpsel);
++	if (ret)
++		return ret;
++
++	if (!(wpsel & WPSEL_MASK))
++		return spi_nor_lock(mtd, ofs, len);
++
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_SBLK);
++}
++static int spi_nor_singleblock_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	loff_t ofs_s, ofs_e;
++	u8 wpsel;
++
++	ret = spi_nor_rdscur(nor, &wpsel);
++	if (ret)
++		return ret;
++
++	if (!(wpsel & WPSEL_MASK))
++		return spi_nor_unlock(mtd, ofs, len);
++
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_SBULK);
++}
++
++static int spi_nor_singleblock_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	loff_t ofs_s_org, ofs_e_org, ofs_s, ofs_e, wp64k_first, wp64k_last;
++
++	u8 wpsel;
++
++	ret = spi_nor_rdscur(nor, &wpsel);
++	if (ret)
++		return ret;
++
++	if (!(wpsel & WPSEL_MASK))
++		return spi_nor_is_locked(mtd, ofs, len);
++
++	ofs_s_org = ofs_s = ofs;
++	ofs_e_org = ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 1);
++	if (ret)
++		return ret;
++
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
++
++	if (ofs_s_org != ofs_s && ofs_s)
++		ofs_s -= (ofs_s <= wp64k_first || ofs_s > wp64k_last) ? MX_4KB : MX_64KB;
++
++	if (ofs_e_org != ofs_e && ofs_e)
++		ofs_e += (ofs_e < wp64k_first || ofs_e >= wp64k_last) ? MX_4KB : MX_64KB;
++
++	return spi_nor_asp_is_locked_check(nor, ofs_s, ofs_e, ASP_SB);
++}
++
++static int spi_nor_permanent_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++		int ret;
++		loff_t ofs_s, ofs_e;
++
++		ofs_s = ofs;
++		ofs_e = ofs + len -1;
++		ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++		if (ret)
++			return ret;
++		return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_PLOCK);
++
++	return 0;
++}
++
++static int spi_nor_permanent_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	/* can't un-lock because the function's protection is 'permanent' */
++	return 0;
++}
++
++static int spi_nor_permanent_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	loff_t ofs_s, ofs_e, ofs_s_org, ofs_e_org, wp64k_first, wp64k_last;
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	ofs_s_org = ofs_s = ofs;
++	ofs_e_org = ofs_e = ofs + len -1;
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 1);
++	if (ret)
++		return ret;
++
++	if (ofs_s_org != ofs_s && ofs_s)
++		ofs_s -= (ofs_s <= wp64k_first || ofs_s > wp64k_last) ? MX_4KB : MX_64KB;
++
++	if (ofs_e_org != ofs_e && ofs_e)
++		ofs_e += (ofs_e < wp64k_first || ofs_e >= wp64k_last) ? MX_4KB : MX_64KB;
++
++	return spi_nor_asp_is_locked_check(nor, ofs_s, ofs_e, ASP_PERM);
++}
++
++static int spi_nor_bwl_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	loff_t ofs_s, ofs_e;
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	/* for SP and DP */
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_BWL_LOCK);
++}
++static int spi_nor_bwl_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, cnt;
++	loff_t ofs_s, ofs_e;
++	loff_t bdy_size, ofs_now, wp64k_first, wp64k_last;
++	int block_num;
++	u8 *lock_data;
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(nor->mtd.size);
++	block_num = MX_ADVANCED_LOCK_NUMBER(nor->mtd.size);
++	lock_data = kmalloc(block_num, GFP_KERNEL);
++	if (!lock_data)
++		return -ENOMEM;
++
++	/* record lock info to spb_lock_data */
++	for (ofs_now = 0, cnt = 0; cnt < block_num; cnt++, ofs_now += bdy_size) {
++		bdy_size = (ofs_now < wp64k_first || ofs_now >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		if (ofs_now >= ofs_s && ofs_now <= ofs_e) {
++			lock_data[cnt] = 0x00;
++		} else {
++			ret = spi_nor_rdbwl(nor, ofs_now, &lock_data[cnt]);
++			if (ret) {
++				kfree(lock_data);
++				return ret;
++			}
++		}
++	}
++
++	/* excute chip unlock */
++	ret = flash_unlock(nor);
++	if (ret) {
++		kfree(lock_data);
++		return ret;
++	}
++
++	/* lock spb */
++	for (ofs_now = 0, cnt = 0; cnt < block_num; cnt++, ofs_now += bdy_size) {
++		bdy_size = (ofs_now < wp64k_first || ofs_now >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		if (lock_data[cnt]) {
++			ret = spi_nor_bwlp(nor, ofs_now);
++			if (ret) {
++				kfree(lock_data);
++				return ret;
++			}
++		}
++	}
++	kfree(lock_data);
++	return ret;
++}
++static int spi_nor_bwl_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	loff_t wp64k_first, wp64k_last, ofs_s_org, ofs_s, ofs_e_org, ofs_e;
++	int ret;
++
++	ofs_s_org = ofs_s = ofs;
++	ofs_e_org = ofs_e = ofs + len -1;
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 1);
++	if (ret)
++		return ret;
++
++	if (ofs_s_org != ofs_s && ofs_s)
++		ofs_s -= (ofs_s <= wp64k_first || ofs_s > wp64k_last) ? MX_4KB : MX_64KB;
++
++	if (ofs_e_org != ofs_e && ofs_e)
++		ofs_e += (ofs_e < wp64k_first || ofs_e >= wp64k_last) ? MX_4KB : MX_64KB;
++
++	return spi_nor_asp_is_locked_check(nor, ofs_s, ofs_e, ASP_BWL);
++}
++/* erase solid protection bit, TX: 1B cmd */
++static int spi_nor_ersspb(struct spi_nor *nor)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_ESSPB, NULL, 0);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* password unlock, TX: 1B cmd + 8B write data */
++static int spi_nor_passulk(struct spi_nor *nor, u8 *val)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_PASSULK, val, 8);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* write password, TX: 1B cmd + 8B write data */
++static int spi_nor_wrpass(struct spi_nor *nor, u8 *val)
++{
++	int ret;
++
++	ret = write_enable(nor);
++	if (ret)
++		return ret;
++
++	ret = nor->write_reg(nor, SPINOR_OP_WRPASS, val, 8);
++	if (ret)
++		return ret;
++
++	return spi_nor_wait_till_ready(nor);
++}
++/* write password, TX: 1B cmd + 8B read data */
++static int spi_nor_rdpass(struct spi_nor *nor, u8 *val)
++{
++	return nor->read_reg(nor, SPINOR_OP_RDPASS, val, 8);
++}
++/*
++ * return the lock mode of inquiry
++ * <0: Error occurred
++ *  0: BP
++ *  1: ASP w/o password
++ *  2: ASP w/ password
++ */
++static int spi_nor_qry_lockmode(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	u8 wpsel;
++ 	u16 lr;
++
++	ret = spi_nor_rdscur(nor, &wpsel);
++	if (ret)
++		return ret;
++
++	ret = spi_nor_rdlr(nor, &lr);
++	if (ret)
++		return ret;
++
++	if (!(wpsel & WPSEL_MASK))
++		return 0;
++
++	if (!(lr & LR_PP_MASK))
++		return 2;
++
++	return 1;
++}
++static int spi_nor_spb_lock(struct spi_nor *nor, loff_t ofs_s, loff_t ofs_e)
++{
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_SPB_LOCK);
++}
++static int spi_nor_asp_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	int ret, mode;
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	loff_t ofs_s, ofs_e;
++
++	/*
++	 * return the lock mode of inquiry
++	 * <0: Error occurred
++	 *  0: BP
++	 *  1: ASP w/o password
++	 *  2: ASP w/ password
++	 */
++	mode = spi_nor_qry_lockmode(mtd);
++	if (mode < 0)
++		return mode;
++
++	if (!mode)
++		return spi_nor_lock(mtd, ofs, len);
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	/* for SP and DP */
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++	if (mode == 1)
++		return spi_nor_spb_lock(nor, ofs_s, ofs_e);
++
++	if (mode == 2) {
++		dev_err(nor->dev, "ERROR: please use 'PASSWORD LOCK SPB MODE' to lock SPBs with password protection mode\n");
++		return -EINVAL;
++	}
++
++	return ret;
++}
++
++static int spi_nor_spb_unlock(struct spi_nor *nor, loff_t ofs_s, loff_t ofs_e)
++{
++	int ret, cnt, lock_num;
++	loff_t bdy_size, ofs_now, wp64k_first = MX_WP64K_FIRST, wp64k_last = MX_WP64K_LAST(nor->mtd.size);
++	int block_num = MX_ADVANCED_LOCK_NUMBER(nor->mtd.size);
++	u8 *spb_data = kmalloc(block_num, GFP_KERNEL);
++
++	if (!spb_data)
++		return -ENOMEM;
++
++	/* record lock info to spb_lock_data */
++	for (ofs_now = 0, cnt = 0; cnt < block_num; cnt++, ofs_now += bdy_size) {
++		bdy_size = (ofs_now < wp64k_first || ofs_now >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		if (ofs_now >= ofs_s && ofs_now <= ofs_e) {
++			spb_data[cnt] = 0x00;
++		} else {
++			ret = spi_nor_rdspblk(nor, ofs_now, &spb_data[cnt]);
++			if (ret) {
++				kfree(spb_data);
++				return ret;
++			}
++		}
++	}
++
++	/* erase spb */
++	ret = spi_nor_ersspb(nor);
++	if (ret) {
++		kfree(spb_data);
++		return ret;
++	}
++	lock_num = MX_ADVANCED_LOCK_NUMBER(nor->mtd.size);
++	/* lock spb */
++	for (ofs_now = 0, cnt = 0; cnt < lock_num; cnt++, ofs_now += bdy_size) {
++		bdy_size = (ofs_now < wp64k_first || ofs_now >= wp64k_last) ? MX_4KB : MX_64KB;
++
++		if (spb_data[cnt]) {
++			ret = spi_nor_wrspb(nor, ofs_now);
++			if (ret) {
++				kfree(spb_data);
++				return ret;
++			}
++		}
++	}
++	kfree(spb_data);
++	return ret;
++}
++static int spi_nor_asp_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, mode;
++	loff_t ofs_s, ofs_e;
++
++	/*
++	 * return the lock mode of inquiry
++	 * <0: Error occurred
++	 *  0: BP
++	 *  1: ASP w/o password
++	 *  2: ASP w/ password
++	 */
++	mode = spi_nor_qry_lockmode(mtd);
++	if (mode < 0)
++		return mode;
++
++	if (!mode)
++		return spi_nor_unlock(mtd, ofs, len);
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	/* for SP and DP */
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++	if (mode == 1)
++		return spi_nor_spb_unlock(nor, ofs_s, ofs_e);
++
++	if (mode == 2) {
++		dev_err(nor->dev, "ERROR: please use 'PASSWORD UNLOCK SPB MODE' to unlock SPBs with password protection mode\n");
++		return -EINVAL;
++	}
++	return ret;
++}
++static int spi_nor_spb_is_locked(struct spi_nor *nor, loff_t ofs_s, loff_t ofs_e)
++{
++	return spi_nor_asp_is_locked_check(nor, ofs_s, ofs_e, ASP_SPB);
++}
++static int spi_nor_asp_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, mode;
++	loff_t ofs_s, ofs_e, ofs_s_org, ofs_e_org, wp64k_first, wp64k_last;
++	/*
++	 * return the lock mode of inquiry
++	 * <0: Error occurred
++	 *  0: BP
++	 *  1: ASP w/o password
++	 *  2: ASP w/ password
++	 */
++	mode = spi_nor_qry_lockmode(mtd);
++	if (mode < 0)
++		return mode;
++
++	if (!mode)
++		return spi_nor_is_locked(mtd, ofs, len);
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	ofs_s_org = ofs_s = ofs;
++	ofs_e_org = ofs_e = ofs + len -1;
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 1);
++	if (ret)
++		return ret;
++
++	if (ofs_s_org != ofs_s && ofs_s)
++		ofs_s -= (ofs_s <= wp64k_first || ofs_s > wp64k_last) ? MX_4KB : MX_64KB;
++
++	if (ofs_e_org != ofs_e && ofs_e)
++		ofs_e += (ofs_e < wp64k_first || ofs_e >= wp64k_last) ? MX_4KB : MX_64KB;
++
++	return spi_nor_spb_is_locked(nor, ofs_s, ofs_e);
++}
++/* issue WPSEL CMD to set SECURITY REG.[7:7] to 1 then check it whether correct or not */
++static int spi_nor_asp_wpsel_lock(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++
++	return spi_nor_wpsel(nor);
++
++}
++static int spi_nor_set_pwd(struct mtd_info *mtd, uint64_t pwd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	u8 wpsel;
++	u16 lr;
++	u8 buf_pwd[8] = {0};
++
++	/* read security register to wpsel */
++	ret = spi_nor_rdscur(nor, &wpsel);
++	if (ret)
++		return ret;
++
++	/* read lock register to lr */
++	ret = spi_nor_rdlr(nor, &lr);
++	if (ret)
++		return ret;
++
++	wpsel &= WPSEL_MASK;
++	lr &= (LR_PP_MASK | LR_SP_MASK);
++
++	if (!wpsel) {
++		dev_err(nor->dev, "ERROR: please issue ASP LOCK first(WPSEL)\n");
++		return -EINVAL;
++	}
++	/* check LOCK REG.[2:1] if it has been set to 10b then return ERROR */
++	if (lr == 0x04) {
++		dev_err(nor->dev, "ERROR: Password Protection Mode has been disabled permanently, LOCK REG.[2:1]: 10b\n");
++		return -EINVAL;
++	}
++
++	/* set password */
++	ret = spi_nor_wrpass(nor, (u8 *)&pwd);
++	if (ret)
++		return ret;
++
++	/* read password */
++	ret = spi_nor_rdpass(nor, buf_pwd);
++	if (ret)
++		return ret;
++
++	if (pwd != *(uint64_t *)buf_pwd) {
++		dev_err(nor->dev, "ERROR: mismatch of password verification, password: %016llX\n", pwd);
++		return -EINVAL;
++	}
++
++	/* set password protection mode lock bit = 0 (write LOCK REG.[2:1] to 01b) */
++	ret = spi_nor_wrlr(nor, ~LR_PP_MASK);
++	if (ret)
++		return ret;
++
++	ret = spi_nor_rdlr(nor, &lr);
++	if (ret)
++		return ret;
++
++	if ((lr & (LR_PP_MASK | LR_SP_MASK)) != 0x02) {
++		dev_err(nor->dev, "ERROR: , LOCK REG.[2:1]: %01d%01db\n", !!(lr & LR_PP_MASK), !!(lr & SPBLB_MASK));
++		return -EINVAL;
++	}
++	return ret;
++ }
++ 
++/*
++ * Unlock a region of the flash. See stm_lock() for more info
++ *
++ * Returns negative on errors, 0 on success.
++ */
++static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
++{
++	struct mtd_info *mtd = &nor->mtd;
++	uint8_t status_old, status_new;
++	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
++	u8 shift = ffs(mask) - 1, pow, val;
++
++	status_old = read_sr(nor);
++
++	/* Cannot unlock; would unlock larger region than requested */
++	if (stm_is_locked_sr(nor, ofs - mtd->erasesize, mtd->erasesize,
++			     status_old))
++		return -EINVAL;
++
++	/*
++	 * Need largest pow such that:
++	 *
++	 *   1 / (2^pow) >= (len / size)
++	 *
++	 * so (assuming power-of-2 size) we do:
++	 *
++	 *   pow = floor(log2(size / len)) = log2(size) - ceil(log2(len))
++	 */
++	pow = ilog2(mtd->size) - order_base_2(mtd->size - (ofs + len));
++	if (ofs + len == mtd->size) {
++		val = 0; /* fully unlocked */
++	} else {
++		val = mask - (pow << shift);
++		/* Some power-of-two sizes are not supported */
++		if (val & ~mask)
++			return -EINVAL;
++	}
++
++	status_new = (status_old & ~mask) | val;
++
++	/* Only modify protection if it will not lock other areas */
++	if ((status_new & mask) >= (status_old & mask))
++		return -EINVAL;
++
++	write_enable(nor);
++	return write_sr(nor, status_new);
++}
++
++/*
++ * read SPBLB (SPBLK bit)
++ * return value
++ * <0: Error occurred
++ *  0: Password mode enable
++ *  1: Password mode disable temporarily
++ */
++static int spi_nor_pwd_locked(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret;
++	u8 spblk;
++
++	ret = spi_nor_rdspblklk(nor, &spblk);
++	if (ret)
++		return ret;
++
++	return !!(spblk & SPBLB_MASK);
++}
++static int spi_nor_pwd_auth(struct mtd_info *mtd, uint64_t pwd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, status;
++
++	/*
++	 * read SPBLB (SPBLK bit)
++	 * return value
++	 * <0: Error occurred
++	 *  0: Password mode enable
++	 *  1: Password mode disable temporarily
++	 */
++	status = spi_nor_pwd_locked(mtd);
++ 	if (status < 0)
++ 		return status;
++
++	/* SPBLB: 0->Password Protection Mode, : 1->Solid Protection Mode */
++	if (!status) {
++		ret = spi_nor_passulk(nor, (u8 *)&pwd);
++		if (ret)
++			return ret;
++
++		status = spi_nor_pwd_locked(mtd);
++		if (status < 0)
++			return status;
++		if (!status) {
++			dev_err(nor->dev, "ERROR: fail to unlock password \n");
++			return -EINVAL;
++		}
++	}
++
++	return 0;
++}
++
++static int spi_nor_pwd_spblk(struct mtd_info *mtd)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, status;
++ 
++	ret = spi_nor_spblk(nor);
++	if (ret)
++		return ret;
++
++	/*
++	 * read SPBLB (SPBLK bit)
++	 * return value
++	 * <0: Error occurred
++	 *  0: Password mode enable
++	 *  1: Password mode disable temporarily
++	 */
++	status = spi_nor_pwd_locked(mtd);
++	if (status < 0)
++		return status;
++	if (status) {
++		dev_err(nor->dev, "ERROR: fail to lock password SPBLK\n");
++		return -EINVAL;
++	}
++	return ret;
++}
++static int spi_nor_pwd_lock_unlock_spb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd, u8 is_lockspb)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	int ret, mode;
++	loff_t ofs_s, ofs_e;
++
++	/*
++	 * return the lock mode of inquiry
++	 * <0: Error occurred
++	 *  0: BP
++	 *  1: ASP w/o password
++	 *  2: ASP w/ password
++	 */
++	mode = spi_nor_qry_lockmode(mtd);
++	if (mode < 0)
++		return mode;
++	if (!mode || mode == 1) {
++		dev_err(nor->dev, "ERROR: please use 'SET PASSWORD MODE' to enter password protection mode\n");
++		return -EINVAL;
++	}
++
++	/* Wait until finished previous command */
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		return ret;
++
++	/*
++	 * read SPBLB (SPBLK bit)
++	 * return value
++	 * <0: Error occurred
++	 *  0: Password mode enable
++	 *  1: Password mode disable temporarily
++	 */
++	mode = spi_nor_pwd_locked(mtd);
++	if (mode < 0)
++		return mode;
++	if (!mode) {
++		ret = spi_nor_pwd_auth(mtd, pwd);
++		if (ret)
++			return ret;
+ 	}
+ 
+-	status_new = (status_old & ~mask) | val;
+-
+-	/* Only modify protection if it will not lock other areas */
+-	if ((status_new & mask) >= (status_old & mask))
+-		return -EINVAL;
++	/* lock SPBs */
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
++	if (ret)
++		return ret;
++ 
++	ret = is_lockspb ? spi_nor_spb_lock(nor, ofs_s, ofs_e) : spi_nor_spb_unlock(nor, ofs_s, ofs_e);
++	if (ret)
++		return ret;
+ 
+-	write_enable(nor);
+-	return write_sr(nor, status_new);
++	return spi_nor_pwd_spblk(mtd);
+ }
+-
+-/*
+- * Check if a region of the flash is (completely) locked. See stm_lock() for
+- * more info.
+- *
+- * Returns 1 if entire region is locked, 0 if any portion is unlocked, and
+- * negative on errors.
+- */
+-static int stm_is_locked(struct spi_nor *nor, loff_t ofs, uint64_t len)
++static int spi_nor_pwd_lockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
+ {
+-	int status;
+-
+-	status = read_sr(nor);
+-	if (status < 0)
+-		return status;
+-
+-	return stm_is_locked_sr(nor, ofs, len, status);
++	return spi_nor_pwd_lock_unlock_spb(mtd, ofs, len, pwd, 1);
++}
++static int spi_nor_pwd_unlockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd)
++{
++	return spi_nor_pwd_lock_unlock_spb(mtd, ofs, len, pwd, 0);
+ }
+ 
+-static int spi_nor_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++/* DPB lock/unlock/islocked */
++static int spi_nor_dpb_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
+ {
+ 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+ 	int ret;
++	loff_t ofs_s, ofs_e;
+ 
+-	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_LOCK);
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = nor->flash_lock(nor, ofs, len);
+-
+-	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_UNLOCK);
+-	return ret;
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_DPB_LOCK);
+ }
+ 
+-static int spi_nor_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++static int spi_nor_dpb_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
+ {
+ 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+ 	int ret;
+-
+-	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_UNLOCK);
++	loff_t ofs_s, ofs_e;
++ 
++	ofs_s = ofs;
++	ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 0);
+ 	if (ret)
+ 		return ret;
+-
+-	ret = nor->flash_unlock(nor, ofs, len);
+-
+-	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_LOCK);
+-	return ret;
++	return spi_nor_asp_mode_set(nor, ofs_s, ofs_e, ASP_DPB_UNLOCK);
+ }
+-
+-static int spi_nor_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
++static int spi_nor_dpb_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
+ {
+ 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+ 	int ret;
++	loff_t ofs_s_org, ofs_e_org, ofs_s, ofs_e, wp64k_first, wp64k_last;
+ 
+-	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_UNLOCK);
++	ofs_s_org = ofs_s = ofs;
++	ofs_e_org = ofs_e = ofs + len -1;
++	ret = set_boundary(mtd, &ofs_s, &ofs_e, 1);
+ 	if (ret)
+ 		return ret;
++	wp64k_first = MX_WP64K_FIRST;
++	wp64k_last = MX_WP64K_LAST(mtd->size);
+ 
+-	ret = nor->flash_is_locked(nor, ofs, len);
++	if (ofs_s_org != ofs_s && ofs_s)
++		ofs_s -= (ofs_s <= wp64k_first || ofs_s > wp64k_last) ? MX_4KB : MX_64KB;
+ 
+-	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_LOCK);
+-	return ret;
++	if (ofs_e_org != ofs_e && ofs_e)
++		ofs_e += (ofs_e < wp64k_first || ofs_e >= wp64k_last) ? MX_4KB : MX_64KB;
++
++	return spi_nor_asp_is_locked_check(nor, ofs_s, ofs_e, ASP_DPB);
+ }
+ 
+ /* Used when the "_ext_id" is two bytes at most */
+@@ -732,7 +2666,7 @@ static const struct flash_info spi_nor_ids[] = {
+ 	{ "mx25u6435f",  INFO(0xc22537, 0, 64 * 1024, 128, SECT_4K) },
+ 	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
+ 	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
+-	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, 0) },
++	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, SECT_4K) },
+ 	{ "mx25l25655e", INFO(0xc22619, 0, 64 * 1024, 512, 0) },
+ 	{ "mx66l51235l", INFO(0xc2201a, 0, 64 * 1024, 1024, SPI_NOR_QUAD_READ) },
+ 	{ "mx66l1g55g",  INFO(0xc2261b, 0, 64 * 1024, 2048, SPI_NOR_QUAD_READ) },
+@@ -881,7 +2815,7 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
+ 				return &spi_nor_ids[tmp];
+ 		}
+ 	}
+-	dev_err(nor->dev, "unrecognized JEDEC id bytes: %02x, %2x, %2x\n",
++	dev_err(nor->dev, "unrecognized JEDEC id bytes: %02x, %02x, %02x\n",
+ 		id[0], id[1], id[2]);
+ 	return ERR_PTR(-ENODEV);
+ }
+@@ -916,6 +2850,44 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
+ 	return ret;
+ }
+ 
++static int spi_nor_read_ext(struct mtd_info *mtd, loff_t from, size_t len,
++			size_t *retlen, u_char *buf)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++	u32 read_len = 0;
++	size_t actual_len = 0;
++	u32 read_count = 0;
++	u32 rem_bank_len = 0;
++	u8 bank = 0;	
++	int ret;
++
++	while (len) {
++		actual_len = 0;
++		if (nor->addr_width == 3) {
++			bank = from / (OFFSET_16_MB);
++			rem_bank_len = ((OFFSET_16_MB) * (bank + 1)) - from;
++			write_ear(nor, from);
++		}		
++		
++		/* Die cross over issue is not handled */
++		if (nor->addr_width == 4) {
++			rem_bank_len = (mtd->size) - from;
++		}		
++		read_len = (len < rem_bank_len) ? len : rem_bank_len;
++
++		ret = spi_nor_read(mtd, from, len, &actual_len, buf);
++		if (ret)
++			return ret;
++
++		from += actual_len;
++		len -= actual_len;
++		buf += actual_len;
++		read_count += actual_len;
++	}
++	*retlen = read_count;
++	return ret;
++}
++
+ static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
+ 		size_t *retlen, const u_char *buf)
+ {
+@@ -1088,11 +3060,72 @@ write_err:
+ 	return ret;
+ }
+ 
++static int spi_nor_write_ext(struct mtd_info *mtd, loff_t to, size_t len,
++			     size_t *retlen, const u_char *buf)
++{
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);	
++	u32 write_len = 0;
++	size_t actual_len = 0;
++	u32 write_count = 0;
++	u32 rem_bank_len = 0;
++	u8 bank = 0;	
++	int ret = 0;	
++
++	while (len) {		
++		actual_len = 0;
++		if (nor->addr_width == 3) {
++			bank = to / OFFSET_16_MB;
++			rem_bank_len = (OFFSET_16_MB * (bank + 1)) - to;
++			write_ear(nor, to);
++		}		
++		/* Die cross over issue is not handled */
++		if (nor->addr_width == 4)
++			rem_bank_len = mtd->size - to;
++
++		write_len = (len < rem_bank_len) ? len : rem_bank_len;
++		
++		ret = spi_nor_write(mtd, to, write_len, &actual_len, buf);
++		if (ret)
++			return ret;
++
++		to += actual_len;
++		len -= actual_len;
++		buf += actual_len;
++		write_count += actual_len;
++	}
++	*retlen = write_count;
++	return ret;
++}
++
++static int macronix_quad_disable(struct spi_nor *nor)
++{
++	int ret, val;
++
++	val = read_sr(nor);
++	if (!(val & SR_QUAD_EN_MX))
++		return 0;
++	write_enable(nor);
++
++	write_sr(nor, val & ~SR_QUAD_EN_MX);
++
++	if (spi_nor_wait_till_ready(nor))
++		return 1;
++
++	ret = read_sr(nor);
++	if (ret < 0 || (ret & SR_QUAD_EN_MX)) {
++		dev_err(nor->dev, "Macronix Quad bit not disable\n");
++		return -EINVAL;
++	}
++	
++	return 0;
++}
+ static int macronix_quad_enable(struct spi_nor *nor)
+ {
+ 	int ret, val;
+ 
+ 	val = read_sr(nor);
++	if (val & SR_QUAD_EN_MX)
++		return 0;
+ 	write_enable(nor);
+ 
+ 	write_sr(nor, val | SR_QUAD_EN_MX);
+@@ -1215,6 +3248,23 @@ static int set_quad_mode(struct spi_nor *nor, const struct flash_info *info)
+ 	}
+ }
+ 
++static int ex_quad_mode(struct spi_nor *nor, const struct flash_info *info)
++{
++	int status;
++
++	switch (JEDEC_MFR(info)) {		
++		case SNOR_MFR_MACRONIX:
++			status = macronix_quad_disable(nor);
++			if (status) {
++				dev_err(nor->dev, "Macronix quad-read not disabled\n");
++				return -EINVAL;
++			}
++			return status;		
++		default:
++			return 0;
++	}
++}
++
+ static int spi_nor_check(struct spi_nor *nor)
+ {
+ 	if (!nor->dev || !nor->read || !nor->write ||
+@@ -1226,15 +3276,559 @@ static int spi_nor_check(struct spi_nor *nor)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++static int sel_rdmode(struct spi_nor *nor,
++		u32 *cmdlist, u8 dt_dmy_sup, struct dt_rd_dmy* rd_dmy)
++{
++	u8 cmd = nor->sfdp.rd_opcode;
++	enum flash_protocol rd_prot;
++	nor->read_dummy = 1;
++	if (!dt_dmy_sup) {				
++		nor->read_dummy = 0;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_SINGLE;
++		nor->rd_data_nbits = SPI_NBITS_SINGLE;
++		if (nor->sfdp.addr_4b_cmd_support ||
++				((cmdlist[MX_PGM_ERS_CMDS] & MX_4B_PGMERS)
++				&& (cmdlist[MX_RD_CMDS] & MX_4B_RD)))
++			nor->sfdp.rd_opcode = SPINOR_OP_READ4;
++		else
++			nor->sfdp.rd_opcode = SPINOR_OP_READ;
++		return 0;
++	}	
++	if (!nor->sfdp.addr_4b_cmd_support) {
++		if((cmdlist[MX_PGM_ERS_CMDS] & MX_4B_PGMERS)
++				&& (cmdlist[MX_RD_CMDS] & MX_4B_RD)) {
++			if (cmdlist[MX_RD_CMDS] & MX_4READ4B) {
++				cmd = SPINOR_OP_READ4_1_4_4;
++			} else if (cmdlist[MX_RD_CMDS] & MX_QREAD4B) {
++				cmd = SPINOR_OP_READ4_1_1_4;
++			} else if (cmdlist[MX_RD_CMDS] & MX_2READ4B) {
++				cmd = SPINOR_OP_READ4_1_2_2;
++			} else if (cmdlist[MX_RD_CMDS] & MX_DREAD4B) {
++				cmd = SPINOR_OP_READ4_1_1_2;
++			} else if (cmdlist[MX_RD_CMDS] & MX_FASTREAD4B) {
++				cmd = SPINOR_OP_READ4_FAST;
++			} else if (cmdlist[MX_RD_CMDS] & MX_READ4B) {
++				cmd = SPINOR_OP_READ4;
++				nor->read_dummy = 0;
++			}
++		}
++	}
++	if (!cmd || cmd == 0xFF) {
++		if (cmdlist[MX_RD_CMDS] & MX_4READ) {
++			cmd = SPINOR_OP_READ_1_4_4;
++		} else if (cmdlist[MX_RD_CMDS] & MX_QREAD) {
++			cmd = SPINOR_OP_READ_1_1_4;
++		} else if (cmdlist[MX_RD_CMDS] & MX_2READ) {
++			cmd = SPINOR_OP_READ_1_2_2;
++		} else if (cmdlist[MX_RD_CMDS] & MX_DREAD) {
++			cmd = SPINOR_OP_READ_1_1_2;
++		} else if (cmdlist[MX_RD_CMDS] & MX_FASTREAD) {
++			cmd = SPINOR_OP_READ_FAST;
++		} else {
++			cmd = SPINOR_OP_READ;
++			nor->read_dummy = 0;
++		}
++	}
++	switch (cmd) {
++	case SPINOR_OP_READ4_1_4_4: 
++	case SPINOR_OP_READ_1_4_4: 
++		rd_prot = PROT_1_4_4;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_QUAD;
++		nor->rd_data_nbits = SPI_NBITS_QUAD;
++		break;
++	case SPINOR_OP_READ4_1_1_4: 
++	case SPINOR_OP_READ_1_1_4: 
++		rd_prot = PROT_1_1_4;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_SINGLE;
++		nor->rd_data_nbits = SPI_NBITS_QUAD;
++		break;
++	case SPINOR_OP_READ4_1_2_2: 
++	case SPINOR_OP_READ_1_2_2: 
++		rd_prot = PROT_1_2_2;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_DUAL;
++		nor->rd_data_nbits = SPI_NBITS_DUAL;
++		break;
++	case SPINOR_OP_READ4_1_1_2: 
++	case SPINOR_OP_READ_1_1_2: 
++		rd_prot = PROT_1_1_2;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_SINGLE;
++		nor->rd_data_nbits = SPI_NBITS_DUAL;
++		break;
++	default:
++		rd_prot = PROT_1_1_1;
++		nor->rd_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->rd_addr_nbits = SPI_NBITS_SINGLE;
++		nor->rd_data_nbits = SPI_NBITS_SINGLE;
++		break;
++	}
++	nor->sfdp.rd_opcode = cmd;
++	
++	/* setup read dummy */
++	
++	nor->read_dummy = spi_nor_read_dummy_cycles_w_cr(nor, rd_dmy, rd_prot);
++	if (nor->read_dummy < 0)
++		return nor->read_dummy;
++	return 0;
++}
++
++static void sel_pgmmode(struct spi_nor *nor,
++		u32 *cmdlist)
++{
++	u8 cmd = nor->sfdp.pgm_opcode;
++
++	if (!nor->sfdp.addr_4b_cmd_support) {
++		if((cmdlist[MX_PGM_ERS_CMDS] & MX_4B_PGMERS)
++				&& (cmdlist[MX_RD_CMDS] & MX_4B_RD)) {
++			if (cmdlist[MX_PGM_ERS_CMDS] & MX_4PP4B)
++				cmd = SPINOR_OP_PP4_1_4_4;
++			else if (cmdlist[MX_PGM_ERS_CMDS] & MX_PP4B)
++				cmd = SPINOR_OP_PP4_1_1_1;
++		}
++		
++	}
++	if (!cmd || cmd == 0xFF) {
++		if (cmdlist[MX_PGM_ERS_CMDS] & MX_4PP)
++			cmd = SPINOR_OP_PP_1_4_4;
++		else if (cmdlist[MX_PGM_ERS_CMDS] & MX_QPP)
++			cmd = SPINOR_OP_PP_1_1_4;
++		else
++			cmd = SPINOR_OP_PP_1_1_1;
++	}
++
++	switch (cmd) {
++	case SPINOR_OP_PP4_1_4_4:
++	case SPINOR_OP_PP_1_4_4:		
++		nor->pgm_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->pgm_addr_nbits = SPI_NBITS_QUAD;
++		nor->pgm_data_nbits = SPI_NBITS_QUAD;
++		break;
++	case SPINOR_OP_PP_1_1_4:		
++		nor->pgm_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->pgm_addr_nbits = SPI_NBITS_SINGLE;
++		nor->pgm_data_nbits = SPI_NBITS_QUAD;
++		break;
++	default:		
++		nor->pgm_cmd_nbits = SPI_NBITS_SINGLE;
++		nor->pgm_addr_nbits = SPI_NBITS_SINGLE;
++		nor->pgm_data_nbits = SPI_NBITS_SINGLE;
++		break;
++	}
++	nor->sfdp.pgm_opcode = cmd;
++}
++static void sel_ersmode(struct spi_nor *nor, u32 *cmdlist)
++{
++	u8 cmd = 0;
++	struct mtd_info *mtd = &nor->mtd;
++#ifdef CONFIG_MTD_SPI_NOR_USE_4K_SECTORS
++	cmd = nor->sfdp.addr_4b_cmd_support ? 
++		nor->sfdp.ers_4k_4b_opcode : nor->sfdp.ers_4k_opcode;
++	if (!cmd || cmd == 0xFF) {
++		if((cmdlist[MX_PGM_ERS_CMDS] & MX_4B_PGMERS)
++				&& (cmdlist[MX_RD_CMDS] & MX_4B_RD)) {
++			if(cmdlist[MX_PGM_ERS_CMDS] & MX_SE4B)
++				cmd = SPINOR_OP_SE4K_4B;
++			else
++				cmd = SPINOR_OP_SE4K;
++		} else {
++			cmd = SPINOR_OP_SE4K;
++		}
++	}
++	mtd->erasesize = 4096;
++	nor->sfdp.ers_opcode = cmd;
++	return;
++#else
++	cmd = nor->sfdp.ers_opcode;
++	if (!nor->sfdp.addr_4b_cmd_support) {
++		if((cmdlist[MX_PGM_ERS_CMDS] & MX_4B_PGMERS)
++					&& (cmdlist[MX_RD_CMDS] & MX_4B_RD)) {
++			if (cmdlist[MX_PGM_ERS_CMDS] & MX_BE4B) {
++				cmd = SPINOR_OP_BE64K_4B;
++				mtd->erasesize = 1 << 16;
++			} else if (cmdlist[MX_PGM_ERS_CMDS] & MX_BE32K4B) {
++				cmd = SPINOR_OP_BE32K_4B;
++				mtd->erasesize = 1 << 15;
++			} else if (cmdlist[MX_PGM_ERS_CMDS] & MX_SE4B) {
++				cmd = SPINOR_OP_SE4K_4B;
++				mtd->erasesize = 1 << 12;
++			}
++		}
++	}
++	
++	if (!cmd || cmd == 0xFF) {
++		if (cmdlist[MX_PGM_ERS_CMDS] & MX_BE) {
++			cmd = SPINOR_OP_BE64K;
++			mtd->erasesize = 1 << 16;
++		} else if (cmdlist[MX_PGM_ERS_CMDS] & MX_BE32K) {
++			cmd = SPINOR_OP_BE32K;
++			mtd->erasesize = 1 << 15;
++		} else {
++			cmd = SPINOR_OP_SE4K;
++			mtd->erasesize = 1 << 12;
++		}
++	}	
++	nor->sfdp.ers_opcode = cmd;
++#endif
++}
++
++static struct flash_info *spi_nor_get_dt_prop(struct spi_nor *nor, struct nor_dt_info *dt_info, 
++		u8 *id, struct flash_info *info, const char *name)
++{
++	struct device_node *np = nor->flash_node;
++	u32 fi[5] = {0};
++	int i;
++	
++	if (np) {
++		dt_info->cmdlist_sup =
++			!of_property_read_u32_array(np, "cmdlist", dt_info->cmdlist, 4);
++
++		/* get read dummy info. from device tree property "read_dummy" */
++		dt_info->dmy_sup = 
++			!of_property_read_u8_array(np, "read_dummy", (u8 *)dt_info->rd_dmy, 10);
++
++		/**
++		 * get dummy bus IO.
++		 * It is Determined by [01] data bus IO, [02] address bus IO, [03] command bus IO.
++		 */
++		if (of_property_read_u8(np, "dummy_io_sel", &nor->dummy_io_sel))
++			nor->dummy_io_sel = 0;
++
++		/* get password supported in ASP from device tree property "asp_pwd" */
++		if (of_property_read_u8(np, "asp_pwd", &dt_info->asp_pwd_sup))
++			dt_info->asp_pwd_sup = 0;
++
++		/* get sector_size/n_size/page_size from device tree property "flash_info" */		
++		if (!of_property_read_u32_array(np, "dt_flash_info", fi, 5)) {		
++			for (i = 3; i; i--) {
++				if (id[i - 1] != ((u8 *)fi)[3-i])
++					break;;
++			}
++			if (!i) {
++				info->sector_size = fi[2];
++				info->n_sectors   = fi[3];
++				info->page_size   = fi[4];
++				info->name = name;
++				memcpy(info->id, id, SPI_NOR_MAX_ID_LEN);
++				dev_info(nor->dev, "found %s from device tree\n", info->name);
++				return info;
++			}
++		}
++	}
++	return 0;
++}
++
++static void setup_sfdp_data(struct spi_nor *nor, struct sfdp_info *sfdp, 
++		u8 *id, struct flash_info *info, const char *name)
++{
++	struct mtd_info *mtd = &nor->mtd;
++	
++	/* for struct spi_nor */
++	nor->sfdp.sfdp_ver 				= sfdp->chip.sfdp_ver;
++
++	nor->sfdp.rdsr_opcode 			= sfdp->chip.rdsr_opcode;
++	nor->sfdp.wren_opcode			= sfdp->chip.wren_opcode;
++	nor->sfdp.en_dpd_opcode			= sfdp->chip.en_dpd_opcode;
++	nor->sfdp.ex_dpd_opcode			= sfdp->chip.ex_dpd_opcode;
++	nor->sfdp.susp_opcode			= sfdp->chip.susp_opcode;
++	nor->sfdp.resu_opcode			= sfdp->chip.resu_opcode;
++	nor->sfdp.rd_opcode 			= sfdp->chip.rd_opcode;
++	nor->sfdp.pgm_opcode 			= sfdp->chip.pgm_opcode;
++	nor->sfdp.ers_opcode			= sfdp->chip.ers_opcode;
++	nor->sfdp.ers_4k_opcode			= sfdp->chip.ers_4k_opcode;
++	nor->sfdp.ers_4k_4b_opcode		= sfdp->chip.ers_4k_4b_opcode;	
++	nor->sfdp.indi_bl_opcode        = sfdp->chip.indi_bl_opcode;
++
++	nor->sfdp.sr_busy_bit7_support	= sfdp->chip.sr_busy_bit7_support;
++	nor->sfdp.sw_rst_f0_support		= sfdp->chip.sw_rst_f0_support;
++	nor->sfdp.addr_4b_cmd_support	= sfdp->chip.addr_4b_cmd_support;
++	nor->sfdp.en_4b_w_wren_support	= sfdp->chip.en_4b_w_wren_support;
++	nor->sfdp.en_4b_wo_wren_support = sfdp->chip.en_4b_wo_wren_support;
++	nor->sfdp.ex_4b_w_wren_support	= sfdp->chip.ex_4b_w_wren_support;
++	nor->sfdp.ex_4b_wo_wren_support = sfdp->chip.ex_4b_wo_wren_support;
++	nor->sfdp.ear_support 			= sfdp->chip.ear_support;
++	nor->sfdp.en4b_support			= sfdp->chip.en4b_support;
++
++	/* for struct mtd_info */		
++	mtd->erasesize		= sfdp->chip.ers_sz;
++	mtd->writesize		= sfdp->chip.write_sz;
++	mtd->writebufsize	= sfdp->chip.page_sz;
++	mtd->size			= sfdp->chip.sz;
++	
++	if (!info->name) {
++		info->sector_size = sfdp->chip.max_sector_sz;
++		info->n_sectors   = sfdp->chip.sz / info->sector_size;
++		info->page_size   = sfdp->chip.page_sz;
++		info->name = name;
++		memcpy(info->id, id, SPI_NOR_MAX_ID_LEN);
++		dev_info(nor->dev, "found %s from SFDP\n", info->name);		
++	}	
++}
++static void update_nor_sfdp(struct spi_nor *nor, struct nor_dt_info *dt_info, struct sfdp_info *sfdp)
++{	
++	if (dt_info->cmdlist_sup) {
++
++		if (nor->sfdp.sfdp_ver < 16) {
++			nor->sfdp.ear_support =
++					!!(dt_info->cmdlist[MX_ID_REG_CMDS] & MX_EAR);
++		}		
++		if (nor->sfdp.sfdp_ver < 16) {
++			if (dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_4B) {
++				nor->sfdp.en_4b_wo_wren_support = 1;
++				nor->sfdp.ex_4b_wo_wren_support = 1;
++			}
++		}
++		if (!nor->sfdp.en4b_support)
++			nor->sfdp.en4b_support =
++				(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_4B);
++
++		if (!sfdp->chip.rd_lock_support) {
++			sfdp->chip.rd_lock_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_RLCR);
++		}
++		if (!sfdp->chip.pgm_susp_resu_support)
++			sfdp->chip.pgm_susp_resu_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_SUS_RES);
++		if (!sfdp->chip.ers_susp_resu_support)
++			sfdp->chip.ers_susp_resu_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_SUS_RES);
++		if (!sfdp->chip.dpd_support)
++			sfdp->chip.dpd_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_DPD);
++		if (!sfdp->chip.sw_rst_support)
++			sfdp->chip.sw_rst_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_RST);
++		if (!sfdp->chip.secure_otp_suppport)
++			sfdp->chip.secure_otp_suppport =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_SO);
++		if (!sfdp->chip.perm_lock_support)
++			sfdp->chip.perm_lock_support =
++					!!(dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_PLOCK);
++	}
++}
++
++static void config_mtd_info(struct spi_nor *nor, struct nor_dt_info *dt_info, 
++		struct sfdp_info *sfdp)
++{
++	struct mtd_info *mtd = &nor->mtd;
++		
++	/* MTD command related to read lock */
++	if (sfdp->chip.rd_lock_support) {
++		mtd->_rdlock_lock = spi_nor_rdlock_lock;
++		mtd->_rdlock_unlock = spi_nor_rdlock_unlock;
++		mtd->_rdlock_is_locked = spi_nor_rdlock_is_locked;
++	}
++	/* MTD command related to permanent lock mode */
++	if (sfdp->chip.perm_lock_support) {
++		mtd->_perm_lock = spi_nor_permanent_lock;
++		mtd->_perm_is_locked = spi_nor_permanent_is_locked;
++	}
++	/* MTD command related to secure OTP mode */
++	if (sfdp->chip.secure_otp_suppport) {
++		mtd->_get_fact_prot_info  = spi_nor_get_fact_prot_info;
++		mtd->_read_fact_prot_reg  = spi_nor_read_fact_prot_reg;
++		mtd->_get_user_prot_info  = spi_nor_get_user_prot_info;
++		mtd->_read_user_prot_reg  = spi_nor_read_user_prot_reg;
++		mtd->_write_user_prot_reg = spi_nor_write_user_prot_reg;
++		mtd->_lock_user_prot_reg  = spi_nor_lock_user_prot_reg;
++	}
++	/* MTD command related to software reset */
++	if (sfdp->chip.sw_rst_support)
++		mtd->_swrst = spi_nor_sw_rst;
++	/* MTD command related to deep power down mode */
++	if (sfdp->chip.dpd_support) {
++		mtd->_dp = spi_nor_dp;
++		mtd->_rdp = spi_nor_rdp;
++	}
++	/* MTD command related to suspend/resume mode */
++	if (sfdp->chip.pgm_susp_resu_support ||
++			sfdp->chip.ers_susp_resu_support) {
++		mtd->_suspend = spi_nor_suspend;
++		mtd->_resume = spi_nor_resume;
++	}
++	/* MTD command related to lock/unlock mode */
++	if (sfdp->chip.indi_bl_support) {
++		switch (nor->sfdp.indi_bl_opcode) {
++		case SPINOR_OP_SBLK:
++		case SPINOR_OP_SBULK:
++			mtd->_asp_lock 	= spi_nor_asp_wpsel_lock;
++			mtd->_lock      = spi_nor_singleblock_lock;
++			mtd->_unlock    = spi_nor_singleblock_unlock;
++			mtd->_is_locked = spi_nor_singleblock_is_locked;
++			break;
++		case SPINOR_OP_WRDPB:
++		case SPINOR_OP_RDDPB:
++			mtd->_asp_lock 		= spi_nor_asp_wpsel_lock;
++			mtd->_qry_lockmode 	= spi_nor_qry_lockmode;
++			mtd->_dpb_lock      = spi_nor_dpb_lock;
++			mtd->_dpb_unlock    = spi_nor_dpb_unlock;
++			mtd->_dpb_is_locked = spi_nor_dpb_is_locked;
++			mtd->_lock      	= spi_nor_asp_lock;
++			mtd->_unlock    	= spi_nor_asp_unlock;
++			mtd->_is_locked 	= spi_nor_asp_is_locked;
++			if (dt_info->asp_pwd_sup) {
++				mtd->_set_pwd		= spi_nor_set_pwd;
++				mtd->_pwd_lockspb   = spi_nor_pwd_lockspb;
++				mtd->_pwd_unlockspb = spi_nor_pwd_unlockspb;
++				mtd->_pwd_auth      = spi_nor_pwd_auth;
++				mtd->_pwd_spblk     = spi_nor_pwd_spblk;
++			}
++			break;
++		case SPINOR_OP_WRSPB:
++		case SPINOR_OP_RDSPB:
++			mtd->_asp_lock 		= spi_nor_asp_wpsel_lock;
++			mtd->_qry_lockmode 	= spi_nor_qry_lockmode;
++			mtd->_lock      	= spi_nor_asp_lock;
++			mtd->_unlock    	= spi_nor_asp_unlock;
++			mtd->_is_locked 	= spi_nor_asp_is_locked;
++			if (dt_info->asp_pwd_sup) {
++				mtd->_pwd_lockspb   = spi_nor_pwd_lockspb;
++				mtd->_pwd_unlockspb = spi_nor_pwd_unlockspb;
++				mtd->_pwd_auth      = spi_nor_pwd_auth;
++				mtd->_pwd_spblk     = spi_nor_pwd_spblk;
++			}
++			break;
++		default:
++			nor->flash_lock = nor_lock;
++			nor->flash_unlock = nor_unlock;
++			nor->flash_is_locked = nor_is_locked;
++			mtd->_lock      = spi_nor_lock;
++			mtd->_unlock    = spi_nor_unlock;
++			mtd->_is_locked = spi_nor_is_locked;
++			break;
++		}
++	} else if (dt_info->cmdlist_sup) {
++		if (dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_WPSEL) {
++
++			if (dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_SBLK) {
++				mtd->_lock      = spi_nor_singleblock_lock;
++				mtd->_unlock    = spi_nor_singleblock_unlock;
++				mtd->_is_locked = spi_nor_singleblock_is_locked;
++
++			}
++
++			if (dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_SPB) {
++				mtd->_asp_lock 		= spi_nor_asp_wpsel_lock;
++				mtd->_qry_lockmode  = spi_nor_qry_lockmode;
++				mtd->_lock      	= spi_nor_asp_lock;
++				mtd->_unlock    	= spi_nor_asp_unlock;
++				mtd->_is_locked 	= spi_nor_asp_is_locked;
++
++				if (dt_info->asp_pwd_sup) {
++					mtd->_pwd_lockspb   = spi_nor_pwd_lockspb;
++					mtd->_pwd_unlockspb = spi_nor_pwd_unlockspb;
++					mtd->_pwd_auth      = spi_nor_pwd_auth;
++					mtd->_pwd_spblk     = spi_nor_pwd_spblk;
++				}
++				if (dt_info->cmdlist[MX_MS_RST_SECU_SUSP] & MX_DPB) {
++					mtd->_dpb_lock      = spi_nor_dpb_lock;
++					mtd->_dpb_unlock    = spi_nor_dpb_unlock;
++					mtd->_dpb_is_locked = spi_nor_dpb_is_locked;
++				}
++			}
++		} else {
++			nor->flash_lock = nor_lock;
++			nor->flash_unlock = nor_unlock;
++			nor->flash_is_locked = nor_is_locked;
++			mtd->_lock      = spi_nor_lock;
++			mtd->_unlock    = spi_nor_unlock;
++			mtd->_is_locked = spi_nor_is_locked;
++		}
++	}
++}
++
++static int config_spi_nor(struct spi_nor *nor, struct nor_dt_info *dt_info, 
++		struct flash_info *info)
++{
++	int ret;
++	struct mtd_info *mtd = &nor->mtd;
++	
++	nor->jedec_id = info->id[0];
++	
++	ret = 
++		sel_rdmode(nor, dt_info->cmdlist, dt_info->dmy_sup, dt_info->rd_dmy);
++	if (ret)
++		return ret;
++	sel_pgmmode(nor, dt_info->cmdlist);
++	sel_ersmode(nor, dt_info->cmdlist);
++	
++	if (nor->rd_data_nbits == SPI_NBITS_QUAD || 
++			nor->pgm_data_nbits == SPI_NBITS_QUAD)
++		set_quad_mode(nor, info);
++	else
++		ex_quad_mode(nor, info);
++			
++
++	nor->read_opcode    = nor->sfdp.rd_opcode;
++	nor->program_opcode = nor->sfdp.pgm_opcode;
++	nor->erase_opcode   = nor->sfdp.ers_opcode;
++	nor->read           = mult_io_read;
++	nor->write          = mult_io_write;
++	nor->page_size      = info->page_size;
++
++	if (mtd->size > OFFSET_16_MB) {
++		if(!nor->sfdp.addr_4b_cmd_support) {
++			if(nor->sfdp.en4b_support ||
++				(!nor->sfdp.en4b_support && nor->sfdp.sfdp_ver < 16)) {
++				ret = set_4byte(nor, info, 1);
++				if (ret)
++					return ret;
++			} else {
++				nor->sfdp.ear_support = 1;				
++			}
++		} else {
++			nor->sfdp.ear_support = 0;			
++		}
++		nor->addr_width = nor->sfdp.ear_support ? 3 : 4;
++	} else {
++		nor->sfdp.ear_support = 0;
++		nor->addr_width = 3;
++	}	
++	return ret;
++}
++#endif
++
+ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ {
+-	const struct flash_info *info = NULL;
++	struct flash_info *info = NULL;
+ 	struct device *dev = nor->dev;
+ 	struct mtd_info *mtd = &nor->mtd;
+ 	struct device_node *np = nor->flash_node;
+ 	int ret;
+ 	int i;
+ 
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	struct flash_info fi;
++	struct nor_dt_info dt_info;
++	struct sfdp_info sfdp;	
++	u8	id[SPI_NOR_MAX_ID_LEN] = {0};	
++
++	memset(&dt_info, 0, sizeof(dt_info));
++	memset(&fi, 0, sizeof(fi));
++	memset(&sfdp, 0, sizeof(sfdp));
++		
++	ret = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
++	if (ret < 0) {
++		dev_err(nor->dev, " error %d reading JEDEC ID\n", ret);
++		return ret;
++	}
++	info = spi_nor_get_dt_prop(nor, &dt_info, id, &fi, name);	
++	
++	/* read the content of SFDP data into sfdp */
++	sfdp.spi = nor->spi;
++	ret = sfdp_probe(&sfdp, id[0]);
++	if (!ret) {
++		setup_sfdp_data(nor, &sfdp, id, &fi, name);
++		if (!info)	
++			info = &fi;
++	}
++	if (info)
++		goto ignore_ids_table;
++#endif
+ 	ret = spi_nor_check(nor);
+ 	if (ret)
+ 		return ret;
+@@ -1276,6 +3870,9 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 	nor->priv1 = info;
+ #endif
+ 
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++ignore_ids_table:
++#endif
+ 	mutex_init(&nor->lock);
+ 
+ 	/*
+@@ -1300,6 +3897,48 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 	mtd->_erase = spi_nor_erase;
+ 	mtd->_read = spi_nor_read;
+ 
++	nor->jedec_id = info->id[0];
++
++	/* sst nor chips use AAI word program */
++	if (info->flags & SST_WRITE)
++		mtd->_write = sst_write;
++	else
++		mtd->_write = spi_nor_write;
++		
++	nor->n_sectors = info->n_sectors;
++	nor->sector_size = info->sector_size;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++
++	/*
++	 * We prepare to use SFDP to replace flash info struct, but
++	 * there are many flags not covered by SFDP such as SST_WRITE,
++	 * USE_FSR, SPI_NOR_NO_FR and SECT_4K_PMC. This part still need
++	 * to be modified by each flash manufacturer.
++	 */	
++	
++	/* update nor->sfdp by dt_info.cmdlist */	
++	update_nor_sfdp(nor, &dt_info, &sfdp);
++	/* Configure mtd_info and spi_nor */
++	if (dt_info.cmdlist_sup || nor->sfdp.sfdp_ver) {
++		config_mtd_info(nor, &dt_info, &sfdp);
++		ret = config_spi_nor(nor, &dt_info, info);
++		if (ret)
++		return ret;
++		
++		if (nor->sfdp.ear_support) {
++			mtd->_read = spi_nor_read_ext;
++			mtd->_write = spi_nor_write_ext;
++		}
++		if (!mtd->writesize)
++			mtd->writesize = 1;
++		if (!mtd->writebufsize)
++			mtd->writebufsize = info->page_size;
++		mtd->dev.parent = dev;
++		goto scan_done;
++	}
++#endif		
++	mtd->size = info->sector_size * info->n_sectors;
++	
+ 	/* NOR protection support for STmicro/Micron chips and similar */
+ 	if (JEDEC_MFR(info) == SNOR_MFR_MICRON) {
+ 		nor->flash_lock = stm_lock;
+@@ -1313,12 +3952,6 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 		mtd->_is_locked = spi_nor_is_locked;
+ 	}
+ 
+-	/* sst nor chips use AAI word program */
+-	if (info->flags & SST_WRITE)
+-		mtd->_write = sst_write;
+-	else
+-		mtd->_write = spi_nor_write;
+-
+ 	if (info->flags & USE_FSR)
+ 		nor->flags |= SNOR_F_USE_FSR;
+ 
+@@ -1396,7 +4029,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 		nor->addr_width = info->addr_width;
+ 	else {	
+ #ifndef CONFIG_M25PXX_STAY_IN_3BYTE_MODE			
+-		if (mtd->size > 0x1000000) {
++		if (mtd->size > OFFSET_16_MB) {
+ 			/* enable 4-byte addressing if the device exceeds 16MiB */
+ 			nor->addr_width = 4;
+ 			if (JEDEC_MFR(info) == CFI_MFR_AMD) {
+@@ -1414,6 +4047,8 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 				case SPI_NOR_NORMAL:
+ 					nor->read_opcode = SPINOR_OP_READ4;
+ 					break;
++				default:
++					return -EINVAL;
+ 				}
+ 				nor->program_opcode = SPINOR_OP_PP_4B;
+ 				/* No small sector erase for 4-byte command set */
+@@ -1427,6 +4062,9 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+ 	}		
+ 
+ 	nor->read_dummy = spi_nor_read_dummy_cycles(nor);
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++scan_done:
++#endif	
+ 
+ 	dev_info(dev, "%s (%lld Kbytes)\n", info->name,
+ 			(long long)mtd->size >> 10);
+@@ -1463,5 +4101,15 @@ static const struct flash_info *spi_nor_match_id(const char *name)
+ 	return NULL;
+ }
+ 
++void spi_nor_shutdown(struct spi_nor *nor)
++{
++	struct mtd_info *mtd = &nor->mtd;
++
++	if (nor->addr_width == 3 &&
++		(mtd->size) > OFFSET_16_MB)
++		write_ear(nor, 0);
++}
++EXPORT_SYMBOL_GPL(spi_nor_shutdown);
++
+ MODULE_LICENSE("GPL");
+ MODULE_DESCRIPTION("framework for SPI NOR");
+diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
+index 37e4135..ce292a3 100644
+--- a/drivers/mtd/spi-nor/spi-nor.c
++++ b/drivers/mtd/spi-nor/spi-nor.c
+@@ -722,6 +722,7 @@ static const struct flash_info spi_nor_ids[] = {
+ 	{ "mx25l12805d", INFO(0xc22018, 0, 64 * 1024, 256, 0) },
+ 	{ "mx25l12855e", INFO(0xc22618, 0, 64 * 1024, 256, 0) },
+ 	{ "mx25l25635e", INFO(0xc22019, 0, 64 * 1024, 512, 0) },
++	{ "mx25u25635f", INFO(0xc22539, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_4B_OPCODES) },
+ 	{ "mx25l25655e", INFO(0xc22619, 0, 64 * 1024, 512, 0) },
+ 	{ "mx66l51235l", INFO(0xc2201a, 0, 64 * 1024, 1024, SPI_NOR_QUAD_READ) },
+ 	{ "mx66l1g55g",  INFO(0xc2261b, 0, 64 * 1024, 2048, SPI_NOR_QUAD_READ) },
+diff --git a/drivers/spi/spi.c b/drivers/spi/spi.c
+index dee1cb8..0ecc7da 100644
+--- a/drivers/spi/spi.c
++++ b/drivers/spi/spi.c
+@@ -952,7 +952,7 @@ static int spi_transfer_one_message(struct spi_master *master,
+ 
+ 			if (ret > 0) {
+ 				ret = 0;
+-				ms = xfer->len * 8 * 1000 / xfer->speed_hz;
++				ms = xfer->len * 8 / (xfer->speed_hz / 1000);
+ 				ms += ms + 100; /* some tolerance */
+ 
+ 				ms = wait_for_completion_timeout(&master->xfer_completion,
+diff --git a/include/linux/mtd/dt_cmdlist.h b/include/linux/mtd/dt_cmdlist.h
+new file mode 100644
+index 0000000..5c52002
+--- /dev/null
++++ b/include/linux/mtd/dt_cmdlist.h
+@@ -0,0 +1,132 @@
++/*
++ * Copyright (C) 2017 Macronix International Co., LTD.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#ifndef MX_CMDLIST_H_
++#define MX_CMDLIST_H_
++
++#define MX_ID_REG_CMDS      0
++#define MX_RD_CMDS          1
++#define MX_PGM_ERS_CMDS     2
++#define MX_MS_RST_SECU_SUSP 3
++
++enum MX_CMD_ID_REG_CMDS {
++	/* ID CMDs [11:00] */
++	MX_RES        = 0x00000001, // Read Electronic Signature
++	MX_REMS       = 0x00000002, // Read Electronic Manufacturer ID & Device ID
++	MX_REMS2      = 0x00000004, // Read Electronic Manufacturer ID & Device ID for 2xIO
++	MX_REMS4      = 0x00000008, // Read Electronic Manufacturer ID & Device ID for 4xIO
++	MX_REMS4D     = 0x00000010, // Read Electronic Manufacturer ID & Device ID for 4xIO-DDR
++
++	/* REG CMDs [12:31] */
++	MX_WRSR       = 0x00001000, // Write Status Register
++	MX_WRSCUR     = 0x00002000, // Write Security Register
++	MX_RDSCUR     = 0x00004000, // Read Secrity Register
++	MX_RDCR       = 0x00008000, // Read Configuration Register
++	MX_CLSR       = 0x00010000, // Clear Status Register Fail Flags
++	MX_CR2        = 0x00020000, // RDCR2, WRCR2: Read/Write Configuration Register 2
++	MX_EAR        = 0x00040000, // RDEAR, WREAR: Read/Write Extended Address Register
++	MX_FBR        = 0x00080000, // RDFBR, WRFBR ESFBR: Read/Write/Erase Fast Boot Register
++	MX_LR         = 0x00100000, // RDLR, WRLR: Read/Write Lock Register
++	MX_PASS       = 0x00200000, // RDPASS, WRPASS PASSULK: ASP Password Protect
++	MX_SPB        = 0x00400000, // RDSPB, WRSPB ESSPB: Read/Write/Erase Solid Protection Mode
++	MX_SPBLK      = 0x00800000, // SPBLB, RDSPBLK: SPB Lock Bit
++	MX_DPB        = 0x01000000  // RDDPB, WRDPB: Read/Write Dynamic  Protection Mode
++};
++enum MX_CMD_RD_CMDS {
++	/* READ CMDs [31:00] */
++	MX_2READ      = 0x00000001, // 1-2-2 FAST READ
++	MX_4READ      = 0x00000002, // 1-4-4 FAST READ from bottom
++	MX_4READ_TOP  = 0x00000004, // 1-4-4 FAST READ from top
++	MX_FASTREAD   = 0x00000008, // 1-1-1 FAST READ
++	MX_DREAD      = 0x00000010, // 1-1-2 FAST READ
++	MX_QREAD      = 0x00000020, // 1-1-4 FAST READ
++	MX_FASTDTRD   = 0x00000040, // 1-1-1 FAST READ DTR
++	MX_2DTRD      = 0x00000080, // 1-2-2 FAST READ DTR
++	MX_4DTRD      = 0x00000100, // 1-4-4 FAST READ DTR
++	MX_FRDTR4B    = 0x00000200, // 1-1-1 FAST READ DTR 4-byte addressing
++	MX_2DTR4B     = 0x00000400, // 1-2-2 FAST READ DTR 4-byte addressing
++	MX_4DTR4B     = 0x00000800, // 1-4-4 FAST READ DTR 4-byte addressing
++	MX_W4READ     = 0x00001000, // 1-4-4 FAST READ with fixed 4 dummy cycles
++	MX_CFIRD      = 0x00002000, // READ CFI
++	MX_RDDMC      = 0x00004000, // READ DMC
++	MX_RDSFDP     = 0x00008000, // READ SFDP
++	MX_READ4B     = 0x00010000, // 1-1-1 READ 4-byte addressing
++	MX_FASTREAD4B = 0x00020000, // 1-1-1 FAST READ 4-byte addressing
++	MX_2READ4B    = 0x00040000, // 1-2-2 FAST READ 4-byte addressing
++	MX_4READ4B    = 0x00080000, // 1-4-4 FAST READ 4-byte addressing
++	MX_FRED       = 0x00100000, // ??
++	MX_DREAD4B    = 0x00200000, // 1-1-2 FAST READ 4-byte addressing
++	MX_QREAD4B    = 0x00400000,  // 1-1-4 QREAD 4-byte addressing
++	MX_4B_RD      = (MX_READ4B | MX_FASTREAD4B | MX_2READ4B | MX_4READ4B | MX_DREAD4B | MX_QREAD4B)
++};
++enum MX_CMD_GM_ERS_CMDS {
++#define MX_PGM_CMDS_MASK 0x0000FFFF
++	/* PROGRAM CMDs [15:00] */
++	MX_4PP       = 0x00000001, // 1-4-4 Page PGM
++	MX_QPP       = 0x00000002, // 1-1-4 Page QPGM
++	MX_CP        = 0x00000004, // Chip PGM
++	MX_PP4B      = 0x00000008, // 1-1-1 Page PGM 4-byte addressing
++	MX_4PP4B     = 0x00000010, // 1-4-4 Page PGM 4-byte addressing
++	MX_4B_PGM    = (MX_PP4B | MX_4PP4B),
++#define MX_ERS_CMDS_MASK 0xFFFF0000
++	/* ERASE CMDs [31:16] */
++	MX_SE4B      = 0x00010000, // Sector ERS 4-byte addressing
++	MX_BE32K     = 0x00020000, // BLock ERS with 32Kbit
++	MX_BE32K4B   = 0x00040000, // BLock ERS with 32KbitMX_BE32K4B 4-byte addressing
++	MX_BE        = 0x00080000, // Block ERS
++	MX_BE4B      = 0x00100000, // Block ERS 4-byte addressing
++	MX_CE        = 0x00200000, // Chip ERS
++	MX_4B_ERS    = (MX_SE4B |  MX_BE32K4B | MX_BE4B),
++	MX_4B_PGMERS = (MX_4B_PGM | MX_4B_ERS)
++};
++enum MX_CMD_RST_SECU_SUSP {
++	/* MODE SETTING CMDs [15:00]*/
++	MX_DPD       = 0x00000001, // Deep Power Down Mode
++	//			 = 0x00000002, // Reserved
++	MX_SO        = 0x00000004, // Enter/Exit Secured OTP
++	MX_SA        = 0x00000008, // Enter/Exit Secured Area
++	MX_SRY       = 0x00000010, // Enable/Disable SO to Output Ready/Busy
++	MX_EQIO      = 0x00000020, // Enable QPI
++	MX_WPSEL     = 0x00000040, // Enable block protect mode
++	MX_SBL       = 0x00000080, // Set Burst Length
++	MX_ENPLM     = 0x00000100, // Enter Parallel Mode, 8I/O
++	MX_EXPLM     = 0x00000200, // Exit Parallel Mode, 8I/O
++	MX_4B        = 0x00000400, // Enter/Exit 4-byte addressing mdoe
++	MX_HDE       = 0x00000800, // Hold# Enable
++
++	/* Reset CMDs [19:16]*/
++	MX_RST       = 0x00010000, // RSTEN, RST
++	MX_RSTQIO    = 0x00020000, // reset QIO
++
++	/* Security CMDs [30:20]*/
++	MX_SBLK      = 0x00100000, // SBLK, SBULK, RDBLOCK
++	MX_GBLK      = 0x00200000, // GBLK, GBULK
++	MX_KEY       = 0x00400000, // KEY1, KEY2
++	MX_BLOCKP    = 0x00800000, // BLOCKP, RDBLOCK2, UNLOCK
++	MX_WRLB      = 0x01000000, // Write Read-Lock Reg. bit2
++	MX_PLOCK     = 0x02000000, // PLOCK(Permanent Lock), RDPLOCK(Read Permanent Lock Status)
++	MX_RLCR      = 0x04000000, // WRLCR(Write Read-Lock Reg.), RRLCR(Read Read-Lock Reg.)
++	MX_PLLK      = 0x08000000, // PLLK(Permanent Lock Bit Lock Down), RDPLLK(Read Permanent Lock Bit Lock Down)
++
++	/* Suspend / Resume CMDs [31:31]*/
++	MX_SUS_RES   = 0x80000000  // Suspend/Resume Program or Erase
++};
++struct dt_rd_dmy {
++	u8 cr_value;
++	u8 dummy;
++};
++struct nor_dt_info {
++	u32	cmdlist[4];
++	struct dt_rd_dmy rd_dmy[5];
++	u8 asp_pwd_sup;
++	u8 cmdlist_sup;
++	u8 dmy_sup;
++};
++
++#endif /* MX_CMDLIST_H_ */
+diff --git a/include/linux/mtd/mtd.h b/include/linux/mtd/mtd.h
+index f17fa75..b81e87e 100644
+--- a/include/linux/mtd/mtd.h
++++ b/include/linux/mtd/mtd.h
+@@ -222,12 +222,45 @@ struct mtd_info {
+ 	int (*_lock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
+ 	int (*_unlock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
+ 	int (*_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++	/* Macronix advanced sector protection related functions */
++	int (*_asp_lock)(struct mtd_info *mtd);
++	int (*_qry_lockmode)(struct mtd_info *mtd);
++	int (*_set_pwd)(struct mtd_info *mtd, uint64_t pwd);
++	int (*_pwd_lockspb)(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd);
++	int (*_pwd_unlockspb)(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd);
++	int (*_pwd_auth)(struct mtd_info *mtd, uint64_t pwd);
++	int (*_pwd_spblk)(struct mtd_info *mtd);
++	int (*_dpb_lock)(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_dpb_unlock)(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_dpb_is_locked)(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++	int (*_single_lock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_single_unlock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_single_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++	int (*_perm_lock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_perm_unlock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_perm_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++	int (*_bwl_lock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_bwl_unlock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_bwl_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++	int (*_rdlock_lock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_rdlock_unlock) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++	int (*_rdlock_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
++
+ 	int (*_block_isreserved) (struct mtd_info *mtd, loff_t ofs);
+ 	int (*_block_isbad) (struct mtd_info *mtd, loff_t ofs);
+ 	int (*_block_markbad) (struct mtd_info *mtd, loff_t ofs);
+ 	int (*_suspend) (struct mtd_info *mtd);
+ 	void (*_resume) (struct mtd_info *mtd);
+ 	void (*_reboot) (struct mtd_info *mtd);
++	int (*_dp) (struct mtd_info * mtd);
++	int (*_rdp) (struct mtd_info * mtd);
++	int (*_swrst) (struct mtd_info *mtd);
+ 	/*
+ 	 * If the driver is something smart, like UBI, it may need to maintain
+ 	 * its own reference counting. The below functions are only for driver.
+@@ -308,6 +341,30 @@ int mtd_block_isreserved(struct mtd_info *mtd, loff_t ofs);
+ int mtd_block_isbad(struct mtd_info *mtd, loff_t ofs);
+ int mtd_block_markbad(struct mtd_info *mtd, loff_t ofs);
+ 
++/* NOR Advanced Sector Protection for Macronix and similar */
++int mtd_mxc_asplock(struct mtd_info *mtd);
++int mtd_mxc_qry_lockmode(struct mtd_info *mtd);
++int mtd_mxc_set_pwd(struct mtd_info *mtd, uint64_t);
++int mtd_mxc_pwd_unlockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd);
++int mtd_mxc_pwd_lockspb(struct mtd_info *mtd, loff_t ofs, uint64_t len, uint64_t pwd);
++int mtd_mxc_pwd_auth(struct mtd_info *mtd, uint64_t pwd);
++int mtd_mxc_pwd_spblk(struct mtd_info *mtd);
++int mtd_mxc_dpb_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_dpb_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_dpb_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_single_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_single_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_single_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_perm_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_perm_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_perm_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_bwl_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_bwl_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_bwl_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_rdlock_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_rdlock_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++int mtd_mxc_rdlock_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
++
+ static inline int mtd_suspend(struct mtd_info *mtd)
+ {
+ 	return mtd->_suspend ? mtd->_suspend(mtd) : 0;
+diff --git a/include/linux/mtd/sfdp.h b/include/linux/mtd/sfdp.h
+new file mode 100644
+index 0000000..f730899
+--- /dev/null
++++ b/include/linux/mtd/sfdp.h
+@@ -0,0 +1,425 @@
++/*
++ * Copyright (C) 2017 Macronix International Co., LTD.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#ifndef SFDP_H_
++#define SFDP_H_
++
++//#include <linux/device.h>
++#include <uapi/mtd/mtd-abi.h>
++
++enum fdp_param_id {
++	PARAM_ID_JEDEC = 0x00,
++	PARAM_ID_MXIC = 0xc2, 
++	PARAM_ID_ADDR_4B_CMD = 0x84
++};
++
++/* for SPI NOR flash Read/write/erase pattern */
++enum flash_protocol {
++	PROT_1_1_1 = 0,
++	PROT_1_1_2,
++	PROT_1_2_2,
++	PROT_1_1_4,
++	PROT_1_4_4,
++	PROT_2_2_2,
++	PROT_4_4_4
++};
++
++/* SFDP signature (ASCII: 'S' 'F' 'D' 'P') */
++#define SFDP_SIGNATURE		  0x50444653
++
++/**
++ * struct sfdp_param_header - SFDP parameter header
++ * @id:				Parameter ID LSB (manufacture ID)
++ * @minor_rev:		Parameter table minor revision number
++ * @major_rev:		Parameter table major revision number
++ * @length:			Parameter table length (DWORDs)
++ * @pointer:		Parameter table pointer (start address)
++ * @id_reserved:	Parameter ID MSB
++ */
++struct param_header_info {
++	u8 id;
++	u8 minor_rev;
++	u8 major_rev;
++	u8 length;
++	u8 pointer[3];
++	u8 id_reserved;
++};
++
++/**
++ * struct header_info - Serial Flash Discoverable JEDEC Header
++ * @signature:				SFDP signature for identification, should be "SFDP"
++ * @minor_rev:				SFDP minor revision number
++ * @major_rev:				SFDP major revision number
++ * @num_of_param_header:	Number of parameter headers (0 indicates 1 header)
++ * @header:					Header of JEDEC or vendor's parameters
++ */
++struct header_info {
++	u32 signature;
++	u8 minor_rev;
++	u8 major_rev;
++	u8 num_of_param_header;
++	u8 reserved;
++#define SFDP_MAX_PARAM_HEADER 5
++	struct param_header_info param_header[SFDP_MAX_PARAM_HEADER];
++};
++
++struct sfdp_erase_type {
++	u8 size_power;
++	u8 opcode;
++};
++
++/**
++ * struct jedec_params - Basic JEDEC parameters of SFDP
++ * @f_param:			JEDEC flash parameters:
++ *				 Bit 0~1: Block/sector erase size
++ *				 Bit 2: write granularity (0 - 1B, 1 - 64B)
++ *				 Bit 3~4: command of write enable
++ * @be_4k_opcode:		4KByte block/sector erase instruction
++ * @fr_support:			Fast read supports:
++ *				 Bit 0: support of fast read 1-1-2
++ *				 Bit 1~2: address width
++ *				 Bit 3: support of DTR
++ *				 Bit 4~6: support of fast read 1-2-2, 1-4-4, 1-1-4
++ * @flash_density:		Flash memory density
++ * @fr_XXX_param:		(X-X-X) Fast read parameters:
++ *		Bit 0~4: number of dummy clocks
++ *		Bit 5~7: number of mode clocks
++ * @fr_XXX_opcode:		(X-X-X) Fast read instruction
++ * @fr_222_444_support:		Fast read (2-2-2/4-4-4) supports:
++ *		Bit 0: support of fast read 2-2-2
++ *		Bit 4: support of fast read 4-4-4
++ * @erase_type:			Erase type (size & instruction)
++ * @mult_ers_time:		multiplier from typical to max erase time
++ * @ers_time_1:         erase type 1 , typical time
++ * @ers_time_2:         erase type 2 , typical time
++ * @ers_time_3:         erase type 3 , typical time
++ * @ers_time_4:         erase type 4 , typical time
++
++ * @pgm_param:			Program parameters:
++ *		Bit 0~3: multiplier from typical to max program time
++ *		Bit 4~7: page size (2 to the n-th power)
++ *		Bit 8~30: typical time of page/byte program, chip erase
++ * @susp_param:			Suspend/Resume parameters:
++ *		Bit 0~7: prohibited operations during suspend
++ *		Bit 9~30: timing defininition
++ *		Bit 31: support of suspend/resume
++ * @p_resu_opcode:		Program resume instruction
++ * @p_susp_opcode:		Program suspend instruction
++ * @resu_opcode:		Write/Erase resume instruction
++ * @susp_opcode:		Write/Erase suspend instruction
++ * @dp_param:			Deep powerdown parameters:
++ *	Bit 2~14: delay and SR polliong
++ *	Bit 15~22: exit deep powerdown instruction
++ *	Bit 23~30: enter deep powerdown instruction
++ *	Bit 31: support of deep powerdown
++ * @fr_quad_param:		(X-4-4) Fast read parameters:
++ *		Bit 0~8: 4-4-4 mode disable/enable sequences
++ *		Bit 9: support of fast read 0-4-4
++ *		Bit 10~19: 0-4-4 mode exit/entry method
++ *		Bit 20~22: quad enable requirements (QER)
++ *		Bit 23: HOLD or RESET disable
++ * @en4b_param:			Method of enter 4-byte address
++ * @ex4b_softreset_param:	method of exit 4-byte address and software reset
++ * @sr_param:			Volatile/Non-volatile status register 1 parameters
++ */
++/**
++ * struct sfdp_erase_type - SFDP erase type parameter
++ * @size_power:		Erase size (2 to the n-th power)
++ * @opcode:		Erase instruction
++ */
++
++#define SFDP_FR_112           0x01
++#define SFDP_FR_122           0x10
++#define SFDP_FR_144           0x20
++#define SFDP_FR_114           0x40
++#define SFDP_FR_DTR           0x08
++
++#define SFDP_FR_DUMMY_MASK  0x1F
++#define SFDP_ERASE_TYPE_NUM   4
++
++struct jedec_param {
++/* DROWD 00 */
++u32 f_param:      8,
++	be_4k_opcode: 8,
++	fr_support:   8,
++	reserved0:    8;
++/* DROWD 01 */
++u32 flash_density;
++/* DROWD 02 */
++u32 fr_144_param:  8,
++	fr_144_opcode: 8,
++	fr_114_param:  8,
++	fr_114_opcode: 8;
++/* DROWD 03 */
++u32 fr_112_param:  8,
++	fr_112_opcode: 8,
++	fr_122_param:  8,
++	fr_122_opcode: 8;
++/* DROWD 04 */
++u32 fr_222_support :  1,
++	reserved1 :       3,
++	fr_444_support :  1,
++	reserved2 :      27;
++/* DROWD 05 */
++u32 reserved3:     16,
++	fr_222_param:   8,
++	fr_222_opcode:  8;
++/* DWORD 06 */
++u32 reserved4:     16,
++	fr_444_param:   8,
++	fr_444_opcode:  8;
++/* DWORD 07 & WROD 08*/
++struct sfdp_erase_type e_type[SFDP_ERASE_TYPE_NUM];
++
++/**
++ *  the following DWORDs are needed by SFDP ver1.6 above that can be supported
++ **/
++
++/* DWORD 09 */
++u32 mult_ers_time: 4,
++	ers_time_1:    7,
++	ers_time_2:    7,
++	ers_time_3:    7,
++	ers_time_4:    7;
++/* DWORD 10 */
++u32 mult_pgm_time:       4,
++	page_sz:             4,
++	ppgm_time:           6,
++	bpgm_time_1st_time:  5,
++	bpgm_time_addi_time: 5,
++	cs_time:             7,
++	reserved5:           1;
++/* DWORD 11 */
++u32 proh_pgm_susp:        4,
++	proh_ers_susp:        4,
++	reserved6:            1,
++	pgm_resu_sus_time:    4,
++	pgm_susp_max_latency: 7,
++	ers_resu_sus_time:    4,
++	ers_susp_max_latency: 7,
++	susp_resu_suport:     1;
++/* DWORD 12 */
++u32 pgm_resu_opcode: 8,
++	pgm_susp_opcode: 8,
++	resu_opcode:     8,
++	susp_opcode:     8;
++/* DWORD 13 */
++u32 reserved7:        2,
++	sr_busy:          6,
++	ex_dpd_time:    7,
++	ex_dpd_opcode:  8,
++	en_dpd_opcode: 8,
++	dpd_suport:       1;
++/* DWORD 14 */
++u32 exit_444_mode:      4,
++	enter_444_mode:     5,
++	_044_support:       1,
++	exit_044_mode:      6,
++	enter_044_mode:     4,
++	qer_requirements:   3,
++	hold_reset_disable: 1,
++	reserved8:          8;
++/* DWORD 15 */
++u32 sr_param:               7,
++	reserved9:              1,
++	soft_rst_support:       6,
++	exit_4byte_addr_mode:  10,
++	enter_4byte_addr_mode:  8;
++};
++/**
++ * structure macronix_param_128bits - Macronix SFDP parameter table
++ * macronix flash parameter table
++ * @DWORD0
++ * 		[15:00]: vcc_supply_max_voltage
++ * 		[31:16]: vcc_supply_min_voltage
++ * @DWORD1:
++ *		[00:00]: support for H/W Reset# pin
++ *		[01:01]: support for H/W Hold# pin
++ *		[02:02]: support for deep power down mode
++ *		[03:03]: support for S/W Reset
++ *		[11:04]: software reset instruction
++ *		[12:12]: support for program suspend/resume
++ *		[13:13]: support for erase suspend/resume
++ *		[15:15]: support for wrap-around read
++ *		[24:16]: wrap around read instruction
++ *		[31:24]: wrap around read data length
++ * @DWORD2:
++ * 		[00:00]: support for individual block lock
++ * 		[01:01]: individual block lock is volatile/non-volatile
++ * 		[09:02]: individual block lock instruction
++ * 		[10:10]: individual block lock default protect status
++ * 		[11:11]: support for secured OTP
++ * 		[12:12]: support for read lock
++ * 		[13:13]: support for permanent lock
++ *
++ */
++struct vendor_param_flash {
++/* @DWORD0 */
++u32 vcc_supply_max_volt:   16, //[15:00]
++	vcc_supply_min_volt:   16; //[31:16]
++/* @DWORD1*/
++u32 hw_reset_support:       1, //[00:00]
++	hw_hold_support:        1, //[01:01]
++	dpd_support:            1, //[02:02]
++	sw_reset_support:       1, //[03:03]
++	sw_reset_opcode:        8, //[11:04]
++	pgm_susp_resu_support:  1, //[12:12]
++	ers_susp_resu_support:  1, //[13:13]
++	reserved0:              1, //[14:14]
++	wrap_around_rd_support: 1, //[15:15]
++	wrap_around_rd_opcode:  8, //[24:16]
++	wrap_around_rd_len:     8; //[31:24]
++/* @DWORD2 */
++u32 indi_bl_support:        1, //[00:00]
++	indi_bl_bit:            1, //[01:01]
++	indi_bl_opcode:         8, //[09:02]
++	indi_bl_def_stat:   1, //[10:10]
++	secure_otp_support:     1, //[11:11]
++	rd_lock_support:        1, //[12:12]
++	perment_lock_support:   1, //[13:13]
++	reserved1:              18;
++/* @DWORD3*/
++	u32 reserved2;
++};
++/**
++ * structure macronix_param_64bits - Macronix SFDP parameter table
++ * for 4-byte addressing instruction
++ * @DWORD0
++ * 		[05:00]: support for 4-byte address read
++ * 		         cmd: NR111, FR111, FR112, FR122, FR114, FR144
++ * 		[08:06]: support for 4-byte address program
++ * 		         cmd: PP, QPP, 4PP
++ * 		[12:09]: support for 4-byte address erase with 4 types
++ * 		[13:13]: support for dtr_rd_111
++ * 		[14:14]: support for dtr_rd_122
++ * 		[15:15]: support for dtr_rd_144
++ *		[16:16]: support for volatile individual sector lock read  0xE0
++ *		[17:17]: support for volatile individual sector lock write 0xE1
++ *		[18:18]: support for non-volatile individual sector lock read  0xE2
++ *		[19:19]: support for non-volatile individual sector lock write 0xE
++ * @DWORD1:
++ * 		[07:00]: Erase type 1 instruction
++ * 		[15:08]: Erase type 2 instruction
++ * 		[23:16]: Erase type 3 instruction
++ * 		[31:24]: Erase type 4 instruction
++ *
++ */
++struct jedec_param_addr_4b_cmd {
++
++#define SFDP_NR_111_4B        0x01
++#define SFDP_FR_111_4B        0x02
++#define SFDP_FR_112_4B        0x04
++#define SFDP_FR_122_4B        0x08
++#define SFDP_FR_114_4B        0x10
++#define SFDP_FR_144_4B   	  0x20
++#define SFDP_PP_111_4B        0x01
++#define SFDP_PP_114_4B        0x02
++#define SFDP_PP_144_4B        0x04
++#define SFDP_ERS_1_4B         0x01
++#define SFDP_ERS_2_4B         0x02
++#define SFDP_ERS_3_4B         0x04
++#define SFDP_ERS_4_4B         0x08
++
++#define SFDP_FR_ADDR_3B_MASK  0xF9
++
++#define MX_ERASE_TYPE_NUM 4
++
++/* DWORD 0 */
++	u32 rd_4b_mode_support:  6,
++		pgm_4b_mode_support: 3,
++		ers_4b_mode_support: 4,
++		dtr_111_support:     1,
++		dtr_122_support:     1,
++		dtr_144_support:     1,
++		rddpb_support:       1,
++		wrdpb_support:       1,
++		rdspb_support:       1,
++		wrspb_support:       1,
++		resvered0:          12;
++/* DWORD 1 */
++	u8 e_type_opcode[MX_ERASE_TYPE_NUM];
++
++};
++struct erase_type {
++	u8 opcode;	// 0xff = not support
++	u32 size;	// byte
++};
++
++struct fast_read_info {
++	u8 opcode;		// 0xff = not support
++	u8 mode_bits;	// read performance enhence toggling bits
++	u16 dummy_clk;
++};
++
++struct sfdp_chip_info {
++
++	u32	hw_rst_support:1,
++		hw_hold_support:1,
++		dpd_support:1,
++		sw_rst_support:1,
++		sw_rst_f0_support:1,
++		pgm_susp_resu_support:1,
++		ers_susp_resu_support:1,
++		secure_otp_suppport:1,
++		rd_lock_support:1,
++		perm_lock_support:1,
++		addr_4b_cmd_support:1,
++		rd_dtr_support:1,
++		ear_support:1,
++		en_4b_w_wren_support:1,
++		en_4b_wo_wren_support:1,
++		ex_4b_w_wren_support:1,
++		ex_4b_wo_wren_support:1,
++		sr_busy_bit7_support:1,
++		indi_bl_support:1,
++		asp_pwd_support:1, 
++		en4b_support:1;
++
++	u8 sfdp_ver;
++	u8 soft_rst;
++	u32 write_sz;
++	u32 ers_sz;
++	u32 sz;
++	u8 addr_mode;
++	u16 page_sz;
++	u8 read_dummy;
++	u8 addr_width;
++
++	u8 rdsr_opcode;
++	u8 wren_opcode;
++	u8 ers_opcode;
++	u8 ers_4k_opcode;
++	u8 ers_4k_4b_opcode;
++	u8 pgm_opcode;
++	u8 rd_opcode;
++	u8 swrst_opcode;
++	u8 en_dpd_opcode;
++	u8 ex_dpd_opcode;
++	u8 susp_opcode;
++	u8 resu_opcode;
++	u8 indi_bl_opcode;
++	u32 max_sector_sz;
++};
++
++/*
++ * struct sfdp_info - including SFDP header, parameter header and parameter table
++ */
++struct sfdp_info {
++	struct header_info sfdp_header;
++	struct jedec_param j_param;
++	struct jedec_param_addr_4b_cmd param_addr_4b_cmd;
++	struct vendor_param_flash param_flash;
++	struct sfdp_chip_info chip;
++	
++	struct spi_device *spi;
++};
++
++int sfdp_probe(struct sfdp_info *sfdp, u8 id);
++
++#endif /* SFDP_H_ */
+diff --git a/include/linux/mtd/spi-nor.h b/include/linux/mtd/spi-nor.h
+index dc6a2bd..22baec3 100644
+--- a/include/linux/mtd/spi-nor.h
++++ b/include/linux/mtd/spi-nor.h
+@@ -14,6 +14,44 @@
+ #include <linux/mtd/cfi.h>
+ 
+ /*
++ * Protection mode
++ */
++#define LR_SP_MASK		0x02
++#define LR_PP_MASK		0x04
++#define WPSEL_MASK		0x80
++#define SPBLB_MASK		0x01
++
++enum MX_ASP_MODE {
++	ASP_SPB_LOCK = 0,
++	ASP_DPB_LOCK,
++	ASP_DPB_UNLOCK,
++	ASP_SBLK,
++	ASP_SBULK,
++
++	ASP_PLOCK,			// Permanent lock				0x64
++	ASP_BWL_LOCK,		// Block write lock protection	0xE2
++
++	ASP_SPB,
++	ASP_DPB,
++	ASP_SB,
++
++	ASP_PERM,			// permanent lock
++	ASP_BWL				// block write lock
++};
++
++/*
++ * here is used to check boundary of 64K/4K protection area
++ */
++#define MX_64KB					(1 << 16)
++#define MX_4KB					(1 << 12)
++#define MX_WP64K_FIRST			MX_64KB
++#define MX_WP64K_LAST(mtd_sz)	((mtd_sz) - MX_64KB)
++
++#define MX_SINGLE_WP4K_NUMBER				(MX_64KB / MX_4KB)
++#define MX_WP64K_NUMBER(mtd_sz)			((mtd_sz) / MX_64KB)
++#define MX_ADVANCED_LOCK_NUMBER(mtd_sz)	(MX_WP64K_NUMBER(mtd_sz) + 2 * MX_SINGLE_WP4K_NUMBER)
++
++/*
+  * Manufacturer IDs
+  *
+  * The first byte returned from the flash after sending opcode SPINOR_OP_RDID.
+@@ -36,42 +74,114 @@
+  */
+ 
+ /* Flash opcodes. */
+-#define SPINOR_OP_WREN		0x06	/* Write enable */
+-#define SPINOR_OP_RDSR		0x05	/* Read status register */
+-#define SPINOR_OP_WRSR		0x01	/* Write status register 1 byte */
+-#define SPINOR_OP_READ		0x03	/* Read data bytes (low frequency) */
+-#define SPINOR_OP_READ_FAST	0x0b	/* Read data bytes (high frequency) */
++#define SPINOR_OP_WREN			0x06	/* Write enable */
++#define SPINOR_OP_RDSR			0x05	/* Read status register */
++#define SPINOR_OP_WRSR			0x01	/* Write status register 1 byte */
++#define SPINOR_OP_READ			0x03	/* Read data bytes (low frequency) */
++#define SPINOR_OP_READ_FAST		0x0b	/* Read data bytes (high frequency) */
+ #define SPINOR_OP_READ_1_1_2	0x3b	/* Read data bytes (Dual SPI) */
++#define SPINOR_OP_READ_1_2_2	0xbb	/* Read data bytes (Dual I/O) */
+ #define SPINOR_OP_READ_1_1_4	0x6b	/* Read data bytes (Quad SPI) */
+-#define SPINOR_OP_PP		0x02	/* Page program (up to 256 bytes) */
+-#define SPINOR_OP_BE_4K		0x20	/* Erase 4KiB block */
+-#define SPINOR_OP_BE_4K_PMC	0xd7	/* Erase 4KiB block on PMC chips */
+-#define SPINOR_OP_BE_32K	0x52	/* Erase 32KiB block */
++#define SPINOR_OP_READ_1_4_4	0xeb	/* Read data bytes (Quad I/O) */
++#define SPINOR_OP_PP			0x02	/* Page program (up to 256 bytes) */
++#define SPINOR_OP_QPP			0x32	/* Quad page program */
++#define SPINOR_OP_4PP			0x38	/* Quad IO page program */
++#define SPINOR_OP_PP_1_1_1		0x02	/* Page program (up to 256 bytes) */
++#define SPINOR_OP_PP_1_1_4		0x32	/* Quad page program */
++#define SPINOR_OP_PP_1_4_4		0x38	/* Quad IO page program */
++#define SPINOR_OP_BE_4K			0x20	/* Erase 4KiB block */
++#define SPINOR_OP_BE_4K_PMC		0xd7	/* Erase 4KiB block on PMC chips */
++#define SPINOR_OP_BE_32K		0x52	/* Erase 32KiB block */
+ #define SPINOR_OP_CHIP_ERASE	0xc7	/* Erase whole flash chip */
+-#define SPINOR_OP_SE		0xd8	/* Sector erase (usually 64KiB) */
+-#define SPINOR_OP_RDID		0x9f	/* Read JEDEC ID */
+-#define SPINOR_OP_RDCR		0x35	/* Read configuration register */
+-#define SPINOR_OP_RDFSR		0x70	/* Read flag status register */
++#define SPINOR_OP_SE			0xd8	/* Sector erase (usually 64KiB) */
++#define SPINOR_OP_RDID			0x9f	/* Read JEDEC ID */
++#define SPINOR_OP_RDCR			0x35	/* Read configuration register */
++#define SPINOR_OP_RDCR_MX		0x15	/* Read configuration register for Macronix*/
++#define SPINOR_OP_RDFSR			0x70	/* Read flag status register */
++#define SPINOR_OP_WREAR			0xc5	/* Write Extended Address Register */
++#define SPINOR_OP_RDEAR			0xc8	/* Read Extended Address Register */
++#define SPINOR_OP_SE4K      	0x20    /* Erase 4KiB sector */
++#define SPINOR_OP_BE32K     	0x52    /* Erase 32KiB block */
++#define SPINOR_OP_BE64K     	0xd8    /* Erase 64KiB block */
+ 
+ /* 4-byte address opcodes - used on Spansion and some Macronix flashes. */
+-#define SPINOR_OP_READ4		0x13	/* Read data bytes (low frequency) */
++#define SPINOR_OP_READ4			0x13	/* Read data bytes (low frequency) */
+ #define SPINOR_OP_READ4_FAST	0x0c	/* Read data bytes (high frequency) */
+ #define SPINOR_OP_READ4_1_1_2	0x3c	/* Read data bytes (Dual SPI) */
++#define SPINOR_OP_READ4_1_2_2	0xbc	/* Read data bytes (Dual IO) */
+ #define SPINOR_OP_READ4_1_1_4	0x6c	/* Read data bytes (Quad SPI) */
+-#define SPINOR_OP_PP_4B		0x12	/* Page program (up to 256 bytes) */
+-#define SPINOR_OP_SE_4B		0xdc	/* Sector erase (usually 64KiB) */
++#define SPINOR_OP_READ4_1_4_4	0xec	/* Read data bytes (Quad IO) */
++#define SPINOR_OP_PP4_1_1_1		0x12	/* Page program 111, (up to 256 bytes) */
++#define SPINOR_OP_PP4_1_1_4	    0x34	/* Page program 114, (up to 256 bytes) */
++#define SPINOR_OP_PP4_1_4_4	    0x3E	/* Page program 144, (up to 256 bytes) */
++#define SPINOR_OP_PP_4B			0x12    /* Page program 111, (up to 256 bytes) */
++#define SPINOR_OP_SE_4B			0x21	/* Sector erase (usually 4KiB) */
++#define SPINOR_OP_BE64K_4B		0xdc	/* Sector erase (usually 64KiB) */
++#define SPINOR_OP_BE32K_4B		0x5c	/* Sector erase (usually 32KiB) */
++#define SPINOR_OP_SE4K_4B		0x21	/* Sector erase (usually 4KiB) */
+ 
+ /* Used for SST flashes only. */
+ #define SPINOR_OP_BP		0x02	/* Byte program */
+ #define SPINOR_OP_WRDI		0x04	/* Write disable */
+ #define SPINOR_OP_AAI_WP	0xad	/* Auto address increment word program */
++#define GLOBAL_BLKPROT_UNLK	0x98	/* Clear global write protection bits */
+ 
+ /* Used for Macronix and Winbond flashes. */
++#define SPINOR_OP_SUSP      0xb0    /* Suspend program/Erase */
++#define SPINOR_OP_RESU      0x30    /* Resume program/Erase */
++#define SPINOR_OP_DP		0xb9	/* Deep power-down */
++#define SPINOR_OP_RDP		0xab	/* Release from deep power-down */
++#define SPINOR_OP_RDES      0xab    /* Read electronic signature */
++#define SPINOR_OP_RDEMS     0x90    /* Read electronic manufacturer ID */
++#define SPINOR_OP_RDEMS2    0xef    /* Read electronic manufacturer ID 2xIO */
++#define SPINOR_OP_RDEMS4    0xdf    /* Read electronic manufacturer ID 4xIO */
++#define SPINOR_OP_ENSO		0xb1	/* Enter secured OTP */
++#define SPINOR_OP_EXSO		0xc1	/* Exit secured OTP */
++#define SPINOR_OP_ENSA		0xb1	/* Enter secured area */
++#define SPINOR_OP_EXSA		0xc1	/* Exit secured area */
++#define SPINOR_OP_ESRY		0x70	/* Enable SO to output RY/BY # during CP mode */
++#define SPINOR_OP_DSRY		0x80	/* Disable SO to output RY/BY # during CP mode */
++#define SPINOR_OP_KEY1		0xc3	/* One of key command to set BP4 */
++#define SPINOR_OP_KEY2		0xa5	/* One of key command to set BP4 */
++#define SPINOR_OP_EQIO		0x35	/* Entering the QPI mode */
++#define SPINOR_OP_RSTQIO	0xF5	/* Exiting the QPI mode */
+ #define SPINOR_OP_EN4B		0xb7	/* Enter 4-byte mode */
+ #define SPINOR_OP_EX4B		0xe9	/* Exit 4-byte mode */
++#define SPINOR_OP_WPSEL		0x68	/* Write protection selection */ 
++#define SPINOR_OP_RDSCUR	0x2b	/* Read security register */ 
++#define SPINOR_OP_WRSCUR	0x2f	/* Write security register */
++#define SPINOR_OP_GBLK		0x7e	/* Gang block lock */ 
++#define SPINOR_OP_GBULK		0x98	/* Gnag block unlock */
++#define SPINOR_OP_SBLK		0x36	/* Single block lock */
++#define SPINOR_OP_SBULK		0x39	/* Single block unlock */
++#define SPINOR_OP_RDBLOCK	0x3c	/* Read block lock status */
++#define SPINOR_OP_WRLR		0x2c	/* Write lock register */
++#define SPINOR_OP_RDLR		0x2d	/* Read lock register */
++#define SPINOR_OP_WRPASS	0x28	/* Write password register */
++#define SPINOR_OP_RDPASS	0x27	/* Read password register */
++#define SPINOR_OP_PASSULK	0x29	/* Password unlock */
++#define SPINOR_OP_WRSPB		0xe3	/* SPB bit program */
++#define SPINOR_OP_ESSPB		0xe4	/* all SPB bit erase */ 
++#define SPINOR_OP_RDSPB		0xe2	/* Read SPB status */ 
++#define SPINOR_OP_SPBLK		0xa6	/* SPB lock set */
++#define SPINOR_OP_RDSPBLK	0xa7	/* SPB lock register read */
++#define SPINOR_OP_WRDPB		0xe1	/* Write DPB register */
++#define SPINOR_OP_RDDPB		0xe0	/* Read DPB register */
++#define SPINOR_OP_RDSFDP    0x5a    /* Read SFDP */
++#define SPINOR_OP_SWRESETEN 0x66    /* SW RESET ENABLE */
++#define SPINOR_OP_SWRESET   0x99    /* SW RESET */
++#define SPINOR_OP_PLOCK     0x64    /* Permanent lock */
++#define SPINOR_OP_RDPLOCK   0x3f    /* Read permanent lock */
++#define SPINOR_OP_BWLP      0xe2    /* Block write lock protection */
++#define SPINOR_OP_RRLCR		0xd5	/* Read read lock register */
++#define SPINOR_OP_WRLCR		0xdd	/* Write read lock register */
++
++#define SPINOR_OP_CPULK     0xf3    /* chip un-lock */
++
+ 
+ /* Used for Spansion flashes only. */
+ #define SPINOR_OP_BRWR		0x17	/* Bank register write */
++#define	SPINOR_OP_BRRD		0x16	/* Bank register read */
+ 
+ /* Used for Micron flashes only. */
+ #define SPINOR_OP_RD_EVCR      0x65    /* Read EVCR register */
+@@ -84,7 +194,18 @@
+ #define SR_BP0			BIT(2)	/* Block protect 0 */
+ #define SR_BP1			BIT(3)	/* Block protect 1 */
+ #define SR_BP2			BIT(4)	/* Block protect 2 */
++/* SR_BP3 only used on some Micron chip; must NOT be in SR_BP_BIT_MASK */
++#define SR_BP3			BIT(6)	/* Block protect 3 */
++/* SR_BP3 int bit 5 for Macronix chip */
++#define SR_BP3_MX			BIT(5)	/* Block protect 3 */
++#define	SR_BP_BIT_OFFSET	2	/* Offset to Block protect 0 */
++#define	SR_BP_BIT_MASK		(SR_BP2 | SR_BP1 | SR_BP0)
+ #define SR_SRWD			BIT(7)	/* SR write protect */
++/* Bit to determine whether protection starts from top or bottom */
++#define SR_BP_TB		BIT(5)
++
++/* Highest resolution of sector locking */
++#define M25P_MAX_LOCKABLE_SECTORS	64
+ 
+ #define SR_QUAD_EN_MX		BIT(6)	/* Macronix Quad I/O */
+ 
+@@ -97,11 +218,29 @@
+ /* Configuration Register bits. */
+ #define CR_QUAD_EN_SPAN		BIT(1)	/* Spansion Quad I/O */
+ 
++/* Extended/Bank Address Register bits */
++#define EAR_SEGMENT_MASK	0x7	/* 128 Mb segment mask */
++
+ enum read_mode {
+-	SPI_NOR_NORMAL = 0,
+-	SPI_NOR_FAST,
+-	SPI_NOR_DUAL,
+-	SPI_NOR_QUAD,
++	SPI_NOR_NORMAL = 0, //normal read 111
++	SPI_NOR_FAST,       //fast	 read 111
++	SPI_NOR_DUAL,       //fast   read 112
++	SPI_NOR_DUAL_IO,    //fast   read 122
++	SPI_NOR_QUAD,       //fast   read 114
++	SPI_NOR_QUAD_IO,    //fast   read 144
++	SPI_NOR_NORMAL_4B,  //normal read 111 4-byte addressing
++	SPI_NOR_FAST_4B,    //fast   read 111 4-byte addressing
++	SPI_NOR_DUAL_4B,    //fast   read 112 4-byte addressing
++	SPI_NOR_DUAL_IO_4B, //fast   read 122 4-byte addressing
++	SPI_NOR_QUAD_4B,    //fast   read 114 4-byte addressing
++	SPI_NOR_QUAD_IO_4B  //fast   read 144 4-byte addressing
++
++};
++enum write_mode {
++	SPI_NOR_PP,
++	SPI_NOR_4PP,
++	SPI_NOR_PP_4B,
++	SPI_NOR_4PP_4B
+ };
+ 
+ #define SPI_NOR_MAX_CMD_SIZE	8
+@@ -118,6 +257,34 @@ enum spi_nor_option_flags {
+ };
+ 
+ struct mtd_info;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++struct spi_nor_sfdp_info {
++	u8 sfdp_ver;
++
++	u32 ear_support:1,
++		en_4b_w_wren_support:1,
++		en_4b_wo_wren_support:1,
++		ex_4b_w_wren_support:1,
++		ex_4b_wo_wren_support:1,
++		addr_4b_cmd_support:1,		
++		sr_busy_bit7_support:1,
++		en4b_support:1,
++		sw_rst_f0_support:1; 
++
++	u8 rdsr_opcode;
++	u8 wren_opcode;
++	u8 en_dpd_opcode;
++	u8 ex_dpd_opcode;
++	u8 susp_opcode;
++	u8 resu_opcode;
++	u8 rd_opcode;
++	u8 pgm_opcode;
++	u8 ers_opcode;
++	u8 ers_4k_opcode;
++	u8 ers_4k_4b_opcode;
++	u8 indi_bl_opcode;
++};
++#endif
+ 
+ /**
+  * struct spi_nor - Structure for defining a the SPI NOR layer
+@@ -150,11 +317,15 @@ struct mtd_info;
+  * @flash_is_locked:	[FLASH-SPECIFIC] check if a region of the SPI NOR is
+  *			completely locked
+  * @priv:		the private data
++ *
++ * @sfdp_header:	point to SFDP Header structure
++ *
+  */
+ struct spi_nor {
+ 	struct mtd_info		mtd;
+ 	struct mutex		lock;
+ 	struct device		*dev;
++	struct spi_device	*spi;
+ 	struct device_node	*flash_node;
+ 	u32			page_size;
+ 	u8			addr_width;
+@@ -163,6 +334,10 @@ struct spi_nor {
+ 	u8			read_dummy;
+ 	u8			program_opcode;
+ 	enum read_mode		flash_read;
++	u32			jedec_id;
++	u16			curbank;
++	u16			n_sectors;
++	u32			sector_size;
+ 	bool			sst_write_second;
+ 	u32			flags;
+ 	u8			cmd_buf[SPI_NOR_MAX_CMD_SIZE];
+@@ -183,6 +358,17 @@ struct spi_nor {
+ 	int (*flash_is_locked)(struct spi_nor *nor, loff_t ofs, uint64_t len);
+ 
+ 	void *priv;
++#ifdef CONFIG_MTD_SPI_NOR_SFDP
++	struct spi_nor_sfdp_info sfdp;
++	u8 rd_cmd_nbits;
++	u8 rd_addr_nbits;
++	u8 rd_data_nbits;
++	u8 pgm_cmd_nbits;
++	u8 pgm_addr_nbits;
++	u8 pgm_data_nbits;
++	u8 dummy_io_sel;
++#endif
++
+ #ifdef CONFIG_M25PXX_STAY_IN_3BYTE_MODE
+ 	void *priv1;
+ #endif	
+@@ -204,4 +390,14 @@ struct spi_nor {
+  */
+ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode);
+ 
++/**
++ * spi_nor_shutdown() - prepare for reboot
++ * @nor:	the spi_nor structure
++ *
++ * The drivers can use this fuction to get the address back to
++ * 0 as will be required for a ROM boot.
++ */
++void spi_nor_shutdown(struct spi_nor *nor);
++
++
+ #endif
+diff --git a/include/linux/spi/spi.h b/include/linux/spi/spi.h
+index cce80e6..fe4c6a2 100644
+--- a/include/linux/spi/spi.h
++++ b/include/linux/spi/spi.h
+@@ -25,6 +25,7 @@
+ struct dma_chan;
+ struct spi_master;
+ struct spi_transfer;
++struct spi_flash_read_message;
+ 
+ /*
+  * INTERFACES between SPI master-side drivers and SPI infrastructure.
+@@ -361,6 +362,8 @@ static inline void spi_unregister_driver(struct spi_driver *sdrv)
+  * @handle_err: the subsystem calls the driver to handle an error that occurs
+  *		in the generic implementation of transfer_one_message().
+  * @unprepare_message: undo any work done by prepare_message().
++ * @spi_flash_read: to support spi-controller hardwares that provide
++ *                  accelerated interface to read from flash devices.
+  * @cs_gpios: Array of GPIOs to use as chip select lines; one per CS
+  *	number. Any individual value may be -ENOENT for CS lines that
+  *	are not GPIOs (driven by the SPI controller itself).
+@@ -424,6 +427,7 @@ struct spi_master {
+ #define SPI_MASTER_NO_TX	BIT(2)		/* can't do buffer write */
+ #define SPI_MASTER_MUST_RX      BIT(3)		/* requires rx */
+ #define SPI_MASTER_MUST_TX      BIT(4)		/* requires tx */
++#define SPI_MASTER_QUAD_MODE	BIT(6)		/* support quad mode */
+ 
+ 	/* lock and mutex for SPI bus locking */
+ 	spinlock_t		bus_lock_spinlock;
+@@ -507,6 +511,8 @@ struct spi_master {
+ 			       struct spi_message *message);
+ 	int (*unprepare_message)(struct spi_master *master,
+ 				 struct spi_message *message);
++	int (*spi_flash_read)(struct  spi_device *spi,
++			      struct spi_flash_read_message *msg);
+ 
+ 	/*
+ 	 * These hooks are for drivers that use a generic implementation
+@@ -999,6 +1005,47 @@ static inline ssize_t spi_w8r16be(struct spi_device *spi, u8 cmd)
+ 	return be16_to_cpu(result);
+ }
+ 
++/**
++ * struct spi_flash_read_message - flash specific information for
++ * spi-masters that provide accelerated flash read interfaces
++ * @buf: buffer to read data
++ * @from: offset within the flash from where data is to be read
++ * @len: length of data to be read
++ * @retlen: actual length of data read
++ * @read_opcode: read_opcode to be used to communicate with flash
++ * @addr_width: number of address bytes
++ * @dummy_bytes: number of dummy bytes
++ * @opcode_nbits: number of lines to send opcode
++ * @addr_nbits: number of lines to send address
++ * @data_nbits: number of lines for data
++ * @sg: Scatterlist for receive, currently not for client use
++ * @cur_msg_mapped: message has been mapped for DMA
++ */
++struct spi_flash_read_message {
++	void *buf;
++	loff_t from;
++	size_t len;
++	size_t retlen;
++	u8 read_opcode;
++	u8 addr_width;
++	u8 dummy_bytes;
++	u8 opcode_nbits;
++	u8 addr_nbits;
++	u8 data_nbits;
++	struct sg_table sg;
++	bool cur_msg_mapped;
++};
++
++/* SPI core interface for flash read support */
++static inline bool spi_flash_read_supported(struct spi_device *spi)
++{
++	return spi->master->spi_flash_read ? true : false;
++}
++
++int spi_flash_read(struct spi_device *spi,
++		   struct spi_flash_read_message *msg);
++
++
+ /*---------------------------------------------------------------------------*/
+ 
+ /*
+diff --git a/include/uapi/mtd/mtd-abi.h b/include/uapi/mtd/mtd-abi.h
+index 763bb69..95af266 100644
+--- a/include/uapi/mtd/mtd-abi.h
++++ b/include/uapi/mtd/mtd-abi.h
+@@ -22,6 +22,13 @@
+ 
+ #include <linux/types.h>
+ 
++/* only for Macronix ASP mode , offset + length + pwd */
++struct asp_info_user {
++	__u32 start;
++	__u32 length;
++	__u64 pwd;
++};
++
+ struct erase_info_user {
+ 	__u32 start;
+ 	__u32 length;
+@@ -204,6 +211,35 @@ struct otp_info {
+  */
+ #define MEMWRITE		_IOWR('M', 24, struct mtd_write_req)
+ 
++/* NOR Advanced Sector Protection for Macronix chips and similar  */
++#define MEMASPLOCK		_IO('M', 25)
++#define MEMQRYLOCKMODE	_IOR('M', 26, int)
++#define MEMSETPWD		_IOW('M', 27, struct asp_info_user)
++#define MEMPWDLOCKSPB	_IOW('M', 28, struct asp_info_user)
++#define MEMPWDUNLOCKSPB	_IOW('M', 29, struct asp_info_user)
++#define MEMPWDAUTH		_IOW('M', 30, struct asp_info_user)
++#define MEMSPBLK		_IO('M', 31)
++#define MEMDPBLOCK		_IOW('M', 32, struct erase_info_user)
++#define MEMDPBUNLOCK	_IOW('M', 33, struct erase_info_user)
++#define MEMDPBISLOCKED	_IOR('M', 34, struct erase_info_user)
++
++#define MEMSINGLELOCK		_IOW('M', 35, struct erase_info_user)
++#define MEMSINGLEUNLOCK		_IOW('M', 36, struct erase_info_user)
++#define MEMSINGLEISLOCKED	_IOR('M', 37, struct erase_info_user)
++
++#define MEMPERMLOCK		_IOW('M', 38, struct erase_info_user)
++#define MEMPERMUNLOCK	_IOW('M', 39, struct erase_info_user)
++#define MEMPERMISLOCKED	_IOR('M', 40, struct erase_info_user)
++
++#define MEMBWLLOCK		_IOW('M', 44, struct erase_info_user)
++#define MEMBWLUNLOCK	_IOW('M', 45, struct erase_info_user)
++#define MEMBWLISLOCKED	_IOR('M', 46, struct erase_info_user)
++
++#define MEMRDLOCKLOCK		_IOW('M', 47, struct erase_info_user)
++#define MEMRDLOCKUNLOCK		_IOW('M', 48, struct erase_info_user)
++#define MEMRDLOCKISLOCKED	_IOR('M', 49, struct erase_info_user)
++
++
+ /*
+  * Obsolete legacy interface. Keep it in order not to break userspace
+  * interfaces
+@@ -276,6 +312,19 @@ enum mtd_file_modes {
+ 	MTD_FILE_MODE_RAW,
+ };
+ 
++/*
++ * MTD locking states - return codes for ioctl(MEMISLOCKED)
++ *
++ * @MTD_IS_UNLOCKED:		Specified region is completely unlocked
++ * @MTD_IS_LOCKED:		Specified region is completely locked
++ * @MTD_IS_PARTIALLY_LOCKED:	Specified region is partially locked
++ */
++enum mtd_locking_states {
++	MTD_IS_UNLOCKED,
++	MTD_IS_LOCKED,
++	MTD_IS_PARTIALLY_LOCKED,
++};
++
+ static inline int mtd_type_is_nand_user(const struct mtd_info_user *mtd)
+ {
+ 	return mtd->type == MTD_NANDFLASH || mtd->type == MTD_MLCNANDFLASH;
+-- 
+2.1.4
+

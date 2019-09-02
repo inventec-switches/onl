@@ -1,1 +1,1 @@
-!include $ONL_TEMPLATES/onlp-platform-any.yml PLATFORM=arm-accton-inventec-d2428 ARCH=armel TOOLCHAIN=arm-linux-gnueabi
+!include $ONL_TEMPLATES/onlp-platform-any.yml PLATFORM=arm-inventec-d2428 ARCH=armel TOOLCHAIN=arm-linux-gnueabi

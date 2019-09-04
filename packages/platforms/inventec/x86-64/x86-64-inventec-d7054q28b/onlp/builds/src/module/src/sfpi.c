@@ -180,7 +180,8 @@ onlp_sfpi_eeprom_read(int port, uint8_t data[256])
 
     memset(data, 0, 256);
     /* Read eeprom information into data[] */
-    if (onlp_i2c_read(bus, TRANSCEIVER_EEPROM_I2C_ADDR, 0x00, 256, data, 0) != 0)
+    //if (onlp_i2c_read(bus, TRANSCEIVER_EEPROM_I2C_ADDR, 0x00, 256, data, 0) != 0)
+    if(onlp_i2c_block_read(bus,TRANSCEIVER_EEPROM_I2C_ADDR,0x00,256,data,0) !=0)
     {
         AIM_LOG_ERROR("Unable to read eeprom from port(%d)\r\n", port);
         return ONLP_STATUS_E_INTERNAL;

@@ -129,6 +129,7 @@
 #define STATE_TRANSVR_SWAPPED           (-200) /* [Transvr]:Be plugged in.  [Obj]:(Not used)                          */
 #define STATE_TRANSVR_DISCONNECTED      (-300) /* [Transvr]:Un-plugged.     [Obj]:Link down, and not provide service. */
 #define STATE_TRANSVR_UNEXCEPTED        (-901) /* [Transvr]:Any             [Obj]:Any,       and not in expect case.  */
+#define STATE_TRANSVR_INSERT            (1)    /*customized*/
 
 /* Task state define */
 #define STATE_T_TASK_WAIT               (110)
@@ -698,7 +699,9 @@ struct transvr_obj_s {
     int state;
     int temp;
     int type;
-
+    /*customized*/
+    int prs;
+    int wait_cnt;
     /* ========== Object public functions ==========
      */
     int  (*get_id)(struct transvr_obj_s *self);
@@ -764,6 +767,8 @@ struct transvr_obj_s {
     int (*fsm_4_polling)(struct transvr_obj_s* self, char *caller_name);
     int (*send_uevent)(struct transvr_obj_s* self, enum kobject_action u_action);
     int (*dump_all)(struct transvr_obj_s* self);
+    /*customized functions*/
+    int (*custom_transvr_handler)(struct transvr_obj_s* self);
 };
 
 
@@ -822,5 +827,5 @@ void set_swplog_enable(unsigned char value);
 
 unsigned char swp_info_log_get_value(void);
 void swp_info_log_set_value(unsigned char value);
-
+void custom_st_reinit(struct transvr_obj_s *self);
 #endif /* TRANSCEIVER_H */

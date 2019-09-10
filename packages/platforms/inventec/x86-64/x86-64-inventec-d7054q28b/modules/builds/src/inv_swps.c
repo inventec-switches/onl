@@ -42,8 +42,9 @@ static struct inv_port_layout_s *port_layout = NULL;
 
 static void swp_polling_worker(struct work_struct *work);
 static DECLARE_DELAYED_WORK(swp_polling, swp_polling_worker);
-
+static bool customEn = true;
 static int reset_i2c_topology(void);
+static void custom_transvrs_st_reinit(void);
 
 #ifdef INV_EEPROM_CACHE_SUPPORT
 #define EEPROM_UPDATE_PORT_NAME	(32)
@@ -334,6 +335,16 @@ show_attr_auto_config(struct device *dev_p,
     return snprintf(buf_p, 8, "%d\n", auto_config);
 }
 
+static ssize_t
+show_attr_custom_en(struct device *dev_p,
+                      struct device_attribute *attr_p,
+                      char *buf_p){
+    
+    int data = 0;
+    data = (customEn ? 1: 0);
+    return snprintf(buf_p, PAGE_SIZE, "%d\n", data);
+}
+
 #ifdef INV_EEPROM_CACHE_SUPPORT
 static ssize_t
 show_attr_eeprom_update(struct device *dev_p,
@@ -453,6 +464,28 @@ store_attr_auto_config(struct device *dev_p,
     }
     auto_config = input_val;
     _update_auto_config_2_trnasvr();
+    return count;
+}
+static ssize_t
+store_attr_custom_en(struct device *dev_p,
+                       struct device_attribute *attr_p,
+                       const char *buf_p,
+                       size_t count){
+
+    int input_val = sscanf_2_int(buf_p);
+    bool pre_custom_en = customEn; 
+    if (input_val < 0){
+        return -EBFONT;
+    }
+    if ((input_val != 0) && (input_val != 1)) {
+        return -EBFONT;
+    }
+    
+    customEn = ((input_val == 1) ? true : false);
+    if (pre_custom_en != customEn) {
+ 	custom_transvrs_st_reinit();			
+    }    
+
     return count;
 }
 
@@ -1697,6 +1730,7 @@ static DEVICE_ATTR(auto_config,     S_IRUGO|S_IWUSR, show_attr_auto_config,     
 static DEVICE_ATTR(eeprom_update,   S_IRUGO|S_IWUSR, show_attr_eeprom_update,   store_attr_eeprom_update);
 #endif
 static DEVICE_ATTR(swplog_enable,   S_IRUGO|S_IWUSR, show_attr_swplog_enable,   store_attr_swplog_enable);
+static DEVICE_ATTR(custom_en,       S_IRUGO|S_IWUSR, show_attr_custom_en,     store_attr_custom_en);
 
 /* ========== Transceiver attribute: from eeprom ==========
  */
@@ -2149,7 +2183,11 @@ check_transvr_obj_one(char *dev_name){
     }
     /* Check transceiver current status */
     lock_transvr_obj(tobj_p);
-    retval = tobj_p->check(tobj_p);
+    if (customEn) {
+        retval = tobj_p->custom_transvr_handler(tobj_p);
+    } else {
+        retval = tobj_p->check(tobj_p);
+    }
     unlock_transvr_obj(tobj_p);
     switch (retval) {
         case 0:
@@ -2217,7 +2255,24 @@ err_check_transvr_objs:
                __func__, dev_name);
     return -1;
 }
+static void custom_transvrs_st_reinit(void)
+{
 
+    char dev_name[32];
+    int port_id = 0;
+    int minor_curr = 0;
+    struct transvr_obj_s *tobj_p = NULL;
+    for (minor_curr=0; minor_curr<port_total; minor_curr++) {
+        /* Generate device name */
+        port_id = port_layout[minor_curr].port_id;
+        memset(dev_name, 0, sizeof(dev_name));
+        snprintf(dev_name, sizeof(dev_name), "%s%d", SWP_DEV_PORT, port_id);
+        /* Handle current status */
+	tobj_p = _get_transvr_obj(dev_name);
+        custom_st_reinit(tobj_p);
+    }
+
+}
 
 static void
 swp_polling_worker(struct work_struct *work){
@@ -2652,6 +2707,10 @@ register_modctl_attr(struct device *device_p){
     if (device_create_file(device_p, &dev_attr_swplog_enable) < 0) {
 	err_msg = "dev_attr_swplog_enable";
 	goto err_reg_modctl_attr;
+    }
+    if (device_create_file(device_p, &dev_attr_custom_en) < 0) {
+        err_msg = "dev_attr_custom_en";
+        goto err_reg_modctl_attr;
     }
     return 0;
 

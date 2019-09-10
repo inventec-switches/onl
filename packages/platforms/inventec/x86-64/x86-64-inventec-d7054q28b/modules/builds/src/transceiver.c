@@ -7488,7 +7488,6 @@ _transvr_init_handler(struct transvr_obj_s *self){
     int retry     = 6;  /* (6+1) x 0.3 = 2.1s > spec:2.0s */
     int elimit    = 63;
     char emsg[64] = DEBUG_TRANSVR_STR_VAL;
-
     /* Clean and check callback */
     self->state = STATE_TRANSVR_INIT;
     if (self->init == NULL) {
@@ -7718,8 +7717,210 @@ int
 fake_transvr_check(struct transvr_obj_s *self){
     return 0;
 }
+/*customized functions { */
+void custom_st_reinit(struct transvr_obj_s *self)
+{
+    self->state = STATE_TRANSVR_DISCONNECTED;
+    self->prs = 0;	
+    self->wait_cnt = 0;	
 
+}
+static void custom_sfp_fsm(struct transvr_obj_s *self)
+{
+    int st = self->state;
+    int ret = 0;
+    
+    switch (st) {
 
+    case STATE_TRANSVR_INSERT:
+    {
+        ret = _is_transvr_hw_ready(self, TRANSVR_TYPE_SFP);
+        if (EVENT_TRANSVR_TASK_DONE == ret) {
+
+            self->state = STATE_TRANSVR_CONNECTED;
+            SWPS_INFO("transceiver:%s to be connected\n", self->swp_name);
+        }
+    }
+    break;
+    
+
+    case STATE_TRANSVR_CONNECTED:
+    break;
+
+    case STATE_TRANSVR_DISCONNECTED:
+
+    break;
+    case STATE_TRANSVR_NEW:
+
+    break;
+
+    default:
+    break;
+
+    }
+}
+static int custom_qsfp_cdr_control(struct transvr_obj_s *self)
+{
+    uint8_t DEFAULT_VAL_CDR = 0xff;
+    int CDR_FUNC_EXISTED = 0x3;
+    int show_err = 1;
+    int err_val = EVENT_TRANSVR_TASK_FAIL;
+    char *func_str = "custom_qsfp_cdr_control";
+
+    err_val = __qsfp_get_cdr_present(self, 0);
+    if (err_val < 0) {
+        return err_val;
+    }
+    if (err_val == CDR_FUNC_EXISTED) {
+        err_val = _common_set_uint8_attr(self,
+                                         self->eeprom_map_p->addr_cdr,
+                                         self->eeprom_map_p->addr_cdr,
+                                         self->eeprom_map_p->offset_cdr,
+                                         DEFAULT_VAL_CDR,
+                                         &(self->cdr),
+                                         func_str,
+                                         show_err);
+        if (err_val < 0) {
+            
+            SWPS_INFO("set CDR fail!\n");
+            return err_val;
+        }
+    }
+    return EVENT_TRANSVR_TASK_DONE;
+
+}    
+
+static int custom_qsfp_lpmode_control(struct transvr_obj_s *self)
+{
+    /* Handle power mode for IOEXP */
+    int ret = 0;
+    int power_class = DEBUG_TRANSVR_INT_VAL;
+	if ((ret = _common_update_attr_extended_id(self, 1)) < 0) {
+		return ret;
+	} 
+    power_class = __qsfp_get_power_cls(self, 0);
+    //SWPS_INFO("%s power_class:%d\n", self->swp_name, power_class);
+    switch (power_class) {
+        case 1: /* Case: Low power mode (Class = 1) */
+        
+        ret = self->ioexp_obj_p->set_lpmod(self->ioexp_obj_p,
+                                           self->ioexp_virt_offset,
+                                           1);
+	break;
+        case 2: /* Case: High power mode (Class > 1) */
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        ret = self->ioexp_obj_p->set_lpmod(self->ioexp_obj_p,
+                                           self->ioexp_virt_offset,
+                                           0);
+        
+        break;
+
+        default:
+        break;
+    }
+
+    return ret;
+}
+static void custom_qsfp_fsm(struct transvr_obj_s *self)
+{
+    int st = self->state;
+    int ret = 0;
+
+    switch (st) {
+
+    case STATE_TRANSVR_INSERT:
+    {
+        if (self->wait_cnt++ >= 1) {
+            
+            self->wait_cnt = 0;
+            self->state = STATE_TRANSVR_INIT;
+            
+        }
+
+    }    
+    break;
+    case STATE_TRANSVR_NEW:
+    {
+        self->wait_cnt = 0;
+
+    }
+    break;
+    
+    case STATE_TRANSVR_INIT:
+    {
+        ret = _is_transvr_hw_ready(self, TRANSVR_TYPE_QSFP);
+        
+        if (EVENT_TRANSVR_TASK_DONE != ret) {
+
+           // SWPS_INFO("transceiver:%s is not ready\n" ,self->swp_name);
+            break; 	
+        }
+        if (custom_qsfp_lpmode_control(self) < 0) {
+            SWPS_INFO("transceiver:%s lpmode fail\n" ,self->swp_name);
+            break;
+        }
+        
+        if (custom_qsfp_cdr_control(self) < 0) {
+            SWPS_INFO("transceiver:%s cdr fail\n" ,self->swp_name);
+            break;
+        }
+        self->state = STATE_TRANSVR_CONNECTED;
+        SWPS_INFO("transceiver:%s to be connected\n", self->swp_name);
+    }
+    break;
+
+    case STATE_TRANSVR_CONNECTED:
+    break;
+    case STATE_TRANSVR_DISCONNECTED:
+
+    break;
+
+    default:
+    break;
+
+    }
+}
+
+static void custom_prs_scan(struct transvr_obj_s *self)
+{
+  int prs = 0; 
+  prs = is_plugged(self);
+
+  if (prs != self->prs) {
+    
+      if (prs) {
+            
+        self->state = STATE_TRANSVR_INSERT;          
+        SWPS_INFO("transceiver:%s plug in\n" ,self->swp_name);
+
+      } else {
+
+        self->state = STATE_TRANSVR_DISCONNECTED;          
+        SWPS_INFO("transceiver:%s plug out\n" ,self->swp_name);
+      }
+
+  }  
+  self->prs = prs;  
+
+}   
+static int custom_sfp_handler(struct transvr_obj_s *self)
+{
+    custom_prs_scan(self);
+    custom_sfp_fsm(self);
+    return 0;
+}    
+static int custom_qsfp_handler(struct transvr_obj_s *self)
+{
+    custom_prs_scan(self);
+    custom_qsfp_fsm(self);
+    return 0;
+}    
+
+/*customized functions } */
 /* ========== Functions for Factory pattern ==========
  */
 static int
@@ -7968,6 +8169,7 @@ setup_transvr_private_cb(struct transvr_obj_s *self,
             self->fsm_4_polling = common_fsm_4_polling_mode;
             self->send_uevent = sfp_send_uevent;
             self->dump_all = sfp_transvr_dump;
+            self->custom_transvr_handler = custom_sfp_handler;
             return 0;
 
         case TRANSVR_TYPE_QSFP:
@@ -7980,6 +8182,7 @@ setup_transvr_private_cb(struct transvr_obj_s *self,
             self->fsm_4_polling = common_fsm_4_polling_mode;
             self->send_uevent = qsfp_send_uevent;
             self->dump_all = qsfp_transvr_dump;
+            self->custom_transvr_handler = custom_qsfp_handler;
             return 0;
 
         case TRANSVR_TYPE_QSFP_28:
@@ -7991,6 +8194,7 @@ setup_transvr_private_cb(struct transvr_obj_s *self,
             self->fsm_4_polling = common_fsm_4_polling_mode;
             self->send_uevent = qsfp_send_uevent;
             self->dump_all = qsfp_transvr_dump;
+            self->custom_transvr_handler = custom_qsfp_handler;
             return 0;
 
         case TRANSVR_TYPE_FAKE:
@@ -8063,6 +8267,8 @@ setup_transvr_ssize_attr(char *swp_name,
     self->state             = STATE_TRANSVR_NEW;
     self->info              = STATE_TRANSVR_NEW;
     self->auto_tx_disable   = VAL_TRANSVR_FUNCTION_DISABLE;
+    self->prs = 0;
+    self->wait_cnt = 0;
     strncpy(self->swp_name, swp_name, 32);
     mutex_init(&self->lock);
     return 0;

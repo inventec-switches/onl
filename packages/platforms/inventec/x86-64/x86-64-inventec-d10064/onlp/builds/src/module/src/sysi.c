@@ -152,7 +152,8 @@ static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
                _case_tlv_code_string(info, &(info->manufacture_date), INV_SYS_PREFIX"man_date");
                break;
            case TLV_CODE_LABEL_REVISION:
-               _case_tlv_code_string(info, &(info->label_revision), INV_SYS_PREFIX"label_rev");
+               info->label_revision=malloc(sizeof(char)*ONLP_CONFIG_INFO_STR_MAX);
+               snprintf(info->label_revision, ONLP_CONFIG_INFO_STR_MAX, "N/A");
                break;
            case TLV_CODE_PLATFORM_NAME:
                _case_tlv_code_string(info, &(info->platform_name), INV_SYS_PREFIX"plat_name");
@@ -164,16 +165,19 @@ static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
                _case_tlv_code_string(info, &(info->manufacturer), INV_SYS_PREFIX"manufacturer");
                break;
            case TLV_CODE_MANUF_COUNTRY:
-               _case_tlv_code_string(info, &(info->country_code), INV_SYS_PREFIX"country_code");
+               info->country_code=malloc(sizeof(char)*ONLP_CONFIG_INFO_STR_MAX);
+               snprintf(info->country_code, ONLP_CONFIG_INFO_STR_MAX, "N/A");
                break;
            case TLV_CODE_VENDOR_NAME:
                _case_tlv_code_string(info, &(info->vendor), INV_SYS_PREFIX"vendor_name");
                break;
            case TLV_CODE_SERVICE_TAG:
-               _case_tlv_code_string(info, &(info->service_tag), INV_SYS_PREFIX"service_tag");
+               info->service_tag=malloc(sizeof(char)*ONLP_CONFIG_INFO_STR_MAX);
+               snprintf(info->service_tag, ONLP_CONFIG_INFO_STR_MAX, "N/A");
                break;
            case TLV_CODE_DIAG_VERSION:
-               _case_tlv_code_string(info, &(info->diag_version), INV_SYS_PREFIX"diag_ver");
+               info->diag_version=malloc(sizeof(char));
+               snprintf(info->diag_version, ONLP_CONFIG_INFO_STR_MAX, "N/A");
                break;
 
            case TLV_CODE_MAC_BASE:
@@ -219,9 +223,9 @@ static int _parse_tlv(onlp_onie_info_t* info, uint8_t type)
 
            case TLV_CODE_VENDOR_EXT:
                list_init(&info->vx_list);
-               rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"vendor_ext");
+               //rv = onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, INV_SYS_PREFIX"vendor_ext");
                if( rv == ONLP_STATUS_OK ) {
-                   /*TODO*/
+                   //TODO
                }
                rv = ONLP_STATUS_OK;
                break;

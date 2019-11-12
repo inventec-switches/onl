@@ -25,8 +25,8 @@
 #define VPD_LICENSE    "GPL"
 
 #define VPD_ENTRY_SIZE        (17)
-#define VPD_I2C_BUS           (0)
-#define VPD_I2C_ADDR          (0x53)
+#define VPD_I2C_BUS           (2)
+#define VPD_I2C_ADDR          (0x55)
 
 #define VPD_KERN_VER_AF_3_10  (1)
 

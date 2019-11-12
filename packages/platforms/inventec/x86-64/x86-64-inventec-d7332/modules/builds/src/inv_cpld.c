@@ -47,6 +47,7 @@ struct cpld_data {
 	struct device *hwmon_dev;
 	struct mutex update_lock;
 	u8 diag;
+	struct task_struct *tsk;
 };
 
 /*-----------------------------------------------------------------------*/
@@ -192,6 +193,23 @@ int start_ipmi_command(char NetFn, char cmd,char *data,int data_length, char* re
 }
 EXPORT_SYMBOL(start_ipmi_command);
 
+static int cpld_thread(void *p)
+{
+    u8 byte[9];
+    uint8_t result[MAX_IPMI_RECV_LENGTH];
+    int result_len=0;
+
+    //Disable BMC Watchdog
+    byte[0]=0x04;
+    byte[1]=0x00;
+    byte[2]=0x00;
+    byte[3]=0x00;
+    byte[4]=0x2C;
+    byte[5]=0x01;
+    start_ipmi_command(0x06, 0x24, byte, 6, result, &result_len);
+    return 0;
+}
+
 /*-----------------------------------------------------------------------*/
 /* sysfs attributes for hwmon */
 static ssize_t show_info(struct device *dev, struct device_attribute *da,
@@ -322,7 +340,7 @@ static ssize_t show_sysled(struct device *dev, struct device_attribute *da,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct cpld_data *data = i2c_get_clientdata(client);
 	u8 byte;
-	int shift = (attr->index == 0)?3:0;
+	int shift = (attr->index == 0)?4:0;
     
 	mutex_lock(&data->update_lock);
 	status = cpld_i2c_read(client, &byte, CPLD_SYSLED_OFFSET, 1);
@@ -344,7 +362,7 @@ static ssize_t set_sysled(struct device *dev,
 
 	u8 temp = simple_strtol(buf, NULL, 16);
 	u8 byte;
-	int shift = (attr->index == 0)?3:0;
+	int shift = (attr->index == 0)?4:0;
     
 	temp &= 0x7;    
 
@@ -696,7 +714,7 @@ cpld_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	//Handle LED control by the driver
 	byte[0]=0x01;
 	cpld_i2c_write(client, byte, CPLD_CTL_OFFSET, 1);
-
+	data->tsk = kthread_run(cpld_thread,client,"%s",dev_name(data->hwmon_dev));
 	dev_info(&client->dev, "%s: sensor '%s'\n",
 		 dev_name(data->hwmon_dev), client->name);
 	

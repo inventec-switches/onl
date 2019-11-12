@@ -89,8 +89,12 @@ static struct i2c_board_info i2c_device_info2[] __initdata = {
 	{"inv_cpld",         0, 0x77, 0, 0, 0},			//CPLD
 };
 static struct i2c_board_info i2c_device_info4[] __initdata = {
-	{"pmbus",	     0, 0x58, 0, 0, 0},			//PSU1
-	{"pmbus",	     0, 0x59, 0, 0, 0},			//PSU2
+	{"inv_psu",	     0, 0x58, 0, 0, 0},			//PSU1
+	{"inv_psu",	     0, 0x59, 0, 0, 0},			//PSU2
+};
+static struct i2c_board_info i2c_device_info5[] __initdata = {
+        {"inv_ucd90160",     0, 0x34, 0, 0, 0},                 //switch board ucd90160
+        {"inv_ucd90160",     0, 0x6b, 0, 0, 0},                 //CPU board ucd90160
 };
 static struct i2c_board_info i2c_device_info1[] __initdata = {
 	{"pca9548",          0, 0x70, &mux_data_0, 0, 0},	//mux root
@@ -130,6 +134,7 @@ static struct inv_i2c_board_info i2cdev_list[] = {
     {bus_id(2), ARRAY_SIZE(i2c_device_info2),  i2c_device_info2 },  //CPLD
     {bus_id(3), ARRAY_SIZE(i2c_device_info3),  i2c_device_info3 },  //Temperature
     {bus_id(2), ARRAY_SIZE(i2c_device_info4),  i2c_device_info4 },  //PSU1 and PSU2
+    {bus_id(2), ARRAY_SIZE(i2c_device_info5),  i2c_device_info5 },  //UCD90160
 };
 
 static struct   platform_device         *device_i2c_gpio0;
@@ -163,6 +168,7 @@ static int __init inv_platform_init(void)
     if (ret) {
         printk(KERN_ERR "i2c-gpio: platform_device_add fail %d\n", ret);
     }
+    msleep(10);
 
    for(i=0; i<ARRAY_SIZE(i2cdev_list); i++) {
         adap = i2c_get_adapter( i2cdev_list[i].ch );

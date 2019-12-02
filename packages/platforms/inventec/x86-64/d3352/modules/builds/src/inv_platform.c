@@ -6,9 +6,11 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 
-#include <linux/i2c/pca954x.h>
+#include <linux/platform_data/pca954x.h>
 #include <linux/platform_data/pca953x.h>
 #include <linux/platform_data/at24.h>
+
+#define GPIO_BASE   0  /* in kernel 4.x gpio_base =0*/
 
 struct inv_i2c_board_info {
     int ch;
@@ -58,8 +60,8 @@ static struct 	platform_device 	inventec_device_i2c_gpio = {
 };
 #else
 static struct   i2c_gpio_platform_data  i2c_gpio_platdata2 = {
-        .scl_pin = 464,//12+452,
-        .sda_pin = 463,//11+452,
+        .scl_pin = GPIO_BASE+12,//12+452,
+        .sda_pin = GPIO_BASE+11,//11+452,
 
         .udelay  = 5, //5:100kHz
         .timeout = 100,
@@ -70,7 +72,7 @@ static struct   i2c_gpio_platform_data  i2c_gpio_platdata2 = {
 
 static struct   platform_device         inventec_device_i2c_gpio2 = {
         .name   = "i2c-gpio",
-        .id     = 1, // adapter number
+        .id     = 10, // adapter number
         .dev.platform_data = &i2c_gpio_platdata2,
 };
 #endif

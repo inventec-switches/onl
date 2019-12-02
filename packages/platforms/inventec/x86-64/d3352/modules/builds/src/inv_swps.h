@@ -1023,11 +1023,11 @@ struct inv_port_layout_s lavender_port_layout[] = {
  * ===========================================================
  */
 #ifdef SWPS_COTTONWOOD_RANGELEY
-unsigned cottonwood_rangeley_gpio_rest_mux = MUX_RST_GPIO_500_PAC9548;
+unsigned cottonwood_rangeley_gpio_rest_mux = MUX_RST_GPIO_48_PAC9548;
 
 struct inv_ioexp_layout_s cottonwood_rangeley_ioexp_layout[] = {
     /* IOEXP_ID / IOEXP_TYPE / { Chan_ID, Chip_addr, Read_offset, Write_offset, config_offset, data_default, conf_default } */
-    {0,  CPLD_TYPE_COTTONWOOD,{ {1, 0x55, {22, 23, 24, 25}, {22, 23, 24, 25}, {-1, -1, -1, -1}, {0xee, 0xee, 0x99, 0x99}, {0x00, 0x00, 0x00, 0x00}, },
+    {0,  CPLD_TYPE_COTTONWOOD,{ {10, 0x55, {22, 23, 24, 25}, {22, 23, 24, 25}, {-1, -1, -1, -1}, {0xee, 0xee, 0x99, 0x99}, {0x00, 0x00, 0x00, 0x00}, },
                               },
     },
 };

@@ -1,1 +1,1 @@
-../../../../../x86-64-inventec-d10064/platform-config/r0/src/lib/install_sde.sh
+../../../../../d10064/platform-config/r0/src/lib/install_sde.sh

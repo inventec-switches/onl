@@ -5758,7 +5758,7 @@ err_sft_detect_transceiver_class_1:
 
 
 int
-_sfp_set_trident2_if_type(struct transvr_obj_s* self,
+_sfp_set_magnolia_if_type(struct transvr_obj_s* self,
                           int transvr_cls,
                           char *result){
 
@@ -5809,13 +5809,13 @@ _sfp_set_trident2_if_type(struct transvr_obj_s* self,
             snprintf(err_msg, sizeof(err_msg),
                      "Detect undefined value:%d",
                      transvr_cls);
-            goto err_sfp_set_trident2_if_type_1;
+            goto err_sfp_set_magnolia_if_type_1;
     }
     /* Exception case: Can't verify */
     snprintf(err_msg, sizeof(err_msg), "Can not identify!");
-    goto err_sfp_set_trident2_if_type_1;
+    goto err_sfp_set_magnolia_if_type_1;
 
-err_sfp_set_trident2_if_type_1:
+err_sfp_set_magnolia_if_type_1:
     snprintf(result, lmax, TRANSVR_UEVENT_UNKNOW);
     SWPS_INFO("%s: %s <port>:%s\n", __func__, err_msg, self->swp_name);
     return ERR_TRANSVR_ABNORMAL;
@@ -5823,7 +5823,7 @@ err_sfp_set_trident2_if_type_1:
 
 
 int
-_sfp_set_tomahawk_if_type(struct transvr_obj_s* self,
+_sfp_set_redwood_if_type(struct transvr_obj_s* self,
                           int transvr_cls,
                           char *result) {
 
@@ -5874,13 +5874,13 @@ _sfp_set_tomahawk_if_type(struct transvr_obj_s* self,
             snprintf(err_msg, sizeof(err_msg),
                      "Detect undefined value:%d",
                      transvr_cls);
-            goto err_sfp_set_tomahawk_if_type_1;
+            goto err_sfp_set_redwood_if_type_1;
     }
     /* Exception case: Can't verify */
     snprintf(err_msg, sizeof(err_msg), "Can not identify!");
-    goto err_sfp_set_tomahawk_if_type_1;
+    goto err_sfp_set_redwood_if_type_1;
 
-err_sfp_set_tomahawk_if_type_1:
+err_sfp_set_redwood_if_type_1:
     snprintf(result, lmax, TRANSVR_UEVENT_UNKNOW);
     SWPS_INFO("%s: %s\n <port>:%s", __func__, err_msg, self->swp_name);
     return ERR_TRANSVR_ABNORMAL;
@@ -5888,7 +5888,7 @@ err_sfp_set_tomahawk_if_type_1:
 
 
 int
-_sfp_set_bf_tofino_if_type(struct transvr_obj_s* self,
+_sfp_set_bf_lavender_if_type(struct transvr_obj_s* self,
                            int transvr_cls,
                            char *result) {
     /* (TBD)
@@ -5909,15 +5909,15 @@ _sfp_detect_if_type(struct transvr_obj_s* self,
 
     detect_cls = sft_detect_transvr_class(self);
     switch (self->chipset_type) {
-        case BCM_CHIP_TYPE_TRIDENT_2:
-            return _sfp_set_trident2_if_type(self, detect_cls, result);
+        case CHIP_TYPE_MAGNOLIA:
+            return _sfp_set_magnolia_if_type(self, detect_cls, result);
         
-        case BCM_CHIP_TYPE_TRIDENT_3:
-        case BCM_CHIP_TYPE_TOMAHAWK:
-            return _sfp_set_tomahawk_if_type(self, detect_cls, result);
+        case CHIP_TYPE_MAPLE:
+        case CHIP_TYPE_REDWOOD:
+            return _sfp_set_redwood_if_type(self, detect_cls, result);
 
-        case BF_CHIP_TYPE_TOFINO:
-            return _sfp_set_bf_tofino_if_type(self, detect_cls, result);
+        case CHIP_TYPE_LAVENDER:
+            return _sfp_set_bf_lavender_if_type(self, detect_cls, result);
             
         default:
             SWPS_INFO("%s: non-defined chipset_type:%d <port>:%s\n",
@@ -6392,7 +6392,7 @@ err_qsft_detect_transvr_class_1:
 
 
 int
-_qsfp_set_trident2_if_type(struct transvr_obj_s* self,
+_qsfp_set_magnolia_if_type(struct transvr_obj_s* self,
                            int transvr_cls,
                            char *result){
 
@@ -6441,13 +6441,13 @@ _qsfp_set_trident2_if_type(struct transvr_obj_s* self,
             snprintf(err_msg, sizeof(err_msg),
                      "Detect undefined value:%d",
                      transvr_cls);
-            goto err_qsfp_set_trident2_if_type_1;
+            goto err_qsfp_set_magnolia_if_type_1;
     }
     /* Exception case: Can't verify */
     snprintf(err_msg, sizeof(err_msg), "Can not identify!");
-    goto err_qsfp_set_trident2_if_type_1;
+    goto err_qsfp_set_magnolia_if_type_1;
 
-err_qsfp_set_trident2_if_type_1:
+err_qsfp_set_magnolia_if_type_1:
     snprintf(result, lmax, TRANSVR_UEVENT_UNKNOW);
     SWPS_INFO("%s: %s\n <port>:%s", __func__, err_msg, self->swp_name);
     return ERR_TRANSVR_ABNORMAL;
@@ -6455,7 +6455,7 @@ err_qsfp_set_trident2_if_type_1:
 
 
 int
-_qsfp_set_tomahawk_if_type(struct transvr_obj_s* self,
+_qsfp_set_redwood_if_type(struct transvr_obj_s* self,
                            int transvr_cls,
                            char *result){
 
@@ -6504,13 +6504,13 @@ _qsfp_set_tomahawk_if_type(struct transvr_obj_s* self,
             snprintf(err_msg, sizeof(err_msg),
                      "Detect undefined value:%d",
                      transvr_cls);
-            goto err_qsfp_set_trident2_if_type_1;
+            goto err_qsfp_set_magnolia_if_type_1;
     }
     /* Exception case: Can't verify */
     snprintf(err_msg, sizeof(err_msg), "Can not identify!");
-    goto err_qsfp_set_trident2_if_type_1;
+    goto err_qsfp_set_magnolia_if_type_1;
 
-err_qsfp_set_trident2_if_type_1:
+err_qsfp_set_magnolia_if_type_1:
     snprintf(result, lmax, TRANSVR_UEVENT_UNKNOW);
     SWPS_INFO("%s: %s\n <port>:%s", __func__, err_msg, self->swp_name);
     return ERR_TRANSVR_ABNORMAL;
@@ -6518,7 +6518,7 @@ err_qsfp_set_trident2_if_type_1:
 
 
 int
-_qsfp_set_bf_tofino_if_type(struct transvr_obj_s* self,
+_qsfp_set_bf_lavender_if_type(struct transvr_obj_s* self,
                             int transvr_cls,
                             char *result) {
     /* (TBD)
@@ -6539,15 +6539,15 @@ _qsfp_detect_if_type(struct transvr_obj_s* self,
 
     detect_cls = qsft_detect_transvr_class(self);
     switch (self->chipset_type) {
-        case BCM_CHIP_TYPE_TRIDENT_2:
-            return _qsfp_set_trident2_if_type(self, detect_cls, result);
+        case CHIP_TYPE_MAGNOLIA:
+            return _qsfp_set_magnolia_if_type(self, detect_cls, result);
         
-        case BCM_CHIP_TYPE_TRIDENT_3:
-        case BCM_CHIP_TYPE_TOMAHAWK:
-            return _qsfp_set_tomahawk_if_type(self, detect_cls, result);
+        case CHIP_TYPE_MAPLE:
+        case CHIP_TYPE_REDWOOD:
+            return _qsfp_set_redwood_if_type(self, detect_cls, result);
 
-        case BF_CHIP_TYPE_TOFINO:
-            return _qsfp_set_bf_tofino_if_type(self, detect_cls, result);
+        case CHIP_TYPE_LAVENDER:
+            return _qsfp_set_bf_lavender_if_type(self, detect_cls, result);
             
         default:
             SWPS_INFO("%s: non-defined chipset_type:%d <port>:%s\n",

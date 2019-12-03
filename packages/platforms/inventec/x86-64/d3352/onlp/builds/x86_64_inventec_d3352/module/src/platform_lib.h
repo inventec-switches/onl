@@ -17,8 +17,8 @@
 #define INV_PLATFORM_NAME	"d3352"
 
 #define INV_CPLD_COUNT		(1)
-#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/1-0055/"
-#define INV_PSOC_PREFIX		"/sys/bus/i2c/devices/1-0066/"
+#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/10-0055/"
+#define INV_PSOC_PREFIX		"/sys/bus/i2c/devices/10-0066/"
 #define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
 #define LOCAL_ID_TO_INFO_IDX(id)  (id-1)

@@ -12,6 +12,7 @@
 #include <onlplib/mmap.h>
 #include <onlplib/file.h>
 #include <onlp/platformi/thermali.h>
+#include <onlp/platformi/psui.h>
 #include <fcntl.h>
 #include "platform_lib.h"
 
@@ -21,6 +22,8 @@
             return ONLP_STATUS_E_INVALID;       \
         }                                       \
     } while(0)
+
+extern int onlp_psui_status_get(onlp_oid_t id, uint32_t* rv);
 
 static char* devfiles__[THERMAL_MAX] =  /* must map with onlp_thermal_id */
 {
@@ -112,14 +115,21 @@ int
 onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 {
     int local_id;
-    VALIDATE(id);
+    int ret=ONLP_STATUS_OK;
 
     local_id = ONLP_OID_ID_GET(id);
-
-    /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[local_id];
 
-    if(local_id >= THERMAL_CPU_CORE_FIRST && local_id <= THERMAL_CPU_CORE_LAST) {
+    if( (local_id<THERMAL_CPU_CORE_FIRST)||(local_id>THERMAL_1_ON_PSU2) ){
+        ret=ONLP_STATUS_E_INVALID;
+    }
+
+    /* Set the onlp_oid_hdr_t and capabilities */
+    if(ret==ONLP_STATUS_OK){
+        ret=onlp_thermali_status_get(id,&info->status);
+    }
+
+    if( (info->status & ONLP_THERMAL_STATUS_PRESENT)&&(ret==ONLP_STATUS_OK) ){
         char desc[32], *dp = &desc[0];
         int rv = onlp_file_read_str(&dp, devfiles__[local_id], "label");
         if (rv > 0) {
@@ -128,7 +138,41 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
         }
 
         /* Set the onlp_oid_hdr_t and capabilities */
-        return onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
+        ret= onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
     }
-    return onlp_file_read_int(&info->mcelsius, devfiles__[local_id]);
+    return ret;
+}
+
+int onlp_thermali_status_get(onlp_oid_t id, uint32_t* rv)
+{
+    int ret = ONLP_STATUS_OK;
+    int thermal_id;
+    onlp_thermal_info_t* info;
+
+    VALIDATE(id);
+    uint32_t psu_status;
+
+    thermal_id= ONLP_OID_ID_GET(id);
+    info = &linfo[thermal_id];
+    
+    switch(thermal_id) {
+    case THERMAL_1_ON_PSU1:
+    case THERMAL_1_ON_PSU2:
+        ret = onlp_psui_status_get((&info->hdr)->poid, &psu_status);
+        if(ret != ONLP_STATUS_OK) {
+            return ret;
+        }
+        if(psu_status & ONLP_PSU_STATUS_PRESENT) {
+            info->status &= ONLP_PSU_STATUS_PRESENT;
+        } else {
+            info->status = 0;
+        }
+        break;
+    default:
+        break;
+    }
+
+    *rv = info->status;
+
+    return ret;
 }

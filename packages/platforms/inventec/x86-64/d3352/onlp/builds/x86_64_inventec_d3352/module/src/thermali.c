@@ -15,6 +15,8 @@
 #include <onlp/platformi/psui.h>
 #include <fcntl.h>
 #include "platform_lib.h"
+#include <sys/types.h>
+#include <dirent.h>
 
 #define VALIDATE(_id)                           \
     do {                                        \
@@ -28,10 +30,10 @@ extern int onlp_psui_status_get(onlp_oid_t id, uint32_t* rv);
 static char* __thermal_path_list[THERMAL_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_CTMP_PREFIX"/temp2_%s",
-    INV_CTMP_PREFIX"/temp3_%s",
-    INV_CTMP_PREFIX"/temp4_%s",
-    INV_CTMP_PREFIX"/temp5_%s",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     INV_DEVICE_PREFIX"/temp1_input",
     INV_DEVICE_PREFIX"/temp2_input",
     INV_DEVICE_PREFIX"/temp3_input",
@@ -101,6 +103,39 @@ onlp_thermali_init(void)
     return ONLP_STATUS_OK;
 }
 
+static int _get_hwmon_path( char* parent_dir, char* target_path)
+{
+
+    DIR * dir;
+    struct dirent * ptr;
+    char* buf=NULL;
+    int ret=ONLP_STATUS_E_INVALID;
+
+    dir = opendir(parent_dir);
+    if(dir) {
+        ret=ONLP_STATUS_OK;
+    }
+    if(ret==ONLP_STATUS_OK) {
+        ret=ONLP_STATUS_E_INVALID;
+        while( (ptr = readdir(dir))!=NULL ) {
+            buf=ptr->d_name;
+            if( strncmp(buf,"hwmon",5)==0 ) {
+                ret=ONLP_STATUS_OK;
+                break;
+            }
+        }
+        closedir(dir);
+    }
+    if(ret==ONLP_STATUS_OK){
+        snprintf(target_path, ONLP_CONFIG_INFO_STR_MAX, "%s%s/", parent_dir , buf);
+    }else {
+        printf("[ERROR] Can't find valid path\n");
+    }
+
+    return ret;
+
+}
+
 /*
  * Retrieve the information structure for the given thermal OID.
  *
@@ -116,6 +151,7 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 {
     int local_id;
     int ret=ONLP_STATUS_OK;
+    char base[ONLP_CONFIG_INFO_STR_MAX];
 
     local_id = ONLP_OID_ID_GET(id);
     *info = __onlp_thermal_info[local_id];
@@ -131,7 +167,26 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 
     if( (info->status & ONLP_THERMAL_STATUS_PRESENT)&&(ret==ONLP_STATUS_OK) ){
         /* Set the onlp_oid_hdr_t and capabilities */
-        ret= onlp_file_read_int(&info->mcelsius, __thermal_path_list[local_id], "input");
+        switch(local_id){
+            case THERMAL_CPU_CORE_FIRST:
+            case THERMAL_CPU_CORE_2:
+            case THERMAL_CPU_CORE_3:
+            case THERMAL_CPU_CORE_LAST:
+                ret=_get_hwmon_path(INV_CTMP_BASE,base);
+                if(ret==ONLP_STATUS_OK){
+                    __thermal_path_list[local_id]= malloc(sizeof(char)*ONLP_CONFIG_INFO_STR_MAX);
+                    snprintf(__thermal_path_list[local_id],ONLP_CONFIG_INFO_STR_MAX,"%stemp%d_input",base,local_id-THERMAL_CPU_CORE_FIRST+2); /*core thermal id start from 2*/
+                }
+                ret= onlp_file_read_int(&info->mcelsius, __thermal_path_list[local_id]);
+                if(__thermal_path_list[local_id]){
+                    free(__thermal_path_list[local_id]);
+                    __thermal_path_list[local_id]=NULL;
+                }
+                break;
+            default:
+                ret= onlp_file_read_int(&info->mcelsius, __thermal_path_list[local_id]);
+                break;
+        }
     }
     return ret;
 }

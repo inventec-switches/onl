@@ -20,7 +20,7 @@
 #define INV_SYSLED_PREFIX	"/sys/bus/i2c/devices/10-0055/"
 #define INV_DEVICE_PREFIX	"/sys/bus/i2c/devices/10-0066/"
 #define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
-#define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
+#define INV_CTMP_BASE		"/sys/devices/platform/coretemp.0/hwmon/"
 #define LOCAL_ID_TO_INFO_IDX(id)  (id-1)
 
 #define CHASSIS_SFP_COUNT	(4)

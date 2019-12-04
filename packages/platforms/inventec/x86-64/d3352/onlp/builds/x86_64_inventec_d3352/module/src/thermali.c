@@ -25,24 +25,24 @@
 
 extern int onlp_psui_status_get(onlp_oid_t id, uint32_t* rv);
 
-static char* devfiles__[THERMAL_MAX] =  /* must map with onlp_thermal_id */
+static char* __thermal_path_list[THERMAL_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
     INV_CTMP_PREFIX"/temp2_%s",
     INV_CTMP_PREFIX"/temp3_%s",
     INV_CTMP_PREFIX"/temp4_%s",
     INV_CTMP_PREFIX"/temp5_%s",
-    INV_PSOC_PREFIX"/temp1_input",
-    INV_PSOC_PREFIX"/temp2_input",
-    INV_PSOC_PREFIX"/temp3_input",
-    INV_PSOC_PREFIX"/temp4_input",
-    INV_PSOC_PREFIX"/temp5_input",
-    INV_PSOC_PREFIX"/thermal_psu1",
-    INV_PSOC_PREFIX"/thermal_psu2",
+    INV_DEVICE_PREFIX"/temp1_input",
+    INV_DEVICE_PREFIX"/temp2_input",
+    INV_DEVICE_PREFIX"/temp3_input",
+    INV_DEVICE_PREFIX"/temp4_input",
+    INV_DEVICE_PREFIX"/temp5_input",
+    INV_DEVICE_PREFIX"/thermal_psu1",
+    INV_DEVICE_PREFIX"/thermal_psu2",
 };
 
 /* Static values */
-static onlp_thermal_info_t linfo[THERMAL_MAX] = {
+static onlp_thermal_info_t __onlp_thermal_info[THERMAL_MAX] = {
     { }, /* Not used */
     {   { ONLP_THERMAL_ID_CREATE(THERMAL_CPU_CORE_FIRST), "CPU Core 0", 0},
         ONLP_THERMAL_STATUS_PRESENT,
@@ -118,7 +118,7 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     int ret=ONLP_STATUS_OK;
 
     local_id = ONLP_OID_ID_GET(id);
-    *info = linfo[local_id];
+    *info = __onlp_thermal_info[local_id];
 
     if( (local_id<THERMAL_CPU_CORE_FIRST)||(local_id>THERMAL_1_ON_PSU2) ){
         ret=ONLP_STATUS_E_INVALID;
@@ -131,7 +131,7 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 
     if( (info->status & ONLP_THERMAL_STATUS_PRESENT)&&(ret==ONLP_STATUS_OK) ){
         /* Set the onlp_oid_hdr_t and capabilities */
-        ret= onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
+        ret= onlp_file_read_int(&info->mcelsius, __thermal_path_list[local_id], "input");
     }
     return ret;
 }
@@ -146,7 +146,7 @@ int onlp_thermali_status_get(onlp_oid_t id, uint32_t* rv)
     uint32_t psu_status;
 
     thermal_id= ONLP_OID_ID_GET(id);
-    info = &linfo[thermal_id];
+    info = &__onlp_thermal_info[thermal_id];
     
     switch(thermal_id) {
     case THERMAL_1_ON_PSU1:

@@ -34,18 +34,18 @@ typedef enum hwmon_psu_state_e {
         }                                       \
     } while(0)
 
-static char* status_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
+static char* __psu_status_path[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"psu0",
-    INV_CPLD_PREFIX"psu1",
+    INV_SYSLED_PREFIX"psu0",
+    INV_SYSLED_PREFIX"psu1",
 };
 
-static char* module_devfiles__[PSU_MAX] =  /* must map with onlp_psu_id */
+static char* __psu_attr_path[PSU_MAX] =  /* must map with onlp_psu_id */
 {
     "reserved",
-    INV_PSOC_PREFIX"psoc_psu1_%s",
-    INV_PSOC_PREFIX"psoc_psu2_%s",
+    INV_DEVICE_PREFIX"psoc_psu1_%s",
+    INV_DEVICE_PREFIX"psoc_psu2_%s",
 };
 
 static int
@@ -56,9 +56,9 @@ psu_status_info_get(int id, char *node, int *value)
 
     *value = 0;
     if (PSU1_ID == id) {
-        sprintf(node_path, status_devfiles__[id]);
+        sprintf(node_path, __psu_status_path[id]);
     } else if (PSU2_ID == id) {
-        sprintf(node_path, status_devfiles__[id]);
+        sprintf(node_path, __psu_status_path[id]);
     }
     ret = onlp_file_read_int(value, node_path);
 
@@ -87,7 +87,7 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     int ret, len;
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "model");
+    sprintf(node_path, __psu_attr_path[id], "model");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
         /*remove the '\n'*/
@@ -99,7 +99,7 @@ psu_module_name_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "sn");
+    sprintf(node_path, __psu_attr_path[id], "sn");
     ret = onlp_file_read(temp, ONLP_CONFIG_INFO_STR_MAX, &len, node_path);
     if (ret == 0) {
         /*remove the '\n'*/
@@ -121,7 +121,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     info->caps |= ONLP_PSU_CAPS_DC12;
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "vout");
+    sprintf(node_path, __psu_attr_path[id], "vout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read vout from file(%s)\r\n", node_path);
@@ -131,7 +131,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "iout");
+    sprintf(node_path, __psu_attr_path[id], "iout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read iout from file(%s)\r\n", node_path);
@@ -141,7 +141,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "pout");
+    sprintf(node_path, __psu_attr_path[id], "pout");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read pout from file(%s)\r\n", node_path);
@@ -151,7 +151,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "vin");
+    sprintf(node_path, __psu_attr_path[id], "vin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read vin from file(%s)\r\n", node_path);
@@ -161,7 +161,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "iin");
+    sprintf(node_path, __psu_attr_path[id], "iin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read iin from file(%s)\r\n", node_path);
@@ -171,7 +171,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
     }
 
     memset(node_path, 0, ONLP_NODE_MAX_PATH_LEN);
-    sprintf(node_path, module_devfiles__[id], "pin");
+    sprintf(node_path, __psu_attr_path[id], "pin");
     ret = onlp_file_read_int(&value, node_path);
     if (ret < 0) {
         AIM_LOG_ERROR("Unable to read pin from file(%s)\r\n", node_path);
@@ -187,7 +187,7 @@ psu_module_info_get(int id, onlp_psu_info_t* info)
 /*
  * Get all information about the given PSU oid.
  */
-static onlp_psu_info_t pinfo[] = {
+static onlp_psu_info_t __onlp_psu_info[] = {
     { }, /* Not used */
     {
         {
@@ -250,7 +250,7 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     if(index>=PSU_MAX) return ONLP_STATUS_E_INVALID;
 
     memset(info, 0, sizeof(onlp_psu_info_t));
-    *info = pinfo[index]; /* Set the onlp_oid_hdr_t */
+    *info = __onlp_psu_info[index]; /* Set the onlp_oid_hdr_t */
 
     onlp_psui_status_get(id, &info->status);
 

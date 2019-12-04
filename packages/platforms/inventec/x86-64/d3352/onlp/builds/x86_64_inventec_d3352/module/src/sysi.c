@@ -114,12 +114,12 @@ onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
     char other_str[ONLP_CONFIG_INFO_STR_MAX]= {0};
     char version[ONLP_CONFIG_INFO_STR_MAX];
 
-    rv = _sysi_version_parsing(INV_CPLD_PREFIX"info", "The CPLD version is ", version);
+    rv = _sysi_version_parsing(INV_SYSLED_PREFIX"info", "The CPLD version is ", version);
     if( rv != ONLP_STATUS_OK ) {
         return rv;
     }
     snprintf(cpld_str, ONLP_CONFIG_INFO_STR_MAX, "%s%s ", cpld_str, version);
-    rv = _sysi_version_parsing(INV_PSOC_PREFIX"version", "ver: ", version);
+    rv = _sysi_version_parsing(INV_DEVICE_PREFIX"version", "ver: ", version);
     if( rv != ONLP_STATUS_OK ) {
         return rv;
     }

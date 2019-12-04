@@ -16,7 +16,7 @@
 #include <fcntl.h>
 #include "platform_lib.h"
 
-#define FAN_GPI_ON_MAIN_BOARD	INV_PSOC_PREFIX"/fan_gpi"
+#define FAN_GPI_ON_MAIN_BOARD	INV_DEVICE_PREFIX"/fan_gpi"
 
 #define MAX_FAN_SPEED     18000
 #define MAX_PSU_FAN_SPEED 25500
@@ -29,12 +29,12 @@
 static char* devfiles__[] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_PSOC_PREFIX"/fan1_input",
-    INV_PSOC_PREFIX"/fan2_input",
-    INV_PSOC_PREFIX"/fan3_input",
-    INV_PSOC_PREFIX"/fan4_input",
-    INV_PSOC_PREFIX"/rpm_psu1",
-    INV_PSOC_PREFIX"/rpm_psu2",
+    INV_DEVICE_PREFIX"/fan1_input",
+    INV_DEVICE_PREFIX"/fan2_input",
+    INV_DEVICE_PREFIX"/fan3_input",
+    INV_DEVICE_PREFIX"/fan4_input",
+    INV_DEVICE_PREFIX"/rpm_psu1",
+    INV_DEVICE_PREFIX"/rpm_psu2",
 };
 
 #define MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(id) \
@@ -63,7 +63,7 @@ static char* devfiles__[] =  /* must map with onlp_thermal_id */
     }
 
 /* Static fan information */
-onlp_fan_info_t linfo[FAN_MAX] = {
+onlp_fan_info_t __onlp_fan_info[FAN_MAX] = {
     { }, /* Not used */
     MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(1),
     MAKE_FAN_INFO_NODE_ON_MAIN_BOARD(2),
@@ -168,7 +168,7 @@ _onlp_fani_info_get_fan_on_psu(int fid, onlp_fan_info_t* info)
     }
 
     /* get front fan speed */
-    ret = onlp_file_read_int(&(info->rpm), INV_PSOC_PREFIX"/rpm_psu%d",LOCAL_ID_TO_PSU_ID(fid));
+    ret = onlp_file_read_int(&(info->rpm), INV_DEVICE_PREFIX"/rpm_psu%d",LOCAL_ID_TO_PSU_ID(fid));
     if (ret < 0) {
         return ONLP_STATUS_E_INTERNAL;
     }
@@ -201,7 +201,7 @@ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
     VALIDATE(id);
 
     local_id = ONLP_OID_ID_GET(id);
-    *info = linfo[local_id];
+    *info = __onlp_fan_info[local_id];
 
     switch (local_id) {
     case FAN_1_ON_PSU1:

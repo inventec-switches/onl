@@ -17,8 +17,8 @@
 #define INV_PLATFORM_NAME	"d3352"
 
 #define INV_CPLD_COUNT		(1)
-#define INV_CPLD_PREFIX		"/sys/bus/i2c/devices/10-0055/"
-#define INV_PSOC_PREFIX		"/sys/bus/i2c/devices/10-0066/"
+#define INV_SYSLED_PREFIX	"/sys/bus/i2c/devices/10-0055/"
+#define INV_DEVICE_PREFIX	"/sys/bus/i2c/devices/10-0066/"
 #define INV_EPRM_PREFIX		"/sys/bus/i2c/devices/0-0053/"
 #define INV_CTMP_PREFIX		"/sys/devices/platform/coretemp.0/hwmon/hwmon0/"
 #define LOCAL_ID_TO_INFO_IDX(id)  (id-1)
@@ -93,14 +93,14 @@ enum onlp_psu_id {
 };
 #define CHASSIS_PSU_COUNT	(2)
 
-#define PSU1_AC_PMBUS_PREFIX	INV_PSOC_PREFIX
-#define PSU2_AC_PMBUS_PREFIX	INV_PSOC_PREFIX
+#define PSU1_AC_PMBUS_PREFIX	INV_DEVICE_PREFIX
+#define PSU2_AC_PMBUS_PREFIX	INV_DEVICE_PREFIX
 
 #define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
 #define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
 
-#define PSU1_AC_HWMON_PREFIX	INV_PSOC_PREFIX
-#define PSU2_AC_HWMON_PREFIX	INV_PSOC_PREFIX
+#define PSU1_AC_HWMON_PREFIX	INV_DEVICE_PREFIX
+#define PSU2_AC_HWMON_PREFIX	INV_DEVICE_PREFIX
 
 typedef enum psu_type {
     PSU_TYPE_UNKNOWN,
@@ -121,7 +121,7 @@ psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 /*
  * Definitions of FAN device
  */
-#define FAN_BOARD_PATH	INV_PSOC_PREFIX
+#define FAN_BOARD_PATH	INV_DEVICE_PREFIX
 #define FAN_NODE(node)	FAN_BOARD_PATH#node
 
 /*

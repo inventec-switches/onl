@@ -48,15 +48,15 @@ static cpld_led_map_t cpld_led_map[] = {
     { "sys_led", 6, 0xc0, 0x00, 0x40, 0x80, 0xc0 }
 };
 
-static char* devfiles__[LED_MAX] =  /* must map with onlp_thermal_id */
+static char* __led_path_list[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_CPLD_PREFIX"/stk_led",
-    INV_CPLD_PREFIX"/fan_led",
-    INV_CPLD_PREFIX"/pwr_led",
-    INV_CPLD_PREFIX"/sys_led",
-    INV_PSOC_PREFIX"/fan1_led_%s",
-    INV_PSOC_PREFIX"/fan2_led_%s",
+    INV_SYSLED_PREFIX"/stk_led",
+    INV_SYSLED_PREFIX"/fan_led",
+    INV_SYSLED_PREFIX"/pwr_led",
+    INV_SYSLED_PREFIX"/sys_led",
+    INV_DEVICE_PREFIX"/fan1_led_%s",
+    INV_DEVICE_PREFIX"/fan2_led_%s",
 };
 
 enum led_light_mode {
@@ -210,7 +210,7 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     case LED_FAN:
     case LED_PWR:
     case LED_SYS:
-        sprintf(fullpath_grn, devfiles__[local_id]);
+        sprintf(fullpath_grn, __led_path_list[local_id]);
         /* Set LED mode */
         if (onlp_chassis_led_read(fullpath_grn, buf, 32) < 0) {
             DEBUG_PRINT("%s/%d\r\n", __FUNCTION__, __LINE__);
@@ -279,8 +279,8 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
             return ONLP_STATUS_OK;
         }
 
-        sprintf(fullpath_grn, devfiles__[local_id], "grn");
-        sprintf(fullpath_red, devfiles__[local_id], "red");
+        sprintf(fullpath_grn, __led_path_list[local_id], "grn");
+        sprintf(fullpath_red, __led_path_list[local_id], "red");
 
         /* Set LED mode */
         if (onlp_file_read_int(&gvalue, fullpath_grn) != 0) {
@@ -374,11 +374,11 @@ onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
     case LED_PWR:
     case LED_FAN:
     case LED_STK:
-        sprintf(fullpath, "%s%s/%s", INV_CPLD_PREFIX, last_path[local_id], filename);
+        sprintf(fullpath, "%s%s/%s", INV_SYSLED_PREFIX, last_path[local_id], filename);
         break;
     case LED_FAN1:
     case LED_FAN2:
-        sprintf(fullpath, "%s%s/%s", INV_PSOC_PREFIX, last_path[local_id], filename);
+        sprintf(fullpath, "%s%s/%s", INV_DEVICE_PREFIX, last_path[local_id], filename);
         break;
     default:
         DEBUG_PRINT("%s(%d) Invalid led id %d\r\n", __FUNCTION__, __LINE__, local_id);

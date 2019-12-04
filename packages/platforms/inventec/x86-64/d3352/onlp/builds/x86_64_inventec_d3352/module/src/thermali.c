@@ -130,13 +130,6 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     }
 
     if( (info->status & ONLP_THERMAL_STATUS_PRESENT)&&(ret==ONLP_STATUS_OK) ){
-        char desc[32], *dp = &desc[0];
-        int rv = onlp_file_read_str(&dp, devfiles__[local_id], "label");
-        if (rv > 0) {
-            memset (info->hdr.description, 0, ONLP_OID_DESC_SIZE);
-            strncpy(info->hdr.description, dp, rv);
-        }
-
         /* Set the onlp_oid_hdr_t and capabilities */
         ret= onlp_file_read_int(&info->mcelsius, devfiles__[local_id], "input");
     }

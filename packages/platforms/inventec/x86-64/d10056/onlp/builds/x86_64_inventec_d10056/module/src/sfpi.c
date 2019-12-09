@@ -366,7 +366,12 @@ onlp_sfpi_control_get(int port, onlp_sfp_control_t control, int* value)
     switch (control) {
     case ONLP_SFP_CONTROL_RESET_STATE:
         if(p_type == ONLP_PORT_TYPE_QSFP) {
+            /*the value of /port(id)/reset
+            0: in reset state; 1:not in reset state*/
             ret = onlp_file_read_int(value, INV_SFP_PREFIX"port%d/reset", port);
+            if(ret==ONLP_STATUS_OK){
+                *value=(!(*value));
+            }            
         }
         break;
     case ONLP_SFP_CONTROL_RX_LOS:

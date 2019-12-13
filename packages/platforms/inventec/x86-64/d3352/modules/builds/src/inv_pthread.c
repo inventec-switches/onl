@@ -227,7 +227,7 @@ fans_control_log(char *buf, int fan_id)
 int fans_control(void)
 {
     char buf[MAX_ACC_SIZE];
-    int i, err_fans = 0;
+    int i, err_fans = 0,ret=1;
 
     if (psoc_show_fan_state(buf) < 0) {
 	SYSFS_LOG("[p_thread] read fan_gpi failed\n");
@@ -241,18 +241,27 @@ int fans_control(void)
     }
 
     if (!err_fans) {
-	cpld_set_fan_led("1", 1);	//ON
-	return 0;
+       ret=cpld_set_cottonwood_led(SYS_LED_MODE_ON, LED_FAN);    //ON
+       if(ret==0){
+            printk( KERN_ERR  "[p_thread] FAN_LED setting failed on line %d\n",__LINE__);
+       }
+       return 0;
     }
 
     if (0 < err_fans && err_fans < FAN_TBL_TOTAL) {
 	//printk(KERN_ERR "[p_thread] %d fans failed. %s\n", err_fans, buf);
-	cpld_set_fan_led("2", 1);	//1HZ
+       ret=cpld_set_cottonwood_led(SYS_LED_MODE_1_HZ, LED_FAN);	//1HZ
+       if(ret==0){
+            printk( KERN_ERR  "[p_thread] FAN_LED setting failed on line %d\n",__LINE__);
+       }
     }
     else
     if (err_fans == FAN_TBL_TOTAL) {
         //printk(KERN_ERR "[p_thread] All fans failed. [%s]\n", buf);
-	cpld_set_fan_led("3", 1);	//0.5HZ
+       ret=cpld_set_cottonwood_led(SYS_LED_MODE_0_5_HZ, LED_FAN);	//0.5HZ
+       if(ret==0){
+            printk( KERN_ERR  "[p_thread] FAN_LED setting failed on line %d\n",__LINE__);
+       }
     }
     return err_fans;
 }
@@ -433,96 +442,62 @@ void psu_get_voltin(void)
 /* psus_control() by inv_thread */
 int psus_control(int log_only)
 {
-    char state[MIN_ACC_SIZE];
-    ssize_t sz = cpld_show_psu(state);
-    u8 st;
+    ssize_t ret;
+    u8 psu1_st,psu2_st;
 
-    if (sz < 1) {
-	cpld_set_pwr_led("0", 1);
-	return 0;
+    ret = cpld_show_psu(&psu1_st, PSU1);
+    if(ret>=0){
+        ret = cpld_show_psu(&psu2_st, PSU2);
+    }
+    
+    if(ret<=0){
+        ret=cpld_set_cottonwood_led(SYS_LED_MODE_OFF, LED_PWR);
+        if(ret==0){
+            printk( KERN_ERR  "[p_thread] POWER_LED setting failed on line %d\n",__LINE__);
+       }
+    }else{
+        ret=0;
+
+        if( (psu1_st==0)&&(psu2_st==0) ){
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_ON, LED_PWR);
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] POWER_LED setting failed on line %d\n",__LINE__);
+            }
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_ON, LED_SYS); 
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] SYSTEM_LED setting failed on line %d\n",__LINE__);
+            }          
+        }else if( (psu1_st==7)||(psu2_st==7) ){ /*1 psu uninstalled*/
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_1_HZ, LED_PWR);
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] POWER_LED setting failed on line %d\n",__LINE__);
+            }
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_0_5_HZ, LED_SYS);  
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] SYSTEM_LED setting failed on line %d\n",__LINE__);
+            }
+        }else if((psu1_st==2)||(psu2_st==2) ){ /*1 psu unpowered*/
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_0_5_HZ, LED_PWR);
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] POWER_LED setting failed on line %d\n",__LINE__);
+            }
+            ret=cpld_set_cottonwood_led(SYS_LED_MODE_0_5_HZ, LED_SYS);            
+            if(ret==0){
+                printk( KERN_ERR  "[p_thread] SYSTEM_LED setting failed on line %d\n",__LINE__);
+            }
+        }
     }
 
-    st = simple_strtoul(&state[0], NULL, 16);
-    if (st == 0) {
-	cpld_set_pwr_led("1", 1);
-    }
-    else {
-	cpld_set_pwr_led("2", 1);
-    }
-
-    return 0;
+    return ret;
 }
 
 /* End of psuinfo_device */
 
 /* led device *************************************/
 
-/* return 0/off 1/green 2/red */
-unsigned int
-status_led_check_color(void)
-{
-    char tmpbuf[MIN_ACC_SIZE];
-    int ret = STATUS_LED_INVALID;
-
-    if (cpld_show_led(&tmpbuf[0], 4) > 0) {
-	return simple_strtoul(&tmpbuf[0], NULL, 16);
-    }
-
-    return ret;
-}
-
 /*
  * Store attr Section
  */
-ssize_t status_led_diag_mode_enable(void)
-{
-    char tmp[MIN_ACC_SIZE];
-    ssize_t ret;
-
-    ret = psoc_show_diag(&tmp[0]);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    if (tmp[0] == '0') {
-	ret = psoc_set_diag("1", 1);
-        if (ret < 0) {
-            return ret;
-        }
-
-	ret = cpld_set_ctl("1", 1);
-        if (ret < 0) {
-            return ret;
-        }
-    }
-
-    return ret;
-}
-
-ssize_t status_led_diag_mode_disable(void)
-{
-    char tmp[MIN_ACC_SIZE];
-    ssize_t ret;
-
-    ret = psoc_show_diag(&tmp[0]);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    if (tmp[0] == '1') {
-	ret = psoc_set_diag("0", 1);
-        if (ret < 0) {
-            return 1;
-        }
-
-	ret = cpld_set_ctl("1", 1);
-        if (ret < 0) {
-            return 1;
-        }
-    }
-    return 1;
-}
-
 
 int status_led_check_diag_mode(void)
 {
@@ -571,6 +546,8 @@ static int thread_data;
 // Function executed by kernel thread
 static int thread_fn(void *unused)
 {
+    int ret=1;
+
     mutex_init(&pthread_mutex);
 
     ssleep(THREAD_DELAY_MINS);
@@ -578,14 +555,16 @@ static int thread_fn(void *unused)
     /* Default status init */
 
     mutex_lock(&pthread_mutex);
-    cpld_set_ctl("0x11", 4);
+    cpld_set_ctl(CTL_BOTH_READY);
     mutex_unlock(&pthread_mutex);
 
     psu_get_voltin();
 
     mutex_lock(&pthread_mutex);
-    cpld_set_sys_led("1", 1);
-    cpld_set_stk_led("1", 1);	// TBD: always ON now
+    ret=cpld_set_cottonwood_led(SYS_LED_MODE_OFF, LED_STK);	// always OFF, since we don't support the function on plaltform D3352
+    if(ret==0){
+        printk( KERN_ERR  "[p_thread] FAN_LED setting failed on line %d\n",__LINE__);
+    }
     mutex_unlock(&pthread_mutex);
 
     /* Delay for guarantee HW ready */

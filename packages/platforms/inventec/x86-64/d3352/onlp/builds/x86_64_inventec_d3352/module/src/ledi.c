@@ -18,8 +18,6 @@
 #include <onlplib/file.h>
 #include "platform_lib.h"
 
-#define filename    "brightness"
-
 #define VALIDATE(_id)                           \
     do {                                        \
         if(!ONLP_OID_IS_LED(_id)) {             \
@@ -27,75 +25,22 @@
         }                                       \
     } while(0)
 
-
-/* Reference to inv_cpld.h */
-/*
-typedef struct cpld_led_map_s {
-	char	*name;
-	int	bit_shift;
-	unsigned int	bit_mask;
-	unsigned int	led_off;
-	unsigned int	led_on;
-	unsigned int	led_blink;
-	unsigned int	led_blink_slow;
-} cpld_led_map_t;
-*/
-static cpld_led_map_t cpld_led_map[] = {
-    { NULL,      0, 0x00, 0x00, 0x00, 0x00, 0x00 },
-    { "stk_led", 0, 0x03, 0x00, 0x01, 0x02, 0x03 },
-    { "fan_led", 2, 0x0c, 0x00, 0x04, 0x08, 0x0c },
-    { "pwr_led", 4, 0x30, 0x00, 0x10, 0x20, 0x30 },
-    { "sys_led", 6, 0xc0, 0x00, 0x40, 0x80, 0xc0 }
-};
+typedef enum sys_led_mode_e {
+    SYS_LED_MODE_OFF = 0,
+    SYS_LED_MODE_ON = 1,
+    SYS_LED_MODE_1_HZ = 2,
+    SYS_LED_MODE_0_5_HZ = 3
+} sys_led_mode_t;
 
 static char* __led_path_list[LED_MAX] =  /* must map with onlp_thermal_id */
 {
     "reserved",
-    INV_SYSLED_PREFIX"/stk_led",
+    INV_SYSLED_PREFIX"/stack_led",
     INV_SYSLED_PREFIX"/fan_led",
-    INV_SYSLED_PREFIX"/pwr_led",
-    INV_SYSLED_PREFIX"/sys_led",
+    INV_SYSLED_PREFIX"/power_led",
+    INV_SYSLED_PREFIX"/service_led",
     INV_DEVICE_PREFIX"/fan1_led_%s",
     INV_DEVICE_PREFIX"/fan2_led_%s",
-};
-
-enum led_light_mode {
-    LED_MODE_OFF = 0,
-    LED_MODE_GREEN,
-    LED_MODE_AMBER,
-    LED_MODE_RED,
-    LED_MODE_BLUE,
-    LED_MODE_GREEN_BLINK,
-    LED_MODE_AMBER_BLINK,
-    LED_MODE_RED_BLINK,
-    LED_MODE_BLUE_BLINK,
-    LED_MODE_AUTO,
-    LED_MODE_UNKNOWN
-};
-
-typedef struct led_light_mode_map {
-    enum onlp_led_id id;
-    enum led_light_mode driver_led_mode;
-    enum onlp_led_mode_e onlp_led_mode;
-} led_light_mode_map_t;
-
-led_light_mode_map_t led_map[] = {
-    {LED_SYS, LED_MODE_BLUE,  ONLP_LED_MODE_BLUE,},
-    {LED_PWR, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
-    {LED_FAN, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
-    {LED_STK, LED_MODE_GREEN, ONLP_LED_MODE_GREEN},
-    {LED_FAN1,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
-    {LED_FAN2,LED_MODE_AUTO,  ONLP_LED_MODE_AUTO},
-};
-
-static char last_path[][10] =  /* must map with onlp_led_id */
-{
-    "reserved",
-    "diag",
-    "loc",
-    "fan",
-    "psu1",
-    "psu2"
 };
 
 /*
@@ -141,18 +86,6 @@ static onlp_led_info_t linfo[LED_MAX] = {
     },
 };
 
-static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led_mode)
-{
-    int i, nsize = sizeof(led_map)/sizeof(led_map[0]);
-
-    for(i = 0; i < nsize; i++) {
-        if (id == led_map[i].id && onlp_led_mode == led_map[i].onlp_led_mode) {
-            return led_map[i].driver_led_mode;
-        }
-    }
-
-    return 0;
-}
 
 /*
  * This function will be called prior to any other onlp_ledi_* functions.
@@ -160,43 +93,19 @@ static int onlp_to_driver_led_mode(enum onlp_led_id id, onlp_led_mode_t onlp_led
 int
 onlp_ledi_init(void)
 {
-    DEBUG_PRINT("%s(%d): %s\r\n", __FUNCTION__, __LINE__, INV_PLATFORM_NAME);
-
-    /*
-     * Diag LED Off
-     */
-    onlp_ledi_mode_set(ONLP_LED_ID_CREATE(LED_SYS), ONLP_LED_MODE_OFF);
-
     return ONLP_STATUS_OK;
 }
 
-int onlp_chassis_led_read(char *pathp, char *buf, size_t len)
-{
-    FILE * fp;
-
-    fp = fopen (pathp, "r");
-    if(fp == NULL) {
-        perror("Error opening file");
-        return(-1);
-    }
-    if( fgets (buf, len, fp) == NULL ) {
-        perror("Error fgets operation");
-    }
-    fclose(fp);
-
-    return(0);
-}
 
 int
 onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 {
     int  local_id = ONLP_OID_ID_GET(id);
-    char fullpath_grn[50] = {0};
-    char fullpath_red[50] = {0};
+    char fullpath_grn[ONLP_CONFIG_INFO_STR_MAX] = {0};
+    char fullpath_red[ONLP_CONFIG_INFO_STR_MAX] = {0};
     int  gvalue = 0, rvalue = 0;
-    int  led_on, led_blink;
-    char *bp, buf[32] = {0};
-    unsigned int led_st;
+    int  len,led_state;
+    char buf[ONLP_CONFIG_INFO_STR_MAX] = {0};
     uint32_t fan_status;
 
     VALIDATE(id);
@@ -207,66 +116,56 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
     /* get fullpath */
     switch (local_id) {
     case LED_STK:
-    case LED_FAN:
-    case LED_PWR:
+        if( onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, __led_path_list[local_id]) == ONLP_STATUS_OK ) {
+            led_state=(int)(buf[0]-'0');
+            if(led_state==SYS_LED_MODE_OFF) {
+                info->mode = ONLP_LED_MODE_OFF;
+            } else if(led_state==SYS_LED_MODE_ON) {
+                info->mode = ONLP_LED_MODE_ON;
+            } else if(led_state==SYS_LED_MODE_1_HZ) {
+                info->mode =ONLP_LED_MODE_GREEN_BLINKING;
+            } else {
+                printf("[ONLP][ERROR] Not defined LED behavior detected on led@%d\n", local_id);
+                return ONLP_STATUS_E_INTERNAL;
+            }
+        }
+        info->status &= ONLP_LED_STATUS_PRESENT;
+        return ONLP_STATUS_OK;
+        break;
     case LED_SYS:
-        sprintf(fullpath_grn, __led_path_list[local_id]);
-        /* Set LED mode */
-        if (onlp_chassis_led_read(fullpath_grn, buf, 32) < 0) {
-            DEBUG_PRINT("%s/%d\r\n", __FUNCTION__, __LINE__);
-            info->mode = ONLP_LED_MODE_OFF;
-            info->status &= ~ONLP_LED_STATUS_PRESENT;
-            return ONLP_STATUS_OK;
-        }
-        bp = strstr(&buf[0], "0x");
-        if (!bp) {
-            DEBUG_PRINT("%s/%d: (%s)\r\n", __FUNCTION__, __LINE__,buf);
-            info->mode = ONLP_LED_MODE_OFF;
-            info->status &= ~ONLP_LED_STATUS_PRESENT;
-            return ONLP_STATUS_OK;
-        }
-        *(bp+4) = '\0';
-        led_st = strtoul(bp, NULL, 16);
-        switch (local_id) {
-        case LED_STK:
-            led_st &=  cpld_led_map[LED_STK].bit_mask;
-            led_st >>= cpld_led_map[LED_STK].bit_shift;
-            led_on    = ONLP_LED_MODE_GREEN;
-            led_blink = ONLP_LED_MODE_GREEN_BLINKING;
-            break;
-        case LED_FAN:
-            led_st &=  cpld_led_map[LED_FAN].bit_mask;
-            led_st >>= cpld_led_map[LED_FAN].bit_shift;
-            led_on    = ONLP_LED_MODE_GREEN;
-            led_blink = ONLP_LED_MODE_GREEN_BLINKING;
-            break;
-        case LED_PWR:
-            led_st &=  cpld_led_map[LED_PWR].bit_mask;
-            led_st >>= cpld_led_map[LED_PWR].bit_shift;
-            led_on    = ONLP_LED_MODE_GREEN;
-            led_blink = ONLP_LED_MODE_GREEN_BLINKING;
-            break;
-        case LED_SYS:
-            led_st &=  cpld_led_map[LED_SYS].bit_mask;
-            led_st >>= cpld_led_map[LED_SYS].bit_shift;
-            led_on    = ONLP_LED_MODE_BLUE;
-            led_blink = ONLP_LED_MODE_BLUE_BLINKING;
-            break;
+        if( onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, __led_path_list[local_id]) == ONLP_STATUS_OK ) {
+            led_state=(int)(buf[0]-'0');
+            if(led_state==SYS_LED_MODE_OFF) {
+                info->mode = ONLP_LED_MODE_OFF;
+            } else if(led_state==SYS_LED_MODE_ON) {
+                info->mode = ONLP_LED_MODE_ON;
+            } else if(led_state==SYS_LED_MODE_0_5_HZ) {
+                info->mode =ONLP_LED_MODE_BLUE_BLINKING;
+            } else {
+                printf("[ONLP][ERROR] Not defined LED behavior detected on led@%d\n", local_id);
+                return ONLP_STATUS_E_INTERNAL;
+            }
         }
 
-        info->status |= ONLP_LED_STATUS_PRESENT;
-        if (led_st == 0) {
-            info->mode = ONLP_LED_MODE_OFF;
-        } else if (led_st == 1) {
-            info->mode = led_on;
-            info->status |= ONLP_LED_STATUS_ON;
-        } else if (led_st == 2 || led_st == 3) {
-            info->mode = led_blink;
-            info->status |= ONLP_LED_STATUS_ON;
-        } else {
-            info->mode = ONLP_LED_MODE_OFF;
-            info->status &= ~ONLP_LED_STATUS_PRESENT;
+        info->status &= ONLP_LED_STATUS_PRESENT;
+        return ONLP_STATUS_OK;
+        break;
+    case LED_FAN:
+    case LED_PWR:
+        if( onlp_file_read((uint8_t*)buf,ONLP_CONFIG_INFO_STR_MAX, &len, __led_path_list[local_id]) == ONLP_STATUS_OK ) {
+            led_state=(int)(buf[0]-'0');
+            if(led_state==SYS_LED_MODE_OFF) {
+                info->mode = ONLP_LED_MODE_OFF;
+            } else if(led_state==SYS_LED_MODE_ON) {
+                info->mode = ONLP_LED_MODE_ON;
+            } else if( (led_state==SYS_LED_MODE_1_HZ)||(led_state==SYS_LED_MODE_0_5_HZ) ) {
+                info->mode =ONLP_LED_MODE_GREEN_BLINKING;
+            } else {
+                printf("[ONLP][ERROR] Not defined LED behavior detected on led@%d\n", local_id);
+                return ONLP_STATUS_E_INTERNAL;
+            }
         }
+        info->status &= ONLP_LED_STATUS_PRESENT;
         return ONLP_STATUS_OK;
         break;
     case LED_FAN1:
@@ -345,12 +244,7 @@ onlp_ledi_info_get(onlp_oid_t id, onlp_led_info_t* info)
 int
 onlp_ledi_set(onlp_oid_t id, int on_or_off)
 {
-    VALIDATE(id);
-
-    if (!on_or_off) {
-        return onlp_ledi_mode_set(id, ONLP_LED_MODE_OFF);
-    }
-
+    /*the led behavior is handled by another driver on D3352. Therefore, we're not supporting this attribute*/
     return ONLP_STATUS_E_UNSUPPORTED;
 }
 
@@ -363,31 +257,6 @@ onlp_ledi_set(onlp_oid_t id, int on_or_off)
 int
 onlp_ledi_mode_set(onlp_oid_t id, onlp_led_mode_t mode)
 {
-    int  local_id;
-    char fullpath[50] = {0};
-
-    VALIDATE(id);
-
-    local_id = ONLP_OID_ID_GET(id);
-    switch (local_id) {
-    case LED_SYS:
-    case LED_PWR:
-    case LED_FAN:
-    case LED_STK:
-        sprintf(fullpath, "%s%s/%s", INV_SYSLED_PREFIX, last_path[local_id], filename);
-        break;
-    case LED_FAN1:
-    case LED_FAN2:
-        sprintf(fullpath, "%s%s/%s", INV_DEVICE_PREFIX, last_path[local_id], filename);
-        break;
-    default:
-        DEBUG_PRINT("%s(%d) Invalid led id %d\r\n", __FUNCTION__, __LINE__, local_id);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    if (onlp_file_write_int(onlp_to_driver_led_mode(local_id, mode), fullpath, NULL) != 0) {
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    return ONLP_STATUS_OK;
+    /*the led behavior is handled by another driver on D3352. Therefore, we're not supporting this attribute*/
+    return ONLP_STATUS_E_UNSUPPORTED;
 }

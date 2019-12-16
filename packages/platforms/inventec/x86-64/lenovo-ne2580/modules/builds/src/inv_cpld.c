@@ -59,7 +59,7 @@ static u8 hasCPLD2 = 1;
 #define FAN_NUM				5
 #define PWM_MIN				30
 #define PWM_DEFAULT			150
-
+#define PWM_MAX				255
 /* Each client has this additional data */
 struct cpld_data {
 	struct device *hwmon_dev;
@@ -967,7 +967,7 @@ static struct notifier_block panic_notifier = {
 #define MAX_HWMON 9
 
 //[Model:10G/SFP][FanDirection:R2F/F2R][Type:CPU/ASIC/ENV]
-u8 Thermaltrip[2][2][3] ={{{67,67,67},{67,67,67}},{{64,64,67},{70,70,60}}};
+u8 Thermaltrip[2][2][3] ={{{67,67,67},{67,67,67}},{{70,70,60},{70,70,60}}};
 u8    FanTable[2][2][3][n_entries][2]={
 {//10GBastT
 	{//Rear-to-Front
@@ -1009,7 +1009,7 @@ u8    FanTable[2][2][3][n_entries][2]={
 			{ 70, 255 },  \
 			{ 58, 255 },  \
 			{ 57, 201 },  \
-			{ 56, 170 },  \
+			{ 56, 270 },  \
 			{ 55, 130 },  \
 			{ 54, 110 },  \
 			{ 53,  90 },  \
@@ -1074,52 +1074,52 @@ u8    FanTable[2][2][3][n_entries][2]={
 {//SFP28
 	{//Rear-to-Front
 		{//CPU
-			{ 63, 255 },  \
-			{ 56, 255 },  \
-			{ 55, 255 },  \
-			{ 54, 201 },  \
-			{ 53, 170 },  \
-			{ 52, 130 },  \
-			{ 51, 110 },  \
-			{ 49,  90 },  \
-			{ 46,  80 },  \
-			{ 44,  70 },  \
-			{ 43,  60 },  \
-			{ 41,  57 },  \
-			{ 38,  54 },  \
-			{ 27,  50 }
+			{ 53, 255 },  \
+			{ 49, 255 },  \
+			{ 43, 201 },  \
+			{ 38, 170 },  \
+			{ 36, 130 },  \
+			{ 35, 110 },  \
+			{ 32,  92 },  \
+			{ 29,  85 },  \
+			{ 27,  80 },  \
+			{ 25,  75 },  \
+			{ 20,  70 },  \
+			{ 15,  65 },  \
+			{ 10,  60 },  \
+			{  0,  60 }
 		}
 		,{//ASIC
-			{ 60, 255 },  \
-			{ 50, 255 },  \
-			{ 48, 255 },  \
-			{ 47, 201 },  \
+			{ 58, 255 },  \
+			{ 54, 255 },  \
+			{ 48, 201 },  \
 			{ 44, 170 },  \
 			{ 43, 130 },  \
 			{ 42, 110 },  \
-			{ 41,  90 },  \
-			{ 38,  80 },  \
-			{ 35,  70 },  \
-			{ 33,  60 },  \
-			{ 31,  57 },  \
-			{ 25,  54 },  \
-			{ 22,  50 }
+			{ 40,  92 },  \
+			{ 38,  85 },  \
+			{ 36,  80 },  \
+			{ 34,  75 },  \
+			{ 32,  70 },  \
+			{ 30,  65 },  \
+			{ 28,  60 },  \
+			{  0,  60 }
 		}
 		,{//ENV
-			{ 80, 255 },  \
-			{ 75, 255 },  \
-			{ 70, 255 },  \
-			{ 65, 255 },  \
-			{ 58, 225 },  \
-			{ 56, 255 },  \
-			{ 55, 201 },  \
-			{ 54, 170 },  \
-			{ 53,  90 },  \
-			{ 50,  80 },  \
-			{ 49,  60 },  \
-			{ 47,  57 },  \
-			{ 44,  54 },  \
-			{ 41,  50 }
+			{ 58, 255 },  \
+			{ 52, 255 },  \
+			{ 47, 201 },  \
+			{ 44, 170 },  \
+			{ 42, 130 },  \
+			{ 41, 110 },  \
+			{ 40,  92 },  \
+			{ 38,  85 },  \
+			{ 36,  80 },  \
+			{ 34,  75 },  \
+			{ 32,  70 },  \
+			{ 30,  65 },  \
+			{ 28,  60 },  \
+			{  0,  60 },  \
 		}
 	},
 	{//Front-to-Rear
@@ -1181,7 +1181,7 @@ static u8 find_duty(u8 model, u8 fan_direction, u8 type, u8 temp)
 	static u8 fantable_index[3]={n_entries-1, n_entries-1, n_entries-1};
 	while(1)
 	{
-		if(fantable_index[type] > 1 && temp > FanTable[model][fan_direction][type][fantable_index[type]-1][0])
+		if(fantable_index[type] >= 1 && temp > FanTable[model][fan_direction][type][fantable_index[type]-1][0])
 			fantable_index[type]--;
 		else if(fantable_index[type] < (n_entries-1) && temp < (FanTable[model][fan_direction][type][fantable_index[type]][0]-temp_hysteresis))
 			fantable_index[type]++;
@@ -1286,7 +1286,7 @@ static void autofanspeed(struct i2c_client *client, u8 fanfail, u8 fanturnoff)
 		
 		if(temp_cpu==0xff && temp_switch==0xff && temp_env==0xff)
 		{
-			duty=PWM_DEFAULT;
+			duty=PWM_MAX;
 		}
 		else
 		{
@@ -1314,12 +1314,14 @@ static void autofanspeed(struct i2c_client *client, u8 fanfail, u8 fanturnoff)
 		duty=0xff;
 		memset(fanpwm,duty,FAN_NUM);	
 	}
-	if (duty > 200) 
+	if (duty == 255 && data->fan_direction == 0 && data->model == 1)
+		psu_duty = 99;
+	else if (duty > 200) 
 		psu_duty = 80;
 	else if (duty <= 200 && duty > 150)
-		if(data->fan_direction==0) psu_duty = 55; else psu_duty = 65;
+		if(data->fan_direction==0) {if(data->model==0) psu_duty = 55; else psu_duty = 70;} else psu_duty = 65;
 	else if (duty <= 150 && duty > 100)
-		if(data->fan_direction==0) psu_duty = 45; else psu_duty = 55;
+		if(data->fan_direction==0) {if(data->model==0) psu_duty = 45; else psu_duty = 60;} else psu_duty = 55;
 	else
 		if(data->fan_direction==0) psu_duty = 30; else psu_duty = 35;
 	probe_setvalue(PSU1_PWM, psu_duty);

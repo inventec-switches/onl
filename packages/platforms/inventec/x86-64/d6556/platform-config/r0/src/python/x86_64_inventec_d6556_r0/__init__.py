@@ -1,5 +1,6 @@
 from onl.platform.base import *
 from onl.platform.inventec import *
+import logging
 
 class OnlPlatform_x86_64_inventec_d6556_r0(OnlPlatformInventec,
                                               OnlPlatformPortConfig_48x25_8x100):
@@ -29,11 +30,11 @@ class OnlPlatform_x86_64_inventec_d6556_r0(OnlPlatformInventec,
     def baseconfig(self):
         os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko gpiobase=0")
         self.insmod('i2c-gpio')
+        self.insmod('ucd9000')
+        self.insmod('inv-i2c-mux-pca9641')
         self.insmod('inv_platform')
-        self.insmod('inv_psoc')
-        self.new_i2c_device('inv_cpld', 0x55, 0)
         self.insmod('inv_cpld')
-        self.new_i2c_device('inv_eeprom', 0x53, 0)
+        self.new_i2c_device('inv_eeprom', 0x55, 2)
         self.insmod('inv_eeprom')
         self.insmod('swps')
         self.insmod('inv_ipmi')

@@ -906,7 +906,7 @@ static const struct attribute_group psoc_group = {
 static void check_switch_temp(void)
 {
         static struct file *f;
-        mm_segment_t old_fs;
+        mm_segment_t old_fs=get_fs();;
 
         set_fs(get_ds());
         f = filp_open(SWITCH_TEMPERATURE_SOCK,O_RDONLY,0644);

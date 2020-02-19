@@ -581,7 +581,7 @@ _common_update_attr_eeprom(struct transvr_obj_s *self,
                                      self->eeprom_map_p->page_eeprom,
                                      self->eeprom_map_p->offset_eeprom,
                                      self->eeprom_map_p->length_eeprom,
-                                     &(self->eeprom),
+                                     (uint8_t *)(&(self->eeprom)),
                                      "_common_update_attr_eeprom",
                                      show_err);
 }
@@ -594,7 +594,7 @@ _common_update_attr_uppage(struct transvr_obj_s *self,
                                      self->eeprom_map_p->page_uppage,
                                      self->eeprom_map_p->offset_uppage,
                                      self->eeprom_map_p->length_uppage,
-                                     &(self->eeprom),
+                                     (uint8_t *)(&(self->eeprom)),
                                      "_common_update_attr_uppage",
                                      show_err);
 }

@@ -200,6 +200,7 @@ static struct inv_i2c_board_info i2cdev_list[] = {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////
+#if 0 /*attr defined but not used*/
 static struct 	i2c_gpio_platform_data 	i2c_gpio_platdata0 = {
 	.scl_pin = 8,
 	.sda_pin = 9,
@@ -231,6 +232,7 @@ static struct 	platform_device 	device_i2c_gpio1 = {
 	.id  	= 1, // adapter number
 	.dev.platform_data = &i2c_gpio_platdata1,
 };
+#endif
 
 static int __init plat_lavender_x86_init(void)
 {

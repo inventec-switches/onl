@@ -26,6 +26,9 @@
 
 #define USE_SMBUS    1
 
+#define FAN_CLEI_SUPPORT 0
+#define PSU_ATTR_SUPPORT 0
+
 #define FAN_NUM  4 
 #define PSU_NUM  2 
 
@@ -391,39 +394,39 @@ static ssize_t show_clei(struct device *dev, struct device_attribute *da,
 			break;
 		case ISSUENUMBER_INDEX:
 			offset += CLEI_OFF(issue_number);
-			len = sizeof((struct clei){0}.issue_number);
+			len = sizeof((struct clei){{0}}.issue_number);
 			break;
 		case ABBREVIATION_INDEX:
                         offset += CLEI_OFF(abbreviation_number);
-                        len = sizeof((struct clei){0}.abbreviation_number);
+                        len = sizeof((struct clei){{0}}.abbreviation_number);
                         break;
 		case FCNUMBER_INDEX:
                         offset += CLEI_OFF(fc_number);
-                        len = sizeof((struct clei){0}.fc_number);
+                        len = sizeof((struct clei){{0}}.fc_number);
                         break;
                 case CLEICODE_INDEX:
                         offset += CLEI_OFF(clei_code);
-                        len = sizeof((struct clei){0}.clei_code);
+                        len = sizeof((struct clei){{0}}.clei_code);
                         break;
                 case PRODUCTDATE_INDEX:
                         offset += CLEI_OFF(product_year_and_month);
-                        len = sizeof((struct clei){0}.product_year_and_month);
+                        len = sizeof((struct clei){{0}}.product_year_and_month);
                         break;
                 case LABELLOCATION_INDX:
                         offset += CLEI_OFF(label_location_code);
-                        len = sizeof((struct clei){0}.label_location_code);
+                        len = sizeof((struct clei){{0}}.label_location_code);
                         break;
                 case SERIALNUMBER_INDEX:
                         offset += CLEI_OFF(serial_number);
-                        len = sizeof((struct clei){0}.serial_number);
+                        len = sizeof((struct clei){{0}}.serial_number);
                         break;
                 case PCBREVISION_INDEX:
                         offset += CLEI_OFF(pcb_revision);
-                        len = sizeof((struct clei){0}.pcb_revision);
+                        len = sizeof((struct clei){{0}}.pcb_revision);
                         break;
                 case VENDORNAME_INDEX:
                         offset += CLEI_OFF(vendor_name);
-                        len = sizeof((struct clei){0}.vendor_name);
+                        len = sizeof((struct clei){{0}}.vendor_name);
                         break;
 		default:
 			return 0;
@@ -482,17 +485,17 @@ static ssize_t show_clei(struct device *dev, struct device_attribute *da,
 }
 
 
-/*
-CPLD report the PSU0 status
+#if PSU_ATTR_SUPPORT
+/*CPLD report the PSU0 status
 000 = PSU normal operation
 100 = PSU fault
 010 = PSU unpowered
-111 = PSU not installed
+111 = PSU not installed*/
 
 7 6 | 5 4 3 |  2 1 0
 ----------------------
     | psu1  |  psu0
-*/
+
 static char* psu_str[] = {
     "normal",           //000
     "NA",               //001
@@ -503,6 +506,7 @@ static char* psu_str[] = {
     "NA",               //110
     "not installed",    //111
 };
+
 
 static ssize_t show_psu_st(struct device *dev, struct device_attribute *da,
 			 char *buf)
@@ -524,6 +528,7 @@ static ssize_t show_psu_st(struct device *dev, struct device_attribute *da,
 	    
 	return strlen(buf);
 }
+#endif
 
 /*-----------------------------------------------------------------------*/
 
@@ -985,6 +990,7 @@ static void check_fan_status(struct i2c_client *client)
 }
 
 // [Remove] Bacuase cottonwood don't have PSU info
+#if 0 /*attr defined but not used*/
 static void check_psu_status(struct i2c_client *client)
 {
     static u8 psu_retry[]={0,0};
@@ -1047,7 +1053,7 @@ static void check_switch_temp(struct i2c_client * client)
 	filp_close(f,NULL);
 	set_fs(old_fs);
 }
-
+#endif
 
 static int psoc_polling_thread(void *p)
 {
@@ -1083,8 +1089,10 @@ static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR|S_IRUGO,			show_pwm, set_pwm, 3);
 static SENSOR_DEVICE_ATTR(pwm_psu1, S_IWUSR|S_IRUGO,		show_pwm, set_pwm, 4);
 static SENSOR_DEVICE_ATTR(pwm_psu2, S_IWUSR|S_IRUGO,		show_pwm, set_pwm, 5);
 
+#if PSU_ATTR_SUPPORT
 static SENSOR_DEVICE_ATTR(psu0,  S_IRUGO,			        show_psu_st, 0, 0);
 static SENSOR_DEVICE_ATTR(psu1,  S_IRUGO,			        show_psu_st, 0, 1);
+#endif
 
 static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO,			show_rpm, 0, 0);
 static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO,			show_rpm, 0, 1);
@@ -1096,6 +1104,7 @@ static SENSOR_DEVICE_ATTR(fan7_input, S_IRUGO,			show_rpm, 0, 6);
 static SENSOR_DEVICE_ATTR(fan8_input, S_IRUGO,			show_rpm, 0, 7);
 
 //CLEI
+#if 0 /*attr defined but not used*/
 static SENSOR_DEVICE_ATTR(fan1_issue_number, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan2_issue_number, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan3_issue_number, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
@@ -1132,6 +1141,7 @@ static SENSOR_DEVICE_ATTR(fan1_vendor_name, S_IRUGO, show_clei, 0, FAN1_CLEI_IND
 static SENSOR_DEVICE_ATTR(fan2_vendor_name, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | VENDORNAME_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan3_vendor_name, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | VENDORNAME_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan4_vendor_name, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+#endif
 static SENSOR_DEVICE_ATTR(fan1_clei, S_IRUGO, show_clei, 0, FAN1_CLEI_INDEX | CLEIALL_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan2_clei, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | CLEIALL_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan3_clei, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | CLEIALL_INDEX << 8 );
@@ -1141,6 +1151,7 @@ static SENSOR_DEVICE_ATTR(fan2_clei2, S_IRUGO, show_clei, 0, FAN2_CLEI_INDEX | C
 static SENSOR_DEVICE_ATTR(fan3_clei2, S_IRUGO, show_clei, 0, FAN3_CLEI_INDEX | CLEIALL_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(fan4_clei2, S_IRUGO, show_clei, 0, FAN4_CLEI_INDEX | CLEIALL_INDEX << 8 );
 
+#if 0 /*attr defined but not used*/
 static SENSOR_DEVICE_ATTR(psu1_issue_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu2_issue_number, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | ISSUENUMBER_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu1_abbreviation_number, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | ABBREVIATION_INDEX << 8 );
@@ -1159,6 +1170,7 @@ static SENSOR_DEVICE_ATTR(psu1_pcb_revision, S_IRUGO, show_clei, 0, PSU1_CLEI_IN
 static SENSOR_DEVICE_ATTR(psu2_pcb_revision, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | PCBREVISION_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu1_vendor_name, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | VENDORNAME_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu2_vendor_name, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | VENDORNAME_INDEX << 8 );
+#endif
 static SENSOR_DEVICE_ATTR(psu1_clei, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | CLEIALL_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu2_clei, S_IRUGO, show_clei, 0, PSU2_CLEI_INDEX | CLEIALL_INDEX << 8 );
 static SENSOR_DEVICE_ATTR(psu1_clei2, S_IRUGO, show_clei, 0, PSU1_CLEI_INDEX | CLEIALL_INDEX << 8 );

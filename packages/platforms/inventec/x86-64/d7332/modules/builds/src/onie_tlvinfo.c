@@ -91,7 +91,7 @@ static unsigned long crc32_tab[] = {
 
 static unsigned long crc32(unsigned char const *buf, unsigned int size)
 {
-	unsigned char *p = buf;
+	unsigned char *p =(unsigned char *)(buf);
 	unsigned long crc = 0;
 
     crc = crc ^ ~0U;
@@ -161,7 +161,7 @@ static int set_date(char *buf, const char *string)
 	return -1;
     }
     if (strlen(string) != 19) {
-	printk("ERROR: Date strlen() != 19 -- %d\n", strlen(string));
+	printk("ERROR: Date strlen() != 19 -- %ld\n", strlen(string));
 	printk("ERROR: Bad date format (MM/DD/YYYY hh:mm:ss): %s\n", string);
 	return -1;
     }
@@ -237,7 +237,7 @@ static int set_mac(char *buf, const char *string)
 	return -1;
     }
     if (strlen(p) != 17) {
-	printk("ERROR: MAC address strlen() != 17 -- %d\n", strlen(p));
+	printk("ERROR: MAC address strlen() != 17 -- %ld\n", strlen(p));
 	printk("ERROR: Bad MAC address format: %s\n", string);
 	return -1;
     }

@@ -268,7 +268,7 @@ static char* led_str[] = {
 };
 #endif
 
-
+#if 0 /*function defined but not used*/
 static ssize_t show_led(struct device *dev, struct device_attribute *da,
 			 char *buf)
 {
@@ -316,7 +316,7 @@ static ssize_t set_led(struct device *dev,
 
 	return count;
 }
-
+#endif
 
 static ssize_t show_cottonwood_led(struct device *dev, struct device_attribute *da,
                          char *buf)

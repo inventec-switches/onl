@@ -47,10 +47,13 @@
 #define MaxLeng_Result	0x40
 
 #define BMC_FanCLEIBusNumber 9
+
+#if FAN_CLEI_SUPPORT
 #define DEVICE_CLEI_ADDR	0x52,0x53,0x54,0x55,0x56,0x50,0x51
+static char CLEI_ADDR[]={DEVICE_CLEI_ADDR};
+#endif
 
 #define MAX_IPMI_RECV_LENGTH 0xff
-static char CLEI_ADDR[]={DEVICE_CLEI_ADDR};
 struct task_struct  *kthread_auto_update;
 static long pmbus_reg2data_linear(int data, int linear16);
 struct ipmi_result{
@@ -384,6 +387,7 @@ static ssize_t show_ipmi_pmbus(struct device *dev, struct device_attribute *da,
 	}
 }
 
+#if FAN_CLEI_SUPPORT
 static ssize_t show_clei(struct device *dev, struct device_attribute *da,
                          char *buf)
 {
@@ -418,6 +422,7 @@ static ssize_t show_clei(struct device *dev, struct device_attribute *da,
 		return sprintf(buf, "NONE\n");
 	}
 }
+#endif
 
 static ssize_t show_thermal(struct device *dev, struct device_attribute *da,
 			 char *buf)

@@ -244,10 +244,12 @@ static ssize_t show_info(struct device *dev, struct device_attribute *da,
 	return strlen(buf);
 }
 
+#if 0 /*attr defined but not used*/
 static char* powerstatus_str[] = {
     "Failed",     //0
     "Good",       //1
 };
+#endif
 
 static ssize_t show_diag(struct device *dev, struct device_attribute *da,
 			 char *buf)

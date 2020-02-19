@@ -366,35 +366,35 @@ static ssize_t show_clei(struct device *dev, struct device_attribute *da,
 	{
 		case ISSUENUMBER_INDEX:
 			offset += CLEI_OFF(issue_number);
-			len = sizeof((struct clei){0}.issue_number);
+			len = sizeof((struct clei){{0}}.issue_number);
 			break;
 		case ABBREVIATION_INDEX:
                         offset += CLEI_OFF(abbreviation_number);
-                        len = sizeof((struct clei){0}.abbreviation_number);
+                        len = sizeof((struct clei){{0}}.abbreviation_number);
                         break;
 		case FCNUMBER_INDEX:
                         offset += CLEI_OFF(fc_number);
-                        len = sizeof((struct clei){0}.fc_number);
+                        len = sizeof((struct clei){{0}}.fc_number);
                         break;
                 case CLEICODE_INDEX:
                         offset += CLEI_OFF(clei_code);
-                        len = sizeof((struct clei){0}.clei_code);
+                        len = sizeof((struct clei){{0}}.clei_code);
                         break;
                 case PRODUCTDATE_INDEX:
                         offset += CLEI_OFF(product_year_and_month);
-                        len = sizeof((struct clei){0}.product_year_and_month);
+                        len = sizeof((struct clei){{0}}.product_year_and_month);
                         break;
                 case LABELLOCATION_INDX:
                         offset += CLEI_OFF(label_location_code);
-                        len = sizeof((struct clei){0}.label_location_code);
+                        len = sizeof((struct clei){{0}}.label_location_code);
                         break;
                 case SERIALNUMBER_INDEX:
                         offset += CLEI_OFF(serial_number);
-                        len = sizeof((struct clei){0}.serial_number);
+                        len = sizeof((struct clei){{0}}.serial_number);
                         break;
                 case PCBREVISION_INDEX:
                         offset += CLEI_OFF(pcb_revision);
-                        len = sizeof((struct clei){0}.pcb_revision);
+                        len = sizeof((struct clei){{0}}.pcb_revision);
                         break;
 		default:
 			return 0;

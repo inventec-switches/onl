@@ -20,12 +20,7 @@ static DEFINE_MUTEX(vpd_mutex);
 
 static int
 __swp_match(struct device *dev,
-#ifdef VPD_KERN_VER_AF_3_10
-
             const void *data){
-#else
-            void *data){
-#endif
 
     char *name = (char *)data;
     if (strcmp(dev_name(dev), name) == 0)
@@ -92,14 +87,14 @@ store_attr_vpd(struct device *dev_p,
 	mutex_lock(&vpd_mutex);
 
     //-strip 0x0a in the last byte.
-    for (iLen = 0, pChar = buf_p; 
+    for (iLen = 0, pChar = (char *)(buf_p); 
          iLen < 255 && *pChar != 0; 
          iLen++, pChar++) ;
     if (iLen !=0 && *pChar == 0 && *(pChar-1) == 0x0a)
       *(pChar - 1) = 0;
     //-    
    
-	iErr = write_vpd_data( pi2c_client, iOffset, buf_p);
+	iErr = write_vpd_data( pi2c_client, iOffset, (char *)(buf_p) );
 
 	mutex_unlock(&vpd_mutex);
 	return count;

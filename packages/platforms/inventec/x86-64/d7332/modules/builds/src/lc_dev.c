@@ -121,7 +121,6 @@ enum {
 #define SWITCH_CPLD_INTR_ST_OFFSET (0x44)
 #define SWITCH_CPLD_INTR_EN_OFFSET (0x45)
 
-#define SWICH_CPLD_LC_RESET_N_BIT (2) /*use this bit to reset line card*/
 #define SWICH_CPLD_LC_PWR_CONTROL_BIT (1)
 #define SWICH_CPLD_LC_CPU_PLTRST_N_BIT (0)
 
@@ -1373,6 +1372,18 @@ static int lc_sff_intr_is_asserted(int lc_id, bool *asserted)
     *asserted = st;
     return 0;
 }
+int lc_dev_mux_l1_i2c_ch_get(int lc_id)
+{
+    int i2c_ch = 0;
+    struct lc_dev_obj_t *obj = NULL;    
+    
+    if (!p_valid(obj = lc_obj_get(lc_id))) {
+        return -1;
+    }
+    i2c_ch = lcChTbl[obj->mux_l1.lc_ch_id];
+    LC_DEV_LOG_DBG("lc_id:%d i2c_ch:%d\n", lc_id, i2c_ch);
+    return i2c_ch;
+}    
 /*used to check if mux l1 is alive*/
 bool lc_dev_mux_l1_is_alive(int lc_id)
 {
@@ -1807,7 +1818,7 @@ int lc_dev_reset_get(int lc_id, u8 *lv)
 
     LC_DEV_LOG_DBG("lc_id:%d get reg:0x%x\n", lc_id, reg);
     
-    if (test_bit(SWICH_CPLD_LC_RESET_N_BIT, (unsigned long *)&reg)) {
+    if (test_bit(SWICH_CPLD_LC_CPU_PLTRST_N_BIT, (unsigned long *)&reg)) {
         *lv = 1;
     } else {
         *lv = 0;
@@ -1882,14 +1893,10 @@ int lc_dev_power_set(int lc_id, bool on)
         if ((ret = lc_dev_ucd_power_set(lc_id, false)) < 0) {
             return ret;
         }
+
         if ((ret = lc_dev_12v_set(lc_id, false)) < 0) {
             return ret;
         }
-#if 1
-        if ((ret = lc_dev_reset_set(lc_id, 0)) < 0) {
-            return ret;
-        }
-#endif        
     }
     return 0;
 }
@@ -2553,7 +2560,6 @@ static int lc_dig_intr_is_asserted(bool *asserted)
 #endif
 static int lc_st_intr_is_asserted(bool *asserted)
 {
-    #if 1   
     bool st = false;
     int lv = 0;
     lv = gpio_get_value(lcDev.lc_intr_gpio);
@@ -2565,9 +2571,6 @@ static int lc_st_intr_is_asserted(bool *asserted)
     }
     *asserted = st;
     return 0;
-#else 
-    return lc_dig_intr_is_asserted(asserted);
-    #endif
 }
 
 int lc_sff_intr_hdlr_byCard(int lc_id)
@@ -2577,7 +2580,7 @@ int lc_sff_intr_hdlr_byCard(int lc_id)
     u8 flag = 0;
     int bit = 0;
     bool asserted = false;
-    #if 1
+    
     if((ret = lc_sff_intr_is_asserted(lc_id, &asserted)) < 0) {
         return ret;
     }
@@ -2585,7 +2588,6 @@ int lc_sff_intr_hdlr_byCard(int lc_id)
     if (!asserted) {
         return 0;
     }
-    #endif    
 
     if (!p_valid(lc_client = lc_client_find(&(lcDev.obj[lc_id].cpld[CPLD1_ID])))) {
         return -EBADRQC;

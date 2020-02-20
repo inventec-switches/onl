@@ -255,9 +255,8 @@ struct func_tbl_t *qsfp_dd_func_load(void)
 static int qsfp_dd_lpmode_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->lpmode_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->lpmode_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -265,9 +264,8 @@ static int qsfp_dd_lpmode_set(struct sff_obj_t *sff_obj, u8 value)
 static int qsfp_dd_lpmode_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->lpmode_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->lpmode_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -275,9 +273,8 @@ static int qsfp_dd_lpmode_get(struct sff_obj_t *sff_obj, u8 *value)
 static int qsfp_dd_mode_sel_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->mode_sel_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->mode_sel_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -286,9 +283,8 @@ static int qsfp_dd_mode_sel_set(struct sff_obj_t *sff_obj, u8 value)
 static int qsfp_dd_mode_sel_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->mode_sel_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->mode_sel_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -296,9 +292,8 @@ static int qsfp_dd_mode_sel_get(struct sff_obj_t *sff_obj, u8 *value)
 static int qsfp_dd_reset_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->reset_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->reset_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -306,9 +301,8 @@ static int qsfp_dd_reset_set(struct sff_obj_t *sff_obj, u8 value)
 static int qsfp_dd_reset_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->reset_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->reset_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -316,14 +310,13 @@ static int qsfp_dd_reset_get(struct sff_obj_t *sff_obj, u8 *value)
 static int qsfp_dd_intL_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
     unsigned long bitmap = 0;
 
     if (!p_valid(value)) {
         return -EINVAL;
     }
 
-    if ((ret = lc->mgr->sff_io_drv->intr_all_get(lc->lc_id, &bitmap)) < 0) {
+    if ((ret = sff_obj->mgr->io_drv->intr_all_get(sff_obj->lc_id, &bitmap)) < 0) {
         return ret;
     }
 

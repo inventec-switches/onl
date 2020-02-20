@@ -127,9 +127,8 @@ static int _page_switch(struct sff_obj_t *sff_obj, u8 page);
 static int qsfp_lpmode_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
-
-    if ((ret = lc->mgr->sff_io_drv->lpmode_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->lpmode_set);
+    if ((ret = sff_obj->mgr->io_drv->lpmode_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -137,9 +136,9 @@ static int qsfp_lpmode_set(struct sff_obj_t *sff_obj, u8 value)
 static int qsfp_lpmode_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->lpmode_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->lpmode_get);
+    if ((ret = sff_obj->mgr->io_drv->lpmode_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -147,9 +146,9 @@ static int qsfp_lpmode_get(struct sff_obj_t *sff_obj, u8 *value)
 static int mode_sel_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->mode_sel_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->mode_sel_set);
+    if ((ret = sff_obj->mgr->io_drv->mode_sel_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -158,9 +157,9 @@ static int mode_sel_set(struct sff_obj_t *sff_obj, u8 value)
 static int mode_sel_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    if ((ret = lc->mgr->sff_io_drv->mode_sel_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->mode_sel_get);
+    if ((ret = sff_obj->mgr->io_drv->mode_sel_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -168,10 +167,9 @@ static int mode_sel_get(struct sff_obj_t *sff_obj, u8 *value)
 static int qsfp_reset_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    check_pfunc(lc->mgr->sff_io_drv->reset_set); 
-    if ((ret = lc->mgr->sff_io_drv->reset_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->reset_set); 
+    if ((ret = sff_obj->mgr->io_drv->reset_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -179,10 +177,9 @@ static int qsfp_reset_set(struct sff_obj_t *sff_obj, u8 value)
 static int qsfp_reset_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    check_pfunc(lc->mgr->sff_io_drv->reset_get); 
-    if ((ret = lc->mgr->sff_io_drv->reset_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->reset_get); 
+    if ((ret = sff_obj->mgr->io_drv->reset_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -190,14 +187,14 @@ static int qsfp_reset_get(struct sff_obj_t *sff_obj, u8 *value)
 static int qsfp_intL_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
     unsigned long bitmap = 0;
 
     if (!p_valid(value)) {
         return -EINVAL;
     }
 
-    if ((ret = lc->mgr->sff_io_drv->intr_all_get(lc->lc_id, &bitmap)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->intr_all_get);
+    if ((ret = sff_obj->mgr->io_drv->intr_all_get(sff_obj->lc_id, &bitmap)) < 0) {
         return ret;
     }
 

@@ -59,7 +59,7 @@ struct io_dev_t ioDev;
 
 struct ioexp_config_t *ioexp_head = NULL;
 struct ioexp_config_t *ioexp_tail = NULL;
-
+struct i2c_client *ioexpI2cClient = NULL;
 static int gpio_base = 0;
 static int pca9555_word_read(struct io_dev_client_t *ioexp_client, u8 offset);
 static int pca9555_word_write(struct io_dev_client_t *ioexp_client, u8 offset, u16 val);
@@ -294,6 +294,22 @@ static int ioexp_power_get(int lc_id, int port, u8 *val)
 
 static void ioexp_i2c_clients_destroy(struct ioexp_dev_t *ioexp_dev)
 {
+    int id = 0;
+    int size = ioexp_dev->i2c_ch_map->size;
+
+    if (!p_valid(ioexp_dev)) {
+        return;
+    }
+    if (p_valid(ioexpI2cClient)) {
+        kfree(ioexpI2cClient);
+    }
+    for (id = 0; id < size; id++) {
+        ioexp_dev->ioexp_client[id].client = NULL;
+    }
+}
+
+static void ioexp_i2c_clients_deinit(struct ioexp_dev_t *ioexp_dev)
+{
     struct i2c_client *client = NULL;
     int id = 0;
     int size = ioexp_dev->i2c_ch_map->size;
@@ -308,7 +324,6 @@ static void ioexp_i2c_clients_destroy(struct ioexp_dev_t *ioexp_dev)
             if (p_valid(client->adapter)) {
                 i2c_put_adapter(client->adapter);
             }
-            kfree(client);
         }
     }
 }
@@ -331,48 +346,61 @@ static int ioexp_clients_create(struct ioexp_dev_t *ioexp_dev)
     return 0;
 }
 
-
-struct i2c_client *ioexp_i2c_client_create_init(int ch)
+int ioexp_i2c_client_init(int ch, struct i2c_client **client)
 {
-    struct i2c_client *client = NULL;
     struct i2c_adapter *adap = NULL;
 
-    client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL);
-    if (!p_valid(client)) {
-        goto exit_err;
+    if (!p_valid(*client)) {
+        return -EBADRQC;
     }
     adap = i2c_get_adapter(ch);
     if (!p_valid(adap)) {
-        SFF_IO_LOG_ERR("get adapter fail ch:%d\n", ch);
-        goto exit_kfree_i2c_client;
+    SFF_IO_LOG_ERR("get adapter fail ch:%d\n", ch);
+    return -EBADRQC;
     }
-    client->adapter = adap;
-    return client;
 
-exit_kfree_i2c_client:
-    kfree(client);
-exit_err:
-    return NULL;
+    SFF_IO_LOG_DBG("get adapter ok ch:%d\n", ch);
+    (*client)->adapter = adap;
+
+    return 0;
 }
-static int ioexp_i2c_clients_create_init(struct ioexp_dev_t *ioexp_dev)
+
+static int ioexp_i2c_clients_init(struct ioexp_dev_t *ioexp_dev)
 {
+    int ret = 0;
     int i = 0;
     int size = ioexp_dev->i2c_ch_map->size;
     int *tbl = ioexp_dev->i2c_ch_map->tbl;
-    struct i2c_client *client = NULL;
+    struct io_dev_client_t *ioexp_client = NULL;
 
     for (i = 0; i < size; i++) {
-        client = ioexp_i2c_client_create_init(tbl[i]);
-        if (!p_valid(client)) {
+        ioexp_client = &ioexp_dev->ioexp_client[i];
+        if ((ret = ioexp_i2c_client_init(tbl[i], &(ioexp_client->client))) < 0) {
             break;
         }
-        ioexp_dev->ioexp_client[i].client = client;
-        mutex_init(&(ioexp_dev->ioexp_client[i].lock));
+        mutex_init(&(ioexp_client->lock));
 
     }
-    if (i < size) {
-        ioexp_i2c_clients_destroy(ioexp_dev);
+    if (ret < 0) {
+        ioexp_i2c_clients_deinit(ioexp_dev);
+        return ret;
+    }
+    return 0;
+}
+static int ioexp_i2c_clients_create(struct ioexp_dev_t *ioexp_dev)
+{
+    int i = 0;
+    int size = ioexp_dev->i2c_ch_map->size;
+    struct i2c_client *client = NULL;
+
+    client = kzalloc(sizeof(struct i2c_client)*size, GFP_KERNEL);
+    if (!p_valid(client)) {
         return -EBADRQC;
+    }
+    ioexpI2cClient = client;
+    /*build a link*/
+    for (i = 0; i < size; i++) {
+        ioexp_dev->ioexp_client[i].client = &ioexpI2cClient[i];
     }
     return 0;
 }
@@ -381,7 +409,7 @@ static void cpld_io_i2c_clients_destroy(struct cpld_io_t *cpld_io)
     struct i2c_client *client = NULL;
     int id = 0;
     int size = cpld_io->config->i2c_ch_map->size;
-
+    
     for (id = 0; id < size; id++) {
         client = cpld_io->cpld_client[id].client;
         if (p_valid(client)) {
@@ -781,7 +809,7 @@ int ioexp_output_set(struct ioexp_dev_t *dev, ioexp_output_type_t type, int port
     if ((ret = func->write(ioexp_client, func->offset[PCA95XX_OUTPUT], reg)) < 0) {
         return ret;
     }
-    SFF_IO_LOG_INFO("%s set ok ch_id:%d addr:0x%x reg:0x%x\n", ioexp_output_name[type], ioexp->ch_id, ioexp->addr, reg);
+    SFF_IO_LOG_DBG("%s set ok ch_id:%d addr:0x%x reg:0x%x\n", ioexp_output_name[type], ioexp->ch_id, ioexp->addr, reg);
     return 0;
 }
 static void set_reg_update(struct ioexp_output_t *ioexp, unsigned long bitmap, u16 *reg)
@@ -1517,40 +1545,43 @@ int io_dev_init(int platform_id, int io_no_init)
         SFF_IO_LOG_ERR("ioexp_clients_create fail\n");
         goto exit_err;
     }
-    if ((ret = ioexp_i2c_clients_create_init(&ioDev.ioexp_dev)) < 0) {
-        SFF_IO_LOG_ERR("ioexp_i2c_clients_create_init fail\n");
+    if ((ret = ioexp_i2c_clients_create(&ioDev.ioexp_dev)) < 0) {
+        SFF_IO_LOG_ERR("ioexp_i2c_clients_create fail\n");
         goto exit_kfree_clients;
     }
-
+    if ((ret = ioexp_i2c_clients_init(&ioDev.ioexp_dev)) < 0) {
+        SFF_IO_LOG_ERR("ioexp_i2c_clients_init fail\n");
+        goto exit_kfree_i2c_clients;
+    }
     if (!io_no_init) {
         if (ioexp_config_init(&ioDev.ioexp_dev) < 0) {
             SFF_IO_LOG_ERR("ioexp_config_init fail\n");
-            goto exit_kfree_i2c_clients;
+            goto deinit_i2c_clients;
         }
     }
-
     if (ioexp_input_init(&ioDev.ioexp_dev) < 0) {
         SFF_IO_LOG_ERR("ioexp_input_init fail\n");
-        goto exit_kfree_i2c_clients;
+        goto deinit_i2c_clients;
     }
 
     if (ioexp_output_init(&ioDev.ioexp_dev, io_no_init) < 0) {
         SFF_IO_LOG_ERR("ioexp_out_init fail\n");
-        goto exit_kfree_i2c_clients;
+        goto deinit_i2c_clients;
     }
     if (ioDev.intr_mode_supported) {
         if (cpld_io_init(&ioDev.cpld_io) < 0) {
             SFF_IO_LOG_ERR("cpld_io_init fail\n");
-            goto exit_kfree_i2c_clients;
+            goto deinit_i2c_clients;
         }
     }
     if(io_dev_mux_rst_gpio_init(ioDev.mux_rst_gpio) < 0) {
         SFF_IO_LOG_ERR("io_dev_mux_rst_gpio_init fail\n");
-        goto exit_kfree_i2c_clients;
+        goto deinit_i2c_clients;
     }
     SFF_IO_LOG_DBG("OK\n");
     return 0;
-
+deinit_i2c_clients:
+    ioexp_i2c_clients_deinit(&ioDev.ioexp_dev);    
 exit_kfree_i2c_clients:
     ioexp_i2c_clients_destroy(&ioDev.ioexp_dev);
 exit_kfree_clients:
@@ -1561,6 +1592,7 @@ exit_err:
 
 void io_dev_deinit(void)
 {
+    ioexp_i2c_clients_deinit(&ioDev.ioexp_dev);    
     ioexp_i2c_clients_destroy(&ioDev.ioexp_dev);
     ioexp_clients_destroy(&ioDev.ioexp_dev);
 

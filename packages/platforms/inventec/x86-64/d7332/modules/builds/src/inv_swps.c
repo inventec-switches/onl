@@ -16,7 +16,7 @@
 #include <linux/fs.h>
 #include <linux/unistd.h>
 #include <linux/uaccess.h>
-
+#include <linux/version.h>
 #include "inv_def.h"
 //#include "sff_spec.h"
 #include "inv_swps.h"
@@ -28,12 +28,11 @@
 
 int io_no_init = 0;
 module_param(io_no_init, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-u32 logLevel = ERR_ALL_LEV | INFO_ALL_LEV;
+u32 logLevel = SWPS_ERR_LEV | SWPS_INFO_LEV;
 //u32 logLevel = ERR_ALL_LEV | INFO_ALL_LEV | DBG_ALL_LEV;
 bool int_flag_monitor_en = false;
 char workBuf[PAGE_SIZE];
 struct platform_info_t *pltfmInfo = NULL;
-struct sff_eeprom_driver_t *sffEepromDrv = NULL; 
 static void swps_polling_task(struct work_struct *work);
 static void polling_task_1U(void);
 static void polling_task_4U(void);
@@ -41,7 +40,8 @@ static DECLARE_DELAYED_WORK(swps_polling, swps_polling_task);
 static u8 swps_polling_enabled = 1;
 static int swps_polling_task_start(void);
 static int swps_polling_task_stop(void);
-static void i2c_bus_recovery_v2(struct lc_obj_t *card);
+static int mux_ch_block(int i2c_ch, unsigned long mux_ch);
+static int mux_fail_reset(int i2c_ch);
 static struct swps_kobj_t *swps_kobj_add(char *name,
         struct kobject *mgr,
         struct attribute_group *attr_group);
@@ -844,7 +844,7 @@ static int sff_prs_bitmap_get(struct sff_mgr_t *sff, unsigned long *prs)
     if (!p_valid(prs)) {
         return -EINVAL;
     }
-    if((ret = lc->mgr->sff_io_drv->prs_all_get(lc->lc_id, &bitmap)) < 0) {
+    if((ret = sff->io_drv->prs_all_get(lc->lc_id, &bitmap)) < 0) {
         return ret;
     }
     /*use positive logic*/
@@ -1015,15 +1015,15 @@ int inv_sff_output_set(sff_io_output_type_t type, int lc_id, unsigned long bitma
     switch (type) {
 
     case SFF_IO_RST_TYPE:
-        set_func = lcMgr.sff_io_drv->reset_all_set;
+        set_func = sff->io_drv->reset_all_set;
         sff_fsm_op_process(sff, sff_reset_is_supported, phy_bitmap); 
         break;
     case SFF_IO_PWR_TYPE:
-        set_func = lcMgr.sff_io_drv->power_all_set;
+        set_func = sff->io_drv->power_all_set;
         sff_fsm_op_process(sff, sff_power_is_supported, phy_bitmap); 
         break;
     case SFF_IO_LPMODE_TYPE:
-        set_func = lcMgr.sff_io_drv->lpmode_all_set;
+        set_func = sff->io_drv->lpmode_all_set;
         break;
     default:
         break;
@@ -1047,13 +1047,13 @@ int inv_sff_output_get(sff_io_output_type_t type, int lc_id, unsigned long *bitm
     switch (type) {
 
     case SFF_IO_RST_TYPE:
-        get_func = lcMgr.sff_io_drv->reset_all_get;
+        get_func = sff->io_drv->reset_all_get;
         break;
     case SFF_IO_PWR_TYPE:
-        get_func = lcMgr.sff_io_drv->power_all_get;
+        get_func = sff->io_drv->power_all_get;
         break;
     case SFF_IO_LPMODE_TYPE:
-        get_func = lcMgr.sff_io_drv->lpmode_all_get;
+        get_func = sff->io_drv->lpmode_all_get;
         break;
     default:
         break;
@@ -1068,39 +1068,6 @@ int inv_sff_output_get(sff_io_output_type_t type, int lc_id, unsigned long *bitm
 int inv_sff_reset_set(int lc_id, unsigned long bitmap)
 {
     return inv_sff_output_set(SFF_IO_RST_TYPE, lc_id, bitmap);
-#if 0    
-    int port = 0;
-    int port_num = 0;
-    unsigned long phy_bitmap = 0;
-    struct sff_obj_t *sff_obj = NULL;
-    struct sff_mgr_t *sff = NULL;
-    int ret = 0;
-
-    sff = &lcMgr.obj[lc_id].sff;
-    port_num = sff->valid_port_num;
-    phy_bitmap = frontPort_to_phyPort(sff, bitmap);
-
-    check_pfunc(lcMgr.sff_io_drv->reset_all_set); 
-    if ((ret = lcMgr.sff_io_drv->reset_all_set(lc_id, phy_bitmap)) < 0) {
-        return ret;
-    }
-
-    for (port = 0; port < port_num; port++) {
-                   
-        sff_obj = &sff->obj[port];
-        if (!sff_reset_is_supported(sff_obj)) {
-            continue;
-        }
-        transvr_type_set(sff_obj, TRANSVR_CLASS_UNKNOWN);
-
-        if (!test_bit(port, &phy_bitmap)) {
-            sff_fsm_st_set(sff_obj, SFF_FSM_ST_SUSPEND);
-        } else {
-            sff_fsm_st_set(sff_obj, SFF_FSM_ST_RESTART);
-        }
-    } 
-    return 0;
-#endif
 }
 EXPORT_SYMBOL(inv_sff_reset_set);
 
@@ -1108,22 +1075,6 @@ EXPORT_SYMBOL(inv_sff_reset_set);
 int inv_sff_reset_get(int lc_id, unsigned long *bitmap)
 {
     return inv_sff_output_get(SFF_IO_RST_TYPE, lc_id, bitmap);
-    #if 0
-    int ret = 0;
-    struct sff_mgr_t *sff = NULL;
-    unsigned long phy_bitmap = 0;
-
-    check_pfunc(lcMgr.sff_io_drv->reset_all_get); 
-    if ((ret = lcMgr.sff_io_drv->reset_all_get(lc_id, &phy_bitmap)) < 0) {
-        return ret;
-    }
-   
-    sff = &lcMgr.obj[lc_id].sff;
-    unsigned long phy_bitmap = 0;
-    *bitmap = phyPort_to_frontPort(sff, phy_bitmap); 
-    
-    return 0;
-#endif
 }
 EXPORT_SYMBOL(inv_sff_reset_get);
 
@@ -1139,39 +1090,13 @@ int sff_lpmode_set_oper(struct sff_obj_t *sff_obj, u8 val)
 }
 int inv_sff_lpmode_set(int lc_id, unsigned long bitmap)
 {
-    unsigned long phy_bitmap = 0;
-    struct sff_mgr_t *sff = NULL;
-    int ret = 0;
-
-    sff = &lcMgr.obj[lc_id].sff;
-    phy_bitmap = frontPort_to_phyPort(sff, bitmap);
-
-    check_pfunc(lcMgr.sff_io_drv->lpmode_all_set); 
-    if ((ret = lcMgr.sff_io_drv->lpmode_all_set(lc_id, phy_bitmap)) < 0) {
-        return ret;
-    }
-    return 0;
+    return inv_sff_output_set(SFF_IO_LPMODE_TYPE, lc_id, bitmap);
 }
 EXPORT_SYMBOL(inv_sff_lpmode_set);
 
 /*bitmap , is in front port order*/
 int inv_sff_lpmode_get(int lc_id, unsigned long *bitmap)
 {
-#if 0
-    int ret = 0;
-    struct sff_mgr_t *sff = NULL;
-    unsigned long phy_bitmap = 0;
-
-    check_pfunc(lcMgr.sff_io_drv->lpmode_all_get); 
-    if ((ret = lcMgr.sff_io_drv->lpmode_all_get(lc_id, &phy_bitmap)) < 0) {
-        return ret;
-    }
-   
-    sff = &lcMgr.obj[lc_id].sff;
-    *bitmap = phyPort_to_frontPort(sff, phy_bitmap); 
-    
-    return 0;
-#endif    
     return inv_sff_output_get(SFF_IO_LPMODE_TYPE, lc_id, bitmap);
 }
 EXPORT_SYMBOL(inv_sff_lpmode_get);
@@ -1184,23 +1109,7 @@ EXPORT_SYMBOL(inv_sff_power_set);
 
 int inv_sff_power_get(int lc_id, unsigned long *bitmap)
 {
-
     return inv_sff_output_get(SFF_IO_PWR_TYPE, lc_id, bitmap);
-#if 0
-    int ret = 0;
-    struct sff_mgr_t *sff = NULL;
-    unsigned long phy_bitmap = 0;
-
-    check_pfunc(lcMgr.sff_io_drv->power_all_get); 
-    if ((ret = lcMgr.sff_io_drv->power_all_get(lc_id, &phy_bitmap)) < 0) {
-        return ret;
-    }
-   
-    sff = &lcMgr.obj[lc_id].sff;
-    *bitmap = phyPort_to_frontPort(sff, phy_bitmap); 
-    
-    return 0;
-#endif    
 }
 EXPORT_SYMBOL(inv_sff_power_get);
 
@@ -1223,9 +1132,8 @@ int sff_eeprom_read(struct sff_obj_t *sff_obj,
                            u8 *buf,
                            int len)
 {
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
-    check_pfunc(sffEepromDrv->eeprom_read); 
-    return sffEepromDrv->eeprom_read(lc->lc_id, sff_obj->port, addr, offset, buf, len);
+    check_pfunc(sff_obj->mgr->eeprom_drv->eeprom_read); 
+    return sff_obj->mgr->eeprom_drv->eeprom_read(sff_obj->lc_id, sff_obj->port, addr, offset, buf, len);
 
 }
 
@@ -1255,10 +1163,8 @@ int sff_eeprom_write(struct sff_obj_t *sff_obj,
                             const u8 *buf,
                             int len)
 {
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
-
-    check_pfunc(sffEepromDrv->eeprom_write); 
-    return sffEepromDrv->eeprom_write(lc->lc_id, sff_obj->port, addr, offset, buf, len);
+    check_pfunc(sff_obj->mgr->eeprom_drv->eeprom_write); 
+    return sff_obj->mgr->eeprom_drv->eeprom_write(sff_obj->lc_id, sff_obj->port, addr, offset, buf, len);
 }
 int inv_sff_eeprom_write(const unsigned int lc_id,
                            const unsigned port, 
@@ -1429,7 +1335,6 @@ static ssize_t sff_page_sel_lock_store(struct swps_kobj_t *swps_kobj, struct swp
 static ssize_t lc_prs_show(struct swps_kobj_t *swps_kobj, struct swps_attribute *attr,
                            char *buf)
 {
-    int ret = 0;
     struct sff_mgr_t *sff = swps_kobj->sff_obj->mgr;
     struct lc_obj_t *card = sff_to_lc(sff);
     unsigned long sys_ready = card->mgr->lc_sys_ready; 
@@ -1535,9 +1440,33 @@ static ssize_t lc_power_ready_show(struct swps_kobj_t *swps_kobj, struct swps_at
         return ret;
     }
     
-    return scnprintf(buf, BUF_SIZE, "%d", ready);
+    return scnprintf(buf, BUF_SIZE, "%d\n", ready);
 }
+#if 0 /*reserved*/
+static ssize_t lc_power_store(struct swps_kobj_t *swps_kobj, struct swps_attribute *attr,
+                               const char *buf, size_t count)
+{
+    int ret = 0;
+    struct sff_mgr_t *sff = swps_kobj->sff_obj->mgr;
+    struct lc_obj_t *card = sff_to_lc(sff);
+    struct lc_func_t *lc_func = card->mgr->lc_func;
+    bool on = false;
+    int  power = 0;
 
+    ret = sscanf_to_int(buf, &power);
+
+    if(ret < 0) {
+        return ret;
+    }
+    on = (power ? true : false);
+    check_pfunc(lc_func->power_set);
+    if ((ret = lc_func->power_set(card->lc_id, on)) < 0) {
+        return ret;
+    }
+
+    return count;
+}
+#endif
 static ssize_t sff_eeprom_dump_show(struct swps_kobj_t *swps_kobj, struct swps_attribute *attr,
                                     char *buf)
 {
@@ -2961,14 +2890,13 @@ static int lc_objs_create(struct lc_t *card)
     return 0;
 
 }
-static void lc_objs_init(struct lc_t *card)
+static int lc_objs_init(struct lc_t *card)
 {
     int lc_num = card->lc_num;
     int i = 0;
     struct lc_obj_t *obj = NULL;
     for (i = 0; i < lc_num; i++) {
         obj = &(card->obj[i]);
-        /*link sff objs to their container sff*/
         obj->mgr = card;
         obj->lc_id = i;
         obj->name = card_name_str[i];
@@ -2983,7 +2911,13 @@ static void lc_objs_init(struct lc_t *card)
         obj->prs_locked = false;
         obj->prs_locked_cnt = 0;
         obj->posi_st = LC_POSI_INIT_ST;
+        obj->mux_l1.i2c_ch = lc_dev_mux_l1_i2c_ch_get(obj->lc_id);
+        if (obj->mux_l1.i2c_ch < 0) {
+            SWPS_LOG_ERR("lc_id:%d invalid i2c_ch:%d\n", obj->lc_id, obj->mux_l1.i2c_ch);
+            return -EBADRQC;
+        }
     }
+    return 0;
 }
 static int lc_kobj_common_create(struct lc_t *card)
 {
@@ -3002,11 +2936,9 @@ static void polling_task_1U(void)
 {
     lcMgr.lc_func->dev_hdlr();
     lc_fsm_run_1U(&lcMgr);
-#if 0
     if (!i2c_bus_is_alive(&lcMgr.obj[0])) {
         i2c_bus_recovery(&lcMgr.obj[0]);
     }
-#endif    
     io_no_init_handler(&lcMgr);
 }
 static void polling_task_4U(void)
@@ -3024,45 +2956,18 @@ static void polling_task_4U(void)
 }
 static int lc_func_load(struct lc_t *obj)
 {
-    int lc_num = obj->lc_num;
-
-    if (TYPE_1U == lc_num) {
-        obj->lc_func = &lc_func_1U;
-    } else if (TYPE_4U == lc_num) {
+    if (PLATFORM_4U == pltfmInfo->id) {
         obj->lc_func = &lc_func_4U;
     } else {
-        /*print error*/
-    }
+        obj->lc_func = &lc_func_1U;
+    } 
+
     if (!p_valid(obj->lc_func)) {
         return -ENOSYS;
     }
-
-#if 0
-    if (TYPE_1U == lc_num) {
-        obj->dev_init = sff_io_init;
-        obj->dev_deinit = sff_io_deinit;
-        obj->polling_task = polling_task_1U;
-    } else if (TYPE_4U == lc_num) {
-        obj->dev_init = sff_io_init;
-        obj->dev_deinit = sff_io_deinit;
-        obj->polling_task = polling_task_4U;
-    } else {
-        /*print error*/
-    }
-    if (!p_valid(obj->lc_func->dev_init)) {
-        return -ENOSYS;
-    }
-    if (!p_valid(obj->lc_func->dev_deinit)) {
-        return -ENOSYS;
-    }
-    if (!p_valid(obj->lc_func->polling_task)) {
-        return -ENOSYS;
-    }
-#endif
-
     return 0;
 }
-static int lc_init(struct lc_t *card, int lc_num, int card_max_port_num)
+static int lc_create_init(struct lc_t *card, int lc_num, int card_max_port_num)
 {
     /*init priv parameter*/
     card->lc_num = lc_num;
@@ -3074,7 +2979,9 @@ static int lc_init(struct lc_t *card, int lc_num, int card_max_port_num)
         goto exit_err;
     }
 
-    lc_objs_init(card);
+    if (lc_objs_init(card) < 0) {
+        goto exit_err;
+    }
 
     if (lc_sff_objs_create(card, card_max_port_num) < 0) {
         goto exit_free_lc_objs;
@@ -3324,12 +3231,28 @@ static void transvr_insert(struct sff_obj_t *sff_obj)
 }
 static void transvr_remove(struct sff_obj_t *sff_obj)
 {
+    struct mux_ch_t *mux = NULL;
+    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
+
+    mux = &(lc->mux_l1);
     SWPS_LOG_INFO("from %s\n", sff_obj->name);
     sff_fsm_st_set(sff_obj, SFF_FSM_ST_REMOVED);
     transvr_type_set(sff_obj, TRANSVR_CLASS_UNKNOWN);
 #if defined (DYNAMIC_SFF_KOBJ)
     sff_kobj_del(sff_obj);
 #endif
+    
+    if (0 != mux->block_ch) {
+        mux->is_fail = false;
+        mux->block_ch &= ~(1L << (sff_obj->port));
+        if(mux_ch_block(mux->i2c_ch, mux->block_ch) < 0) {
+            
+            SWPS_LOG_INFO(" %s unblock mux ch fail\n", sff_obj->name);
+        } else {
+            mux_fail_reset(mux->i2c_ch);
+            SWPS_LOG_INFO(" %s unblock mux ch ok block_ch:%lx\n", sff_obj->name, mux->block_ch);
+        }
+    }
 }
 
 static int io_no_init_scan(struct sff_mgr_t *sff)
@@ -3369,6 +3292,7 @@ static int sff_prs_scan(struct sff_mgr_t *sff)
      in case  one bad transciver module is plugged in, it will lead to i2c bus hang up
      we need to figure out the way to detect this situation and skip it and send out the warning */
     if((ret = sff_prs_bitmap_get(sff, &bitmap)) < 0) {
+        SWPS_LOG_ERR("fail\n");
         return ret;
     }
     /*check which bits are updated*/
@@ -3481,10 +3405,9 @@ int sff_prs_get(struct sff_obj_t *sff_obj, u8 *prs)
 int sff_power_set(struct sff_obj_t *sff_obj, u8 value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
     
-    check_pfunc(lc->mgr->sff_io_drv->power_set);
-    if ((ret = lc->mgr->sff_io_drv->power_set(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->power_set);
+    if ((ret = sff_obj->mgr->io_drv->power_set(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
 
@@ -3493,10 +3416,9 @@ int sff_power_set(struct sff_obj_t *sff_obj, u8 value)
 int sff_power_get(struct sff_obj_t *sff_obj, u8 *value)
 {
     int ret = 0;
-    struct lc_obj_t *lc = sff_to_lc(sff_obj->mgr);
 
-    check_pfunc(lc->mgr->sff_io_drv->power_get);
-    if ((ret = lc->mgr->sff_io_drv->power_get(lc->lc_id, sff_obj->port, value)) < 0) {
+    check_pfunc(sff_obj->mgr->io_drv->power_get);
+    if ((ret = sff_obj->mgr->io_drv->power_get(sff_obj->lc_id, sff_obj->port, value)) < 0) {
         return ret;
     }
     return 0;
@@ -3759,6 +3681,7 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
     bool deasserted = false;
     struct port_info_table_t *port_info = NULL;
     struct lc_func_t *lc_func = NULL;
+    struct mux_ch_t *mux = NULL;
     lc_type_t type = LC_UNKNOWN_TYPE;
 
     if (!p_valid(card)) {
@@ -3776,22 +3699,22 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
         sff_kobjs_destroy(&card->sff);
         _lc_sff_mgr_kobj_destroy(card);
         _lc_kobj_destroy(card);
-        #if 0
-        check_pfunc(lc_func->reset_set);
-        if ((ret = lc_func->reset_set(card->lc_id, 0)) < 0) {
-            break;
-            check_pfunc(lc_func->led_set);
-            if ((ret = lc_func->led_set(card->lc_id, LC_LED_CTRL_OFF)) < 0) {
+        mux = &(card->mux_l1);
+        if (0 != mux->block_ch) {
+            if ((ret = mux_ch_block(mux->i2c_ch, 0)) < 0) {
                 break;
             }
+            mux_fail_reset(mux->i2c_ch);
         }
-        #endif
         check_pfunc(lc_func->power_set);
         if ((ret = lc_func->power_set(card->lc_id, false)) < 0) {
             SWPS_LOG_ERR("%s turn off power fail\n", card->name);
-            /*<TBD> turn off power will fail at this momonent*/ 
-            //break;
         }
+        check_pfunc(lc_func->led_set);
+        if ((ret = lc_func->led_set(card->lc_id, LC_LED_CTRL_OFF)) < 0) {
+            break;
+        }
+
         lc_sys_ready_set(card, false); 
         lc_fsm_st_set(card, LC_FSM_ST_IDLE);
         break;
@@ -3800,6 +3723,10 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
 
         lc_fsm_st_set(card, LC_FSM_ST_WAIT_STABLE);
         card->wait_stable_cnt = 0;
+        check_pfunc(lc_func->reset_set);
+        if ((ret = lc_func->reset_set(card->lc_id, 0)) < 0) {
+            break;
+        }
         break;
     case LC_FSM_ST_WAIT_STABLE:    
         card->wait_stable_cnt++;
@@ -3844,11 +3771,6 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
             lc_fsm_st_set(card, LC_FSM_ST_INIT);
             break;
         }
-        check_pfunc(lc_func->reset_set);
-        if ((ret = lc_func->reset_set(card->lc_id, 1)) < 0) {
-            break;
-        }
-
         lc_fsm_st_set(card, LC_FSM_ST_POWER_ON);
 
         break;
@@ -3871,16 +3793,6 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
         }
         
         if (is_power_ready) {
-            /*reset deassert lc here
-            */
-#if 0
-            check_pfunc(lc_func->reset_set);
-            if ((ret = lc_func->reset_set(card->lc_id, 1)) < 0) {
-                break;
-            }
-            msleep(EXTERNAL_RST_DELAY);
-                        /*de aasert phy reset*/
-#endif     
             check_pfunc(lc_func->phy_reset_set);
             if ((ret = lc_func->phy_reset_set(card->lc_id, 1)) < 0) {
                 break;
@@ -3892,13 +3804,11 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
     case LC_FSM_ST_INIT:
         /*the follow status is used to notify phy driver the lc sys(power and phy reset) is ready*/
         lc_sys_ready_set(card, true); 
-        /* fsm init*/
         
         check_pfunc(lc_func->cpld_init);
         if ((ret = lc_func->cpld_init(card->lc_id)) < 0) {
             break;
         }
-        //mux_reset_ch_resel_byLC(card);
         ret = lc_sff_mgr_kobj_create(card);
         if (ret < 0) {
             break;
@@ -3920,11 +3830,9 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
                 SWPS_LOG_INFO("%s phy ready\n", card->name);
                 break;
             }
-#if 1
             if ((ret = lc_dev_led_boot_amber_set(card->lc_id, false)) < 0) {
                 break;
             }
-#endif            
         }
         lc_fsm_st_set(card, LC_FSM_ST_READY);
         SWPS_LOG_INFO("%s becomes ready\n", card->name);
@@ -3964,11 +3872,9 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
         if ((ret = sff_fsm_run(&card->sff)) < 0) {
             break;
         }
-#if 0 
         if (!i2c_bus_is_alive(card)) {
-            i2c_bus_recovery_v2(card);
+            i2c_bus_recovery(card);
         }
-#endif        
         if (card->over_temp_cnt++ >= LC_OVER_TEMP_NUM) {
             card->over_temp_cnt = 0;
 
@@ -3982,6 +3888,11 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
                 if ((ret = lc_func->power_set(card->lc_id, false)) < 0) {
                     break;
                 }
+                check_pfunc(lc_func->led_set);
+                if ((ret = lc_func->led_set(card->lc_id, LC_LED_CTRL_OFF)) < 0) {
+                    break;
+                }
+                lc_sys_ready_set(card, false); 
 
                 sff_kobjs_destroy(&card->sff);
                 sff_data_reset(&card->sff);
@@ -4012,6 +3923,10 @@ static int _lc_fsm_run_4U(struct lc_obj_t *card)
             }
             if (deasserted) {
                 lc_fsm_st_set(card, LC_FSM_ST_POWER_ON);
+                check_pfunc(lc_func->reset_set);
+                if ((ret = lc_func->reset_set(card->lc_id, 0)) < 0) {
+                    break;
+                }
             }
         }
         break;
@@ -4060,6 +3975,7 @@ static void mux_reset_seq(struct lc_obj_t *card)
     msleep(1);
     lc_func->mux_reset_set(card->lc_id, 1);
 }
+#if 0 /*old method keep it temporary*/
 static void bad_transvr_detect(struct lc_obj_t *card)
 {
     int port = 0;
@@ -4102,26 +4018,9 @@ static void bad_transvr_detect(struct lc_obj_t *card)
     }    
     SWPS_LOG_ERR("bad transvr report == \n");
 }
-static void i2c_bus_recovery(struct lc_obj_t *card)
-{
-    mux_reset_seq(card);
-    mux_reset_ch_resel_byLC(card);
-    SWPS_LOG_DBG("mux reset done\n");
-    bad_transvr_detect(card);
-    if (i2c_bus_is_alive(card)) {
-        SWPS_LOG_ERR("i2c bus recovery done\n");
-    } else {
-        SWPS_LOG_ERR("i2c bus recovery fail\n");
-    }
-}
-#define MUX_NUM (4)
+#endif
 #define MAX_ACC_SIZE (1023)
-struct mux_ch_t {
-    int i2c_ch;
-    int mux_ch;
-    bool is_fail;
-};
-#if 0
+
 int read_ufile(const char *path_t,
                        char *buf,
                                       size_t len)
@@ -4142,7 +4041,11 @@ int read_ufile(const char *path_t,
     fs = get_fs();
     set_fs(KERNEL_DS);
     pos = 0;
-    err = vfs_read(fp, buf, len, &pos);
+#if ( LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0) )
+        err = vfs_read(fp, buf, len, &pos);
+#else
+        err = kernel_read(fp, buf, len, &pos);
+#endif
     if (err < 0) {
     SWPS_LOG_ERR("%s: vfs_read failed.\n", __func__);
     }
@@ -4172,7 +4075,11 @@ static int write_ufile(const char *path_t,
     fs = get_fs();
     set_fs(KERNEL_DS);
     pos = 0;
-    err = vfs_write(fp, buf, len, &pos);
+#if ( LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0) )
+        err = vfs_write(fp, buf, len, &pos);
+#else
+        err = kernel_write(fp, buf, len, &pos);
+#endif
     if (err < 0) {
     SWPS_LOG_ERR("%s: vfs_write failed.\n", __func__);
     }
@@ -4191,9 +4098,7 @@ int mux_is_fail(int i2c_ch, bool *is_fail)
     memset(path_t, 0, sizeof(path_t));
     memset(reg, 0, sizeof(reg));
 
-    //snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/device/%d-0072/current_master",
-    //i2c_ch, i2c_ch);
-    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0072/mux_fail",
+    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0071/mux_fail",
     i2c_ch, i2c_ch);
 
     if ((ret = read_ufile(path_t, reg, sizeof(reg))) < 0) {
@@ -4209,32 +4114,24 @@ int mux_is_fail(int i2c_ch, bool *is_fail)
     return 0;
 }
 
-const int mux_i2c_ch_tbl[MUX_NUM] = {
-        85,
-        86,
-        87,
-        88
-};
-int mux_last_ch_get(int i2c_ch, int *mux_ch)
+int mux_last_ch_get(int i2c_ch, unsigned long *mux_ch)
 {
     char path_t[100];
     int ret = 0;
-    char reg[5];
-    int st = 0;
+    char reg[70];
+    unsigned long st = 0;
 
     memset(path_t, 0, sizeof(path_t));
     memset(reg, 0, sizeof(reg));
 
-    //snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/device/%d-0072/current_master",
-    //i2c_ch, i2c_ch);
-    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0072/current_channel",
+    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0071/current_channel",
     i2c_ch, i2c_ch);
 
     if ((ret = read_ufile(path_t, reg, sizeof(reg))) < 0) {
         return ret;
     }
 
-    ret = sscanf_to_int(reg, &st);
+    ret = sscanf_to_long(reg, &st);
     if(ret < 0) {
         return ret;
     }
@@ -4242,31 +4139,57 @@ int mux_last_ch_get(int i2c_ch, int *mux_ch)
     return 0;
 
 }
-static int mux_ch_block(int i2c_ch, int mux_ch)
+
+static int mux_fail_reset(int i2c_ch)
 {
     char path_t[100];
     int ret = 0;
     char block[5];
+    int mux_is_fail = 0;
 
     memset(path_t, 0, sizeof(path_t));
     memset(block, 0, sizeof(block));
 
-    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0072/block_channel",
+    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0071/mux_fail",
     i2c_ch, i2c_ch);
 
     snprintf(block, sizeof(block), "%d",
+    mux_is_fail);
+
+    ret = write_ufile(path_t, block, sizeof(block));
+    if (ret < 0) {
+        SWPS_LOG_ERR("mux_fail reset fail i2c_ch:%d\n", i2c_ch);
+    }
+    return ret;
+}
+
+static int mux_ch_block(int i2c_ch, unsigned long mux_ch)
+{
+    char path_t[100];
+    int ret = 0;
+    char block[70];
+
+    memset(path_t, 0, sizeof(path_t));
+    memset(block, 0, sizeof(block));
+
+    snprintf(path_t, sizeof(path_t), "/sys/bus/i2c/devices/i2c-%d/%d-0071/block_channel",
+    i2c_ch, i2c_ch);
+
+    snprintf(block, sizeof(block), "%ld",
     mux_ch);
 
     ret = write_ufile(path_t, block, sizeof(block));
     if (ret < 0) {
-        SWPS_LOG_ERR("mux_ch_block fail i2c_ch:%d mux_ch:%d\n", i2c_ch, mux_ch);
+        SWPS_LOG_ERR("mux_ch_block fail i2c_ch:%d mux_ch:%ld\n", i2c_ch, mux_ch);
     }
     return ret;
 }
-static int num_to_power_two(u8 num)
+
+static int num_to_power_two(int num)
 {
     int i = 0;
-    for (i = 0; i < 8; i++) {
+    int size = 8 * sizeof(num);
+    for (i = 0; i < size; i++) {
         
         if (test_bit(i, (unsigned long *)&num)) {
             break;
@@ -4276,62 +4199,77 @@ static int num_to_power_two(u8 num)
 }    
 static void failed_mux_detect(struct lc_obj_t *card)
 {
-    struct mux_ch_t mux[MUX_NUM];
-    int mux_ch = 0;
-    int mux_id = 0;
-    int ch = 0;
+    unsigned long mux_ch = 0;
     int port = 0;
     bool is_fail = false;
+    struct mux_ch_t *mux = NULL;
     struct sff_obj_t *sff_obj = NULL;
-    /*get last mux_ch of all the muxs*/
-    for (mux_id = 0; mux_id < MUX_NUM; mux_id++) {
-        mux[mux_id].i2c_ch = mux_i2c_ch_tbl[mux_id];
-    }
-
-    for (mux_id = 0; mux_id < MUX_NUM; mux_id++) {
+    unsigned long block_all = 0;
+    mux = &card->mux_l1;
+             
+    /*step 1 check if mux failed*/
+    if (mux_is_fail(mux->i2c_ch, &is_fail) < 0) {
         
-        if (mux_is_fail(mux[mux_id].i2c_ch, &is_fail) < 0) {
-            
-            SWPS_LOG_ERR("mux_ch check:%d fail\n", mux_ch);
+        SWPS_LOG_ERR("mux_ch check fail mux_ch:0x%lx \n", mux_ch);
+        return;
+    }
+    if (is_fail) {
+        /*step 2 block all mux ch*/
+        block_all = (1L << (card->sff.valid_port_num)) - 1;
+        if (mux_ch_block(mux->i2c_ch, block_all) < 0) {
             return;
         }
-        if (is_fail) {
-            mux[mux_id].is_fail = true;
-            if (mux_last_ch_get(mux[mux_id].i2c_ch, &mux_ch) < 0) {
-                return;
-            } 
-            mux[mux_id].mux_ch = mux_ch;
-            /*print out info */
-            SWPS_LOG_ERR("mux_ch:%d fail\n", mux_ch);
-        }
+        SWPS_LOG_ERR("block_ch:0x%lx\n", block_all);
+        mux->is_fail = true;
+        if (mux_last_ch_get(mux->i2c_ch, &mux_ch) < 0) {
+            return;
+        } 
+        mux->mux_ch = mux_ch;
+        /*print out info */
+        SWPS_LOG_ERR("mux_ch check OK mux_ch:0x%lx \n", mux_ch);
     }
-    /*set blocked ch to mux driver*/
-    for (mux_id = 0; mux_id < MUX_NUM; mux_id++) {
-#if 1
-        if (mux[mux_id].is_fail && mux[mux_id].mux_ch != 0) {
-            if (mux_ch_block(mux[mux_id].i2c_ch, mux[mux_id].mux_ch) < 0) {
-                return;
-            }
-            ch = num_to_power_two(mux[mux_id].mux_ch);
-            port = mux_id * 8 + ch;
-            if (port < 0 && port > card->sff.valid_port_num) {
-                SWPS_LOG_ERR("port out of range: %d\n", port);
-                return;
-            }
-            sff_obj = &(card->sff.obj[port]);
-            if (!p_valid(sff_obj)) {
-                SWPS_LOG_ERR("NULL ptr mux_id:%d ch:%d\n", mux_id, ch);
-                return;
-            }
-            sff_fsm_st_set(sff_obj, SFF_FSM_ST_ISOLATED);
-        }
-#endif        
-    }
-
-}
-static void i2c_bus_recovery_v2(struct lc_obj_t *card)
-{
+    /*step 3 reset mux*/
     mux_reset_seq(card);
+   /*step 4 block failed mux ch*/ 
+    if (mux->is_fail && mux->mux_ch != 0) {
+        mux->block_ch |= mux->mux_ch;
+        if (mux->block_ch > block_all) {
+            SWPS_LOG_ERR("block_ch:0x%lx out of range\n", mux->block_ch);
+            return;
+        } 
+        if (mux_ch_block(mux->i2c_ch, mux->block_ch) < 0) {
+            return;
+        }
+        /*following is for set sff_fsm_st to isolated*/
+        port = num_to_power_two(mux->mux_ch);
+        if (port < 0 && port > card->sff.valid_port_num) {
+            SWPS_LOG_ERR("port out of range: %d\n", port);
+            return;
+        }
+        sff_obj = &(card->sff.obj[port]);
+        SWPS_LOG_ERR("block_ch:0x%lx %s\n", mux->block_ch, sff_obj->name);
+        if (!p_valid(sff_obj)) {
+            SWPS_LOG_ERR("NULL ptr port_id:%d\n", port);
+            return;
+        }
+        sff_fsm_st_set(sff_obj, SFF_FSM_ST_ISOLATED);
+    } 
+}
+static bool i2c_bus_recovery_is_supported(void)
+{
+    bool is_supported = false;
+    if (PLATFORM_4U == pltfmInfo->id) {
+        is_supported = true;
+    } else {
+        //SWPS_LOG_DBG("i2c bus recovery is not supported\n");
+    }
+    return is_supported;
+}    
+static void i2c_bus_recovery(struct lc_obj_t *card)
+{
+    if (!i2c_bus_recovery_is_supported()) {
+        return;
+    }
     failed_mux_detect(card);
     SWPS_LOG_ERR("mux reset done\n");
     if (i2c_bus_is_alive(card)) {
@@ -4341,7 +4279,6 @@ static void i2c_bus_recovery_v2(struct lc_obj_t *card)
     }
 
 }
-#endif
 static int lc_fsm_run_4U(struct lc_t *card)
 {
     int i = 0;
@@ -4479,27 +4416,30 @@ static void sff_func_init(struct sff_mgr_t *sff)
         sff->prs_scan = sff_prs_scan;
     }
 }
-static int drv_load(void)
+static int drv_load(struct lc_t *self)
 {
-    int lc_num = lcMgr.lc_num;
-
-    if (TYPE_1U == lc_num) {
-        lcMgr.sff_io_drv = sff_io_drv_get_iodev();
-    } else if (TYPE_4U == lc_num) {
-        /*use sff_io_drv_get_lcdev after bring up*/
-        lcMgr.sff_io_drv = sff_io_drv_get_lcdev();
+    int lc_num = self->lc_num;
+    int lc_id = 0;
+    struct sff_io_driver_t *io_drv = NULL;
+    struct sff_eeprom_driver_t *eeprom_drv = NULL;
+    if (PLATFORM_4U == pltfmInfo->id) {
+        io_drv = sff_io_drv_get_lcdev();
     } else {
-        /*print error*/
-    }
-    if (!p_valid(lcMgr.sff_io_drv)) {
+        io_drv = sff_io_drv_get_iodev();
+    }   
+    if (!p_valid(io_drv)) {
         return -ENOSYS;
     }
 
-    sffEepromDrv = sff_eeprom_drv_get();
-    if (!p_valid(sffEepromDrv)) {
+    eeprom_drv = sff_eeprom_drv_get();
+    if (!p_valid(eeprom_drv)) {
         return -ENOSYS;
     }
-
+    
+    for (lc_id = 0; lc_id < lc_num; lc_id++) {
+        self->obj[lc_id].sff.io_drv = io_drv;
+        self->obj[lc_id].sff.eeprom_drv = eeprom_drv;
+    }  
     return 0;
 }
 static int __init swps_init(void)
@@ -4516,22 +4456,26 @@ static int __init swps_init(void)
     sff_eeprom_port_num_set(maxPortNum);
 
     if (sff_kset_create_init() < 0) {
+        SWPS_LOG_ERR("sff_kset_create_init fail\n");
         goto exit_err;
     }
-
-    if (lc_init(&lcMgr, pltfmInfo->lc_num, maxPortNum) < 0) {
-        goto exit_err;
-    }
-
+    
     if (lc_func_load(&lcMgr) < 0) {
+        SWPS_LOG_ERR("lc_func_load fail\n");
         goto exit_err;
     }
-
+    
+    if (lc_create_init(&lcMgr, pltfmInfo->lc_num, maxPortNum) < 0) {
+        SWPS_LOG_ERR("lc_create_init fail\n");
+        goto exit_err;
+    }
+    
     if (lcMgr.lc_func->dev_init(pltfmInfo->id, io_no_init) < 0) {
         goto exit_err;
         SWPS_LOG_ERR("dev_init fail\n");
     }
-    if (drv_load() < 0) {
+    
+    if (drv_load(&lcMgr) < 0) {
         goto exit_err;
         SWPS_LOG_ERR("drv load fail\n");
     }
@@ -4548,10 +4492,13 @@ exit_err:
 
 static void __exit swps_exit(void)
 {
+    struct mux_ch_t *mux = NULL;
+    int lc_id = 0;
+    
     if(swps_polling_is_enabled()) {
         swps_polling_task_stop();
     }
-
+     
     sff_eeprom_deinit();
     lcMgr.lc_func->dev_deinit();
 
@@ -4560,12 +4507,20 @@ static void __exit swps_exit(void)
     lc_common_kobj_destroy(&lcMgr);
     sff_kset_deinit();
 
+    for (lc_id = 0; lc_id < lcMgr.lc_num; lc_id++) { 
+        mux = &(lcMgr.obj[lc_id].mux_l1);
+        if (0 != mux->block_ch) {
+            if (mux_ch_block(mux->i2c_ch, 0) < 0) {
+                SWPS_LOG_ERR("block ch fail:i2c_ch:%d\n", mux->i2c_ch);
+            }
+            mux_fail_reset(mux->i2c_ch);
+        }
+    }
     lc_sff_frontPort_remap_destroy(&lcMgr);
     lc_sff_objs_destroy(&lcMgr);
     lc_objs_destroy(&lcMgr);
 
     SWPS_LOG_INFO("swps:%s  deinit ok\n", pltfmInfo->name);
-
 }
 
 

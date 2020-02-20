@@ -63,6 +63,7 @@ struct sff_eeprom_t {
     struct mutex lock;
 };
 struct eeprom_i2c_tbl_t *eepromI2cTbl = NULL;
+struct i2c_client *sffEepromI2cClient = NULL;
 struct sff_eeprom_t *sffEEprom = NULL;
 int sff_eeprom_read_lc( int lc_id,
                         int port,
@@ -425,44 +426,34 @@ int sff_eeprom_write_internal(int port,
 static void sff_eeprom_clients_destroy(int size)
 {
     int port = 0;
-    int port_num = size;
-    struct i2c_client *client = NULL;
-
-    for (port = 0; port < port_num; port++) {
-        client = sffEEprom[port].i2c_client;
-        if (client) {
-            kfree(client);
-        }
+    
+    if (p_valid(sffEepromI2cClient)) {
+        kfree(sffEepromI2cClient);
+    }
+    for (port = 0; port < size; port++) {
+        sffEEprom[port].i2c_client = NULL;
     }
 }
 static int sff_eeprom_clients_create(int size)
 {
-
     struct i2c_client *client = NULL;
-    int port_num = 0;
     int port = 0;
-    int ret = 0;
+    
+    client = kzalloc(sizeof(struct i2c_client) * size, GFP_KERNEL);
 
-    port_num = size;
-    for (port = 0; port < port_num; port++) {
-
-        client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL);
-
-        if (!client) {
-            ret = -ENOMEM;
-            break;
-        }
-
-        sffEEprom[port].i2c_client = client;
+    if (!p_valid(client)) {
+        return -ENOMEM;
     }
-    if (ret < 0) {
-        sff_eeprom_clients_destroy(eepromI2cTbl->size);
+    sffEepromI2cClient = client;
+    
+    for (port = 0; port < size; port++) {
+        sffEEprom[port].i2c_client = &sffEepromI2cClient[port];
     }
     
     return 0;
 }
 /*init i2c adapter*/
-static int _sff_eeprom_clients_init(struct sff_eeprom_t *eeprom,  struct eeprom_config_t *config)
+static int _sff_eeprom_client_init(struct sff_eeprom_t *eeprom,  struct eeprom_config_t *config)
 {
     struct i2c_adapter *adap;
     struct i2c_client *client = NULL;
@@ -504,7 +495,6 @@ static void sff_eeprom_clients_deinit(int size)
                 i2c_put_adapter(client->adapter);
             }
         }
-        kfree(client);
     }
 }
 
@@ -522,7 +512,7 @@ static int sff_eeprom_clients_init(struct eeprom_i2c_tbl_t *tbl)
     map = tbl->map;
     for (port = 0; port < port_num; port++) {
 
-        if (_sff_eeprom_clients_init(&sffEEprom[port], &map[port]) < 0) {
+        if (_sff_eeprom_client_init(&sffEEprom[port], &map[port]) < 0) {
             ret =  -EBADRQC;
             break;
         }
@@ -539,7 +529,7 @@ static int sff_eeprom_objs_create(int size)
 
     sffEEprom = kzalloc(sizeof(struct sff_eeprom_t) * size, GFP_KERNEL);
 
-    if(!sffEEprom) {
+    if(!p_valid(sffEEprom)) {
         return -ENOMEM;
     }
 
@@ -574,7 +564,7 @@ static int eeprom_i2c_table_load(int platform_id)
 }
 static void sff_eeprom_objs_destroy(void)
 {
-    if(sffEEprom) {
+    if(p_valid(sffEEprom)) {
         kfree(sffEEprom);
     }
 }

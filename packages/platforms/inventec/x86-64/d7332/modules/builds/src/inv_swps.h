@@ -299,7 +299,13 @@ struct sff_obj_t {
     struct func_tbl_t *func_tbl;
     bool page_sel_lock;
 };
-
+struct mux_ch_t {
+    int i2c_ch;
+    unsigned long mux_ch;
+    bool is_fail;
+    unsigned long block_ch;
+};
+#define MUX_MAX_NUM (32) /*<TBD>*/
 struct sff_mgr_t {
     int valid_port_num;
     unsigned long prs;
@@ -309,6 +315,8 @@ struct sff_mgr_t {
     struct swps_kobj_t *common_kobj;
     int (*prs_scan)(struct sff_mgr_t *sff);
     unsigned long io_no_init_port_done;
+    struct sff_io_driver_t *io_drv;
+    struct sff_eeprom_driver_t *eeprom_drv;
 };
 #if 0
 typedef enum {
@@ -376,6 +384,7 @@ struct lc_obj_t {
     bool prs_locked;
     u32 prs_locked_cnt;
     lc_posi_st_t posi_st;    
+    struct mux_ch_t mux_l1;
 };
 
 struct sff_io_driver_t {
@@ -449,7 +458,6 @@ struct lc_t {
     unsigned long ej_r;
     unsigned long ej_l;
     unsigned long io_no_init_all_done;
-    struct sff_io_driver_t *sff_io_drv;
     struct lc_func_t *lc_func;
 };
 /* func table for each sff object*/

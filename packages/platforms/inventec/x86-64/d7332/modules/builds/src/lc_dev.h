@@ -34,6 +34,7 @@ int lc_dev_mux_l1_reset(int lc_id, u8 lv);
 bool lc_dev_mux_l1_is_alive(int lc_id);
 int lc_dev_mux_l2_reset(int lc_id, int mux_l2_id, u8 lv);
 int lc_dev_mux_reset_set(int lc_id, int lv);
+int lc_dev_mux_l1_i2c_ch_get(int lc_id);
 int lc_dev_led_set(int lc_id, lc_led_ctrl_t ctrl);
 int lc_dev_led_st_get(int lc_id, lc_led_ctrl_t *ctrl);
 int lc_dev_init(int platform_id, int io_no_init);

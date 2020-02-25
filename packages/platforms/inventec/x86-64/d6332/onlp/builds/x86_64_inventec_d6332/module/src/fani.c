@@ -111,7 +111,7 @@ static int _inv_get_fan_fru(char* ret_str,int attr_type, int fan_id)
     }
 
     if(ret==ONLP_STATUS_OK) {
-        target_offset=rdata[TLV_PRODUCT_INFO_OFFSET_IDX];
+        target_offset=rdata[TLV_PRODUCT_INFO_OFFSET_IDX-1];
         target_offset*=8; /*spec defined: offset are in multiples of 8 bytes*/
         attr_idx=target_offset+TLV_PRODUCT_INFO_AREA_START;
 

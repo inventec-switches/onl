@@ -16,6 +16,5 @@ class OnlPlatform_x86_64_lenovo_ne1064t_r0(OnlPlatformInventec,
 	self.new_i2c_device('inv_eeprom', 0x57, 0)
 	self.insmod('inv_eeprom')
 	self.insmod('swps')
-	# self.insmod('inv_pthread')
 	# #self.insmod('vpd')
 	return True

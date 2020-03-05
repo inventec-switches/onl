@@ -474,6 +474,26 @@ static ssize_t show_led(struct device *dev, struct device_attribute *da,
 	return sprintf (buf, "%d: %s\n", byte, led_str[byte]);
 }
 
+static ssize_t cpld_show_led(int index)
+{
+	struct i2c_client *client = NULL;
+	struct cpld_data *data = NULL;
+	ssize_t len = 0;
+	u8 byte = 0;
+	int shift = index; 
+
+	mutex_lock(&data->update_lock);
+	len = cpld_i2c_read(client, &byte, CPLD_LED_OFFSET, 1);
+	mutex_unlock(&data->update_lock);
+	if (len==0) return 0;
+
+	byte = (byte >> shift) & 0x3;
+
+	return 1;
+}
+EXPORT_SYMBOL(cpld_show_led);
+
+
 static ssize_t set_led(struct device *dev, struct device_attribute *da,
 			   const char *buf, size_t count)
 {
@@ -495,6 +515,27 @@ static ssize_t set_led(struct device *dev, struct device_attribute *da,
 
 	return count;
 }
+
+ssize_t cpld_set_led(u8 led_mode, int index)
+{
+	struct i2c_client *client = NULL;
+	struct cpld_data *data = NULL;
+
+	u8 byte = 0;
+	int shift = index;
+	led_mode &= 0x3;
+
+	mutex_lock(&data->update_lock);
+	cpld_i2c_read(client, &byte, CPLD_LED_OFFSET, 1);
+	byte &= ~(0x3<<shift);
+	byte |= (led_mode<<shift);
+	cpld_i2c_write(client, &byte, CPLD_LED_OFFSET, 1);
+	mutex_unlock(&data->update_lock);
+
+	return 1;
+}
+EXPORT_SYMBOL(cpld_set_led);
+
 
 static char* psu_str[] = {
     "unpowered",        //00

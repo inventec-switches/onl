@@ -13,6 +13,7 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 
+#define PMBUS_CAPABILITY	0x19
 #define PMBUS_VOUT_MODE		0x20
 #define PMBUS_FAN_PWM		0x3b
 #define PMBUS_READ_VIN		0x88
@@ -33,6 +34,7 @@
 #define PMBUS_READ_MFR_DATE	0x9d
 #define PMBUS_READ_MFR_SERIAL	0x9e
 
+#define PB_CAPABILITY_ERROR_CHECK	0x10000000
 #define DEFAULT_MFR_FAIL_STR	"NA"
 
 static int retrys = 1;
@@ -84,6 +86,9 @@ static s32 reg2data_linear(s32 value, s32 mode, u8 reg)
 	val = mantissa;
 
 	if (reg != PMBUS_READ_FAN1 && reg != PMBUS_READ_FAN2 && reg != PMBUS_FAN_PWM)
+		val = val * 1000;
+
+	if (reg == PMBUS_READ_POUT || reg == PMBUS_READ_PIN)
 		val = val * 1000;
 
 	if (exponent >= 0)
@@ -610,7 +615,7 @@ static int
 inv_psu_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct psu_data *data;
-	int status;
+	int status, ret;
 
 	if (!i2c_check_functionality(client->adapter,
 			I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA))
@@ -621,6 +626,10 @@ inv_psu_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, data);
+	/* Enable PEC if the controller supports it */
+	ret = i2c_smbus_read_byte_data(client, PMBUS_CAPABILITY);
+	if (ret >= 0 && (ret & PB_CAPABILITY_ERROR_CHECK))
+		client->flags |= I2C_CLIENT_PEC;
 
 	/* Register sysfs hooks */
 	status = sysfs_create_group(&client->dev.kobj, &psu_group);

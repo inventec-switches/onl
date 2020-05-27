@@ -1,3 +1,5 @@
+ccflags-y += -Werror
+
 obj-m += inv_cpld.o inv_psoc.o
 obj-m += inv_platform.o
 obj-m += swps.o

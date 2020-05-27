@@ -1,3 +1,5 @@
+ccflags-y += -Werror
+
 obj-m := inv_sff.o
 inv_sff-objs := inv_swps.o io_dev.o lc_dev.o sff_eeprom.o sfp.o qsfp.o qsfp_dd.o 
 

@@ -41,6 +41,8 @@ class OnlPlatform_x86_64_inventec_d6332_r0(OnlPlatformInventec,
         os.system("rmmod gpio_ich")
         self.insmod('i2c-gpio')
         os.system("insmod /lib/modules/`uname -r`/kernel/drivers/gpio/gpio-ich.ko gpiobase=0")
+        os.system("insmod /lib/modules/`uname -r`/kernel/drivers/hwmon/pmbus/pmbus_core.ko")
+        os.system("insmod /lib/modules/`uname -r`/kernel/drivers/hwmon/pmbus/pmbus.ko")
         self.insmod('ucd9000')
         self.insmod('inv_platform')
         self.insmod('inv_cpld')

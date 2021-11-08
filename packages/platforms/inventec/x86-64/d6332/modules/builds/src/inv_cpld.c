@@ -1145,7 +1145,7 @@ static u32 getvalue(char *path)
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	vfs_read(f, temp_str,8,&pos);
+	kernel_read(f, temp_str,8,&pos);
 	temp = simple_strtoul(temp_str,NULL,10);
 	filp_close(f,NULL);
 	set_fs(old_fs);
@@ -1169,7 +1169,7 @@ static u8 setvalue(char *path, u32 value)
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	vfs_write(f, temp_str, len, &pos);
+	kernel_write(f, temp_str, len, &pos);
 	filp_close(f,NULL);
 	set_fs(old_fs);
 
@@ -1283,7 +1283,7 @@ static int cpld_polling(void *p)
 	struct cpld_data *data = i2c_get_clientdata(client);
 	u8 fanrpm[22],fanled[2],frontled,i;
 	u8 fandir=0,fanpresent=0,fanfront,fanrear,fanerror;
-	u8 fanfail,fanturnoff,psufail,lastStack,retry;
+	u8 fanfail, fanturnoff, psufail, lastStack=0, retry;
 	u8 psustatus=0;
 	u8 initial_thermaltrip[3] = {0,0,0};
 
